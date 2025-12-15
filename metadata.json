@@ -1,0 +1,5 @@
+{
+  "name": "Controlos",
+  "description": "Ferramenta interna para posicionamento diário de equipa, gestão de turnos e previsão de necessidades baseada em vendas e IA.",
+  "requestFramePermissions": []
+}

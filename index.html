@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeamPos - Gestão de Equipas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f3f4f6;
+      }
+      
+      @media print {
+        @page {
+          size: landscape;
+          margin: 5mm;
+        }
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          background-color: white !important;
+        }
+        /* Hide scrollbars in print */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
