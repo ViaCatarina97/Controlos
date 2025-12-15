@@ -5,11 +5,35 @@ import { HistoryForecast } from './components/HistoryForecast';
 import { Positioning } from './components/Positioning';
 import { Login } from './components/Login';
 import { ModuleSelector } from './components/ModuleSelector';
+import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, SalesData, DailySchedule, HourlyProjection } from './types';
-import { DEFAULT_SETTINGS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS } from './constants';
-import { LayoutDashboard, Sliders, CalendarDays, Settings as SettingsIcon, Menu, LogOut, Building2, ArrowLeft, Construction } from 'lucide-react';
+import { DEFAULT_SETTINGS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS } from './constants';
+import { LayoutDashboard, Sliders, CalendarDays, Settings as SettingsIcon, Menu, LogOut, Building2, ArrowLeft, Construction, History, TrendingUp } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
+
+interface NavButtonProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  expanded: boolean;
+}
+
+const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, expanded }) => (
+  <button 
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors mb-1
+      ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+    `}
+    title={!expanded ? label : ''}
+  >
+    <div className={`${active ? 'text-white' : ''}`}>
+      {icon}
+    </div>
+    {expanded && <span className="font-medium">{label}</span>}
+  </button>
+);
 
 const App: React.FC = () => {
   // --- State Management ---
@@ -19,19 +43,20 @@ const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
 
   // App Specific (Positioning)
-  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'history' | 'settings'>('positioning');
+  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings'>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
   // Data Persistence Keys
   const SETTINGS_KEY = 'app_all_restaurants';
   const EMPLOYEES_KEY = (id: string) => `app_employees_${id}`;
-  const STAFFING_TABLE_KEY = (id: string) => `app_staffing_table_${id}`; // Changed key
+  const STAFFING_TABLE_KEY = (id: string) => `app_staffing_table_${id}`; 
   const SALES_KEY = (id: string) => `app_sales_${id}`;
+  const SCHEDULES_KEY = (id: string) => `app_schedules_${id}`; // New key for saving schedules
 
   // Global Data (List of Restaurants)
   const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(() => {
     const saved = localStorage.getItem(SETTINGS_KEY);
-    const parsed: AppSettings[] = saved ? JSON.parse(saved) : [DEFAULT_SETTINGS];
+    const parsed: AppSettings[] = saved ? JSON.parse(saved) : INITIAL_RESTAURANTS;
     
     // Migration: Ensure customStations exists on load if missing (for legacy data)
     return parsed.map(r => ({
@@ -42,8 +67,9 @@ const App: React.FC = () => {
 
   // Active Restaurant Data (Loaded when authenticatedRestaurantId changes)
   const [currentEmployees, setCurrentEmployees] = useState<Employee[]>([]);
-  const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]); // New State
+  const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]); 
   const [currentSales, setCurrentSales] = useState<SalesData[]>([]);
+  const [savedSchedules, setSavedSchedules] = useState<DailySchedule[]>([]); // New State
   
   // Positioning context
   const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
@@ -70,7 +96,6 @@ const App: React.FC = () => {
     setCurrentEmployees(empSaved ? JSON.parse(empSaved) : MOCK_EMPLOYEES);
 
     const staffingSaved = localStorage.getItem(STAFFING_TABLE_KEY(authenticatedRestaurantId));
-    // Load saved table or default constant
     setCurrentStaffingTable(staffingSaved ? JSON.parse(staffingSaved) : DEFAULT_STAFFING_TABLE);
 
     const salesSaved = localStorage.getItem(SALES_KEY(authenticatedRestaurantId));
@@ -82,6 +107,11 @@ const App: React.FC = () => {
         { date: '2023-10-21', amount: 2100, isForecast: false },
       ]);
     }
+
+    // Load Schedules
+    const schedSaved = localStorage.getItem(SCHEDULES_KEY(authenticatedRestaurantId));
+    setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+
   }, [authenticatedRestaurantId]);
 
   // Persist Active Data
@@ -90,29 +120,38 @@ const App: React.FC = () => {
     localStorage.setItem(EMPLOYEES_KEY(authenticatedRestaurantId), JSON.stringify(currentEmployees));
     localStorage.setItem(STAFFING_TABLE_KEY(authenticatedRestaurantId), JSON.stringify(currentStaffingTable));
     localStorage.setItem(SALES_KEY(authenticatedRestaurantId), JSON.stringify(currentSales));
-  }, [authenticatedRestaurantId, currentEmployees, currentStaffingTable, currentSales]);
+    localStorage.setItem(SCHEDULES_KEY(authenticatedRestaurantId), JSON.stringify(savedSchedules));
+  }, [authenticatedRestaurantId, currentEmployees, currentStaffingTable, currentSales, savedSchedules]);
 
-  // Update schedule date key & sales
+  // Update schedule date key & sales & Load existing schedule if exists
   useEffect(() => {
-    setCurrentSchedule(prev => ({ ...prev, date: targetDate }));
+    // Check if we have a saved schedule for this date
+    const existingSchedule = savedSchedules.find(s => s.date === targetDate);
+    
+    if (existingSchedule) {
+        setCurrentSchedule(existingSchedule);
+    } else {
+        // Create new blank one
+        setCurrentSchedule({ date: targetDate, shifts: {} });
+    }
+
     const known = currentSales.find(s => s.date === targetDate);
     if(known) setTargetSales(known.amount);
-  }, [targetDate, currentSales]);
+  }, [targetDate, currentSales, savedSchedules]);
 
 
   // --- Handlers ---
 
   const handleRegister = (newRest: AppSettings) => {
-    // Ensure new restaurants have the default stations structure
     const restWithStations = { ...newRest, customStations: STATIONS };
     setAllRestaurants(prev => [...prev, restWithStations]);
     setAuthenticatedRestaurantId(newRest.restaurantId);
-    setActiveModule(null); // Go to module selector
+    setActiveModule(null); 
   };
 
   const handleLogin = (restaurant: AppSettings) => {
     setAuthenticatedRestaurantId(restaurant.restaurantId);
-    setActiveModule(null); // Go to module selector
+    setActiveModule(null); 
   };
 
   const handleLogout = () => {
@@ -123,6 +162,26 @@ const App: React.FC = () => {
 
   const handleUpdateSettings = (updated: AppSettings) => {
     setAllRestaurants(prev => prev.map(r => r.restaurantId === updated.restaurantId ? updated : r));
+  };
+
+  const handleSaveSchedule = (scheduleToSave: DailySchedule) => {
+    // Update local state first
+    setCurrentSchedule(scheduleToSave);
+
+    // Update persistence array
+    setSavedSchedules(prev => {
+        const others = prev.filter(s => s.date !== scheduleToSave.date);
+        return [...others, scheduleToSave];
+    });
+
+    if(scheduleToSave.isLocked) {
+        alert("Posicionamento finalizado e guardado com sucesso!");
+    }
+  };
+
+  const handleLoadFromHistory = (date: string) => {
+    setTargetDate(date);
+    setActiveTab('positioning');
   };
 
   // --- Render Flow ---
@@ -214,10 +273,17 @@ const App: React.FC = () => {
             expanded={sidebarOpen}
           />
            <NavButton 
-            active={activeTab === 'history'} 
-            onClick={() => setActiveTab('history')} 
-            icon={<CalendarDays size={20} />} 
-            label="Histórico" 
+            active={activeTab === 'sales_history'} 
+            onClick={() => setActiveTab('sales_history')} 
+            icon={<TrendingUp size={20} />} 
+            label="Histórico Vendas" 
+            expanded={sidebarOpen}
+          />
+           <NavButton 
+            active={activeTab === 'schedule_history'} 
+            onClick={() => setActiveTab('schedule_history')} 
+            icon={<History size={20} />} 
+            label="Histórico Turnos" 
             expanded={sidebarOpen}
           />
            <NavButton 
@@ -245,11 +311,12 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm p-6 sticky top-0 z-10">
+        <header className="bg-white shadow-sm p-6 sticky top-0 z-10 print:hidden">
           <h2 className="text-2xl font-bold text-gray-800">
             {activeTab === 'positioning' && 'Posicionamento'}
             {activeTab === 'staffing' && 'Staffing'}
-            {activeTab === 'history' && 'Histórico de Vendas'}
+            {activeTab === 'sales_history' && 'Histórico de Vendas'}
+            {activeTab === 'schedule_history' && 'Histórico de Turnos'}
             {activeTab === 'settings' && 'Definições & Staff'}
           </h2>
         </header>
@@ -264,7 +331,7 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
-          {activeTab === 'history' && (
+          {activeTab === 'sales_history' && (
             <HistoryForecast 
               salesData={currentSales} 
               setSalesData={setCurrentSales} 
@@ -274,6 +341,13 @@ const App: React.FC = () => {
               setTargetSales={setTargetSales}
               setHourlyData={setHourlyData}
               onNavigateToPositioning={() => setActiveTab('positioning')}
+            />
+          )}
+          {activeTab === 'schedule_history' && (
+            <ScheduleHistory 
+              schedules={savedSchedules} 
+              onLoadSchedule={handleLoadFromHistory}
+              employees={currentEmployees}
             />
           )}
           {activeTab === 'positioning' && (
@@ -287,6 +361,7 @@ const App: React.FC = () => {
               setSchedule={setCurrentSchedule}
               settings={activeRestaurant}
               hourlyData={hourlyData}
+              onSaveSchedule={handleSaveSchedule}
             />
           )}
         </div>
@@ -294,18 +369,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-const NavButton = ({ active, onClick, icon, label, expanded }: any) => (
-  <button
-    onClick={onClick}
-    className={`
-      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
-      ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}
-    `}
-  >
-    {icon}
-    {expanded && <span className="font-medium">{label}</span>}
-  </button>
-);
 
 export default App;

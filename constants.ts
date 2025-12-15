@@ -59,6 +59,108 @@ export const STATIONS: StationConfig[] = [
   { id: 'rp_2', label: 'RP / GEL 2', designation: 'RP 2', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
 ];
 
+export const INITIAL_RESTAURANTS: AppSettings[] = [
+  {
+    restaurantId: "imp_1",
+    restaurantName: "Imperial",
+    restaurantType: "Loja de Rua",
+    username: "Imperial",
+    password: "Imperial96",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "via_1",
+    restaurantName: "Via Catarina",
+    restaurantType: "Shopping",
+    username: "Via Catarina",
+    password: "Via97",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "ant_1",
+    restaurantName: "Antas",
+    restaurantType: "Loja de Rua",
+    username: "Antas",
+    password: "Antas99",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "cam_1",
+    restaurantName: "Campus São João",
+    restaurantType: "Loja de Rua",
+    username: "Campus São João",
+    password: "Campus10",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "par_1",
+    restaurantName: "Parque Nascente",
+    restaurantType: "Shopping",
+    username: "Parque Nascente",
+    password: "Nascente13",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "rio_1",
+    restaurantName: "Rio Tinto",
+    restaurantType: "Drive",
+    username: "Rio Tinto",
+    password: "Rio11",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
+    businessAreas: ['Loja', 'Drive', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "ala_1",
+    restaurantName: "Alameda",
+    restaurantType: "Shopping",
+    username: "Alameda",
+    password: "Alameda18",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "gon_1",
+    restaurantName: "Gondomar",
+    restaurantType: "Drive",
+    username: "Gondomar",
+    password: "Gondomar20",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
+    businessAreas: ['Loja', 'Drive', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  },
+  {
+    restaurantId: "rib_1",
+    restaurantName: "Ribeira",
+    restaurantType: "Loja de Rua",
+    username: "Ribeira",
+    password: "Ribeira21",
+    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
+    businessAreas: ['Loja', 'Delivery', 'McCafé'],
+    deliveryProviders: ["Uber Eats", "Glovo"],
+    customStations: STATIONS
+  }
+];
+
 export const DEFAULT_SETTINGS: AppSettings = {
   restaurantId: "1",
   restaurantName: "Loja Principal",

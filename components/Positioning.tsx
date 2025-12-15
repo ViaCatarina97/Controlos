@@ -5,7 +5,7 @@ import {
   Users, AlertCircle, X, 
   Bike, ShoppingBag, UtensilsCrossed, Monitor, Coffee, ChefHat, Flame, Sun, Moon, Sunrise, Store, MoonStar, 
   Car, CarFront, CupSoda, Headset, IceCream, HeartHandshake, Sandwich, Utensils, Thermometer, Droplets, ClipboardList, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Eye, EyeOff, Printer
+  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Eye, EyeOff, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap
 } from 'lucide-react';
 
 interface PositioningProps {
@@ -18,6 +18,7 @@ interface PositioningProps {
   setSchedule: (s: DailySchedule) => void;
   settings: AppSettings;
   hourlyData?: HourlyProjection[];
+  onSaveSchedule: (schedule: DailySchedule) => void;
 }
 
 export const Positioning: React.FC<PositioningProps> = ({ 
@@ -28,7 +29,8 @@ export const Positioning: React.FC<PositioningProps> = ({
   schedule, 
   setSchedule,
   settings,
-  hourlyData 
+  hourlyData,
+  onSaveSchedule
 }) => {
   const [selectedShift, setSelectedShift] = useState<ShiftType>('INTERMEDIO');
   const [manualPeakHour, setManualPeakHour] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   // --- Current Assignment Stats ---
   const currentAssignedCount = useMemo(() => {
+     // Only count from 'shifts', explicitly ignoring 'trainees'
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
      const uniqueIds = new Set<string>();
      Object.values(shiftData).forEach((ids) => {
@@ -115,20 +118,14 @@ export const Positioning: React.FC<PositioningProps> = ({
   // --- Filter Stations Logic ---
   // Determine which stations should be visible based on staffing table
   const recommendedStationLabels = useMemo(() => {
-    // 1. Sort table by staff count (ascending) to mimic priority order
-    // We assume the staffing table defines the "order of appearance"
     const sortedTable = [...staffingTable].sort((a, b) => a.staffCount - b.staffCount);
-    
-    // 2. Filter rows where the staff count is less than or equal to the requirement
-    // Example: If 9 people needed, we show all stations associated with count 1 to 9.
     const activeRows = sortedTable.filter(row => row.staffCount <= requirement.count);
-    
-    // 3. Extract station labels into a Set for fast lookup
     return new Set(activeRows.map(r => r.stationLabel));
   }, [staffingTable, requirement.count]);
 
   // --- Handlers ---
   const handleManagerChange = (empId: string) => {
+      if (schedule.isLocked) return;
       const currentManagers = schedule.shiftManagers || {};
       setSchedule({
           ...schedule,
@@ -139,8 +136,35 @@ export const Positioning: React.FC<PositioningProps> = ({
       });
   };
 
+  const handleObjectiveChange = (field: 'turnObjective' | 'productionObjective', value: string) => {
+      if (schedule.isLocked) return;
+      const currentObjs = schedule.shiftObjectives || {};
+      const shiftObjs = currentObjs[selectedShift] || {};
+      
+      setSchedule({
+          ...schedule,
+          shiftObjectives: {
+              ...currentObjs,
+              [selectedShift]: {
+                  ...shiftObjs,
+                  [field]: value
+              }
+          }
+      });
+  };
+
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSaveAndLock = () => {
+      const lockedSchedule = { ...schedule, isLocked: true };
+      onSaveSchedule(lockedSchedule);
+  };
+
+  const handleUnlock = () => {
+      const unlockedSchedule = { ...schedule, isLocked: false };
+      onSaveSchedule(unlockedSchedule);
   };
 
   const getShiftIcon = (id: ShiftType) => {
@@ -157,26 +181,22 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   // --- Dynamic Stations Logic ---
-  // Use settings.customStations if available, otherwise fallback to STATIONS constant
   const allStations = settings.customStations || STATIONS;
 
-  // Filter stations based on ACTIVE status AND Sales Requirement
   const filteredStations = useMemo(() => {
     return allStations.filter(s => {
-        // 1. Must be active in settings
         if (!s.isActive) return false;
-
-        // 2. If "Show All" is on, show everything active
         if (showAllStations) return true;
-
-        // 3. Always show if someone is currently assigned (don't hide assigned staff!)
+        
+        // Show if assigned (Staff OR Trainee)
         const assigned = schedule.shifts[selectedShift]?.[s.id];
-        if (assigned && assigned.length > 0) return true;
+        const assignedTrainees = schedule.trainees?.[selectedShift]?.[s.id];
+        
+        if ((assigned && assigned.length > 0) || (assignedTrainees && assignedTrainees.length > 0)) return true;
 
-        // 4. Check if it's in the recommended list
         return recommendedStationLabels.has(s.label);
     });
-  }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, selectedShift]);
+  }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift]);
 
   const serviceStations = filteredStations.filter(s => s.area === 'service');
   const kitchenStations = filteredStations.filter(s => s.area === 'kitchen');
@@ -184,14 +204,16 @@ export const Positioning: React.FC<PositioningProps> = ({
   const beverageStations = filteredStations.filter(s => s.area === 'beverage');
   const lobbyStations = filteredStations.filter(s => s.area === 'lobby');
 
+  // --- Assignment Handlers (Staff) ---
   const handleAssign = (stationId: string, employeeId: string) => {
+     if (schedule.isLocked) return;
      if(!employeeId) return;
      const currentShift = schedule.shifts[selectedShift] || {};
      const currentAssigned = currentShift[stationId] || [];
      if (currentAssigned.includes(employeeId)) return;
 
      const newShift = { ...currentShift };
-     // Remove from other stations (1 person = 1 station logic)
+     // Remove from other stations (1 person = 1 station logic for staff)
      Object.keys(newShift).forEach(key => {
         newShift[key] = newShift[key].filter(id => id !== employeeId);
      });
@@ -204,6 +226,7 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   const handleRemove = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
     const currentShift = schedule.shifts[selectedShift] || {};
     const currentAssigned = currentShift[stationId] || [];
     setSchedule({
@@ -218,10 +241,59 @@ export const Positioning: React.FC<PositioningProps> = ({
      });
   };
 
+  // --- Assignment Handlers (Trainees) ---
+  const handleAssignTrainee = (stationId: string, employeeId: string) => {
+     if (schedule.isLocked) return;
+     if(!employeeId) return;
+     
+     const currentTrainees = schedule.trainees || {};
+     const currentShiftTrainees = currentTrainees[selectedShift] || {};
+     const currentAssigned = currentShiftTrainees[stationId] || [];
+     
+     if (currentAssigned.includes(employeeId)) return;
+
+     const newShiftTrainees = { ...currentShiftTrainees };
+     
+     // Optional: Remove trainee from other stations in this shift? 
+     // Usually yes, a trainee is in one place.
+     Object.keys(newShiftTrainees).forEach(key => {
+        newShiftTrainees[key] = newShiftTrainees[key].filter(id => id !== employeeId);
+     });
+
+     newShiftTrainees[stationId] = [...(newShiftTrainees[stationId] || []), employeeId];
+
+     setSchedule({
+        ...schedule,
+        trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees }
+     });
+  };
+
+  const handleRemoveTrainee = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
+    const currentTrainees = schedule.trainees || {};
+    const currentShiftTrainees = currentTrainees[selectedShift] || {};
+    const currentAssigned = currentShiftTrainees[stationId] || [];
+
+    setSchedule({
+        ...schedule,
+        trainees: {
+            ...currentTrainees,
+            [selectedShift]: {
+                ...currentShiftTrainees,
+                [stationId]: currentAssigned.filter(id => id !== employeeId)
+            }
+        }
+     });
+  };
+
+
   const shiftManagerName = useMemo(() => {
       const id = schedule.shiftManagers?.[selectedShift];
       return employees.find(e => e.id === id)?.name || 'Não atribuído';
   }, [schedule.shiftManagers, selectedShift, employees]);
+
+  // Current Objectives
+  const currentObjectives = schedule.shiftObjectives?.[selectedShift] || {};
 
   return (
     <>
@@ -254,7 +326,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                   <select 
                     value={schedule.shiftManagers?.[selectedShift] || ''}
                     onChange={(e) => handleManagerChange(e.target.value)}
-                    className="w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    disabled={schedule.isLocked}
+                    className={`
+                        w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none
+                        ${schedule.isLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}
+                    `}
                   >
                       <option value="">Selecione o Gerente...</option>
                       {employees.map(emp => (
@@ -285,6 +361,25 @@ export const Positioning: React.FC<PositioningProps> = ({
           </button>
         ))}
       </div>
+
+      {/* Locked Status Banner */}
+      {schedule.isLocked && (
+          <div className="bg-gray-800 text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-md">
+              <div className="flex items-center gap-3">
+                  <Lock size={20} className="text-yellow-400" />
+                  <div>
+                      <h4 className="font-bold text-sm">Posicionamento Finalizado</h4>
+                      <p className="text-xs text-gray-400">Modo de leitura ativo. Desbloqueie para editar.</p>
+                  </div>
+              </div>
+              <button 
+                onClick={handleUnlock}
+                className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              >
+                  <Unlock size={14} /> Editar
+              </button>
+          </div>
+      )}
 
       {/* 2. Dashboard Summary */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -382,7 +477,37 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
       </div>
 
-      {/* 3. Station Grid Controls */}
+      {/* 3. Objectives & Targets Section (New) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+             <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm">
+                <Target size={16} />
+                Objetivo de Turno
+             </div>
+             <textarea
+                value={currentObjectives.turnObjective || ''}
+                onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)}
+                placeholder="Ex: Focar na rapidez do Drive..."
+                disabled={schedule.isLocked}
+                className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none h-20 placeholder:text-gray-400 disabled:opacity-70 disabled:bg-gray-50"
+             />
+         </div>
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+             <div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm">
+                <Flame size={16} />
+                Objetivo de Produção
+             </div>
+             <textarea
+                value={currentObjectives.productionObjective || ''}
+                onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)}
+                placeholder="Ex: Manter tempos de KVS abaixo de 40s..."
+                disabled={schedule.isLocked}
+                className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none resize-none h-20 placeholder:text-gray-400 disabled:opacity-70 disabled:bg-gray-50"
+             />
+         </div>
+      </div>
+
+      {/* 4. Station Grid Controls */}
       <div className="flex justify-between items-center pt-2 px-1">
           <h3 className="font-bold text-gray-700 flex items-center gap-2">
               <Briefcase size={20} />
@@ -392,12 +517,32 @@ export const Positioning: React.FC<PositioningProps> = ({
               </span>
           </h3>
           <div className="flex items-center gap-3">
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
-              >
-                  <Printer size={16} /> Imprimir
-              </button>
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                {!schedule.isLocked && (
+                    <button
+                        onClick={handleSaveAndLock}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                    >
+                        <Save size={16} /> Finalizar
+                    </button>
+                )}
+                {schedule.isLocked && (
+                    <button
+                        onClick={handleUnlock}
+                        className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"
+                    >
+                        <Edit size={16} /> Editar
+                    </button>
+                )}
+                <button
+                    onClick={handlePrint}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                >
+                    <Printer size={16} /> Imprimir
+                </button>
+              </div>
+
               <div className="h-6 w-px bg-gray-300 mx-1"></div>
               <span className="text-xs font-medium text-gray-500">
                   {showAllStations ? 'Mostrar todos' : `Sugestão (${requirement.count})`}
@@ -419,7 +564,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
       </div>
 
-      {/* 4. Station Grid (Grouped by Area) */}
+      {/* 5. Station Grid (Grouped by Area) */}
       <div className="flex-1 overflow-auto grid grid-cols-1 xl:grid-cols-3 gap-6 pb-20">
          
          {kitchenStations.length > 0 && (
@@ -432,7 +577,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                     employees={employees}
                     onAssign={handleAssign}
                     onRemove={handleRemove}
+                    onAssignTrainee={handleAssignTrainee}
+                    onRemoveTrainee={handleRemoveTrainee}
                     color="red"
+                    isLocked={schedule.isLocked}
                 />
              </div>
          )}
@@ -448,7 +596,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                         employees={employees}
                         onAssign={handleAssign}
                         onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
                         color="purple"
+                        isLocked={schedule.isLocked}
                     />
                  )}
                  
@@ -461,7 +612,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                         employees={employees}
                         onAssign={handleAssign}
                         onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
                         color="blue"
+                        isLocked={schedule.isLocked}
                     />
                  )}
              </div>
@@ -478,7 +632,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                         employees={employees}
                         onAssign={handleAssign}
                         onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
                         color="green"
+                        isLocked={schedule.isLocked}
                     />
                 )}
 
@@ -491,7 +648,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                         employees={employees}
                         onAssign={handleAssign}
                         onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
                         color="yellow"
+                        isLocked={schedule.isLocked}
                     />
                 )}
             </div>
@@ -526,6 +686,20 @@ export const Positioning: React.FC<PositioningProps> = ({
                 <div className="text-lg text-slate-600 font-medium">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
             </div>
         </div>
+
+        {/* Print Objectives (If any) */}
+        {(currentObjectives.turnObjective || currentObjectives.productionObjective) && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+                 <div className="bg-slate-50 p-3 rounded border border-slate-200">
+                    <h4 className="font-bold text-xs uppercase text-slate-400 mb-1">Objetivo de Turno</h4>
+                    <p className="text-sm font-medium">{currentObjectives.turnObjective || '---'}</p>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded border border-slate-200">
+                    <h4 className="font-bold text-xs uppercase text-slate-400 mb-1">Objetivo de Produção</h4>
+                    <p className="text-sm font-medium">{currentObjectives.productionObjective || '---'}</p>
+                 </div>
+            </div>
+        )}
 
         {/* Print KPIs */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 flex justify-between items-center">
@@ -610,7 +784,7 @@ export const Positioning: React.FC<PositioningProps> = ({
 
 // --- Sub-components ---
 
-const StationGroup = ({ title, stations, schedule, selectedShift, employees, onAssign, onRemove, color }: any) => {
+const StationGroup = ({ title, stations, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, color, isLocked }: any) => {
     const borderColor = {
         red: 'border-l-red-500',
         blue: 'border-l-blue-500',
@@ -643,7 +817,10 @@ const StationGroup = ({ title, stations, schedule, selectedShift, employees, onA
                         employees={employees}
                         onAssign={onAssign}
                         onRemove={onRemove}
+                        onAssignTrainee={onAssignTrainee}
+                        onRemoveTrainee={onRemoveTrainee}
                         borderColor={borderColor}
+                        isLocked={isLocked}
                     />
                 ))}
             </div>
@@ -651,11 +828,19 @@ const StationGroup = ({ title, stations, schedule, selectedShift, employees, onA
     );
 };
 
-const StationCard = ({ station, schedule, selectedShift, employees, onAssign, onRemove, borderColor }: any) => {
+const StationCard = ({ station, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, borderColor, isLocked }: any) => {
     const [isSelecting, setIsSelecting] = useState(false);
+    const [isSelectingTrainee, setIsSelectingTrainee] = useState(false);
     
+    // Normal Staff
     const assignedIds = (schedule.shifts[selectedShift]?.[station.id] || []) as string[];
     const assignedEmployees = assignedIds
+        .map(id => employees.find((e: Employee) => e.id === id))
+        .filter(Boolean);
+
+    // Trainees
+    const traineeIds = (schedule.trainees?.[selectedShift]?.[station.id] || []) as string[];
+    const traineeEmployees = traineeIds
         .map(id => employees.find((e: Employee) => e.id === id))
         .filter(Boolean);
 
@@ -664,7 +849,13 @@ const StationCard = ({ station, schedule, selectedShift, employees, onAssign, on
     // Get available employees (not assigned anywhere in this shift)
     const availableEmployees = useMemo(() => {
         const shiftData = schedule.shifts[selectedShift] || {};
-        const allAssignedIds = Object.values(shiftData).flat();
+        const traineesData = schedule.trainees?.[selectedShift] || {};
+        
+        const allAssignedIds = [
+            ...Object.values(shiftData).flat(),
+            ...Object.values(traineesData).flat()
+        ];
+        
         return employees.filter((e: Employee) => !allAssignedIds.includes(e.id));
     }, [schedule, selectedShift, employees]);
 
@@ -678,15 +869,26 @@ const StationCard = ({ station, schedule, selectedShift, employees, onAssign, on
         }
     };
 
+    const handleSelectTrainee = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (val) {
+            onAssignTrainee(station.id, val);
+            setIsSelectingTrainee(false);
+        }
+    };
+
     return (
-        <div className={`bg-white rounded-lg border border-gray-200 shadow-sm border-l-4 ${borderColor} p-3 animate-scale-up`}>
+        <div className={`
+            bg-white rounded-lg border border-gray-200 shadow-sm border-l-4 ${borderColor} p-3 animate-scale-up
+            ${isLocked ? 'bg-opacity-50' : ''}
+        `}>
              <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2 text-gray-700">
-                    <div className="p-1.5 bg-gray-50 rounded text-gray-500">
+                    <div className={`p-1.5 bg-gray-50 rounded text-gray-500 ${isLocked ? 'opacity-50' : ''}`}>
                         <Icon size={16} />
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-semibold text-sm leading-tight">{station.label}</span>
+                        <span className={`font-semibold text-sm leading-tight ${isLocked ? 'text-gray-600' : ''}`}>{station.label}</span>
                         {station.designation && <span className="text-[10px] text-gray-400 font-mono">{station.designation}</span>}
                     </div>
                 </div>
@@ -696,40 +898,87 @@ const StationCard = ({ station, schedule, selectedShift, employees, onAssign, on
             <div className="space-y-2">
                 {/* Assigned List */}
                 <div className="flex flex-wrap gap-2">
+                    {/* Normal Staff */}
                     {assignedEmployees.map((emp: Employee) => (
-                         <div key={emp.id} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs border border-slate-200">
+                         <div key={emp.id} className={`flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs border border-slate-200 ${isLocked ? 'opacity-80' : ''}`}>
                              <div className={`w-1.5 h-1.5 rounded-full ${ROLE_COLORS[emp.role].split(' ')[0]}`}></div>
                              <span className="font-medium max-w-[80px] truncate">{emp.name}</span>
-                             <button onClick={() => onRemove(station.id, emp.id)} className="text-slate-400 hover:text-red-500 ml-1"><X size={12}/></button>
+                             {!isLocked && (
+                                <button onClick={() => onRemove(station.id, emp.id)} className="text-slate-400 hover:text-red-500 ml-1"><X size={12}/></button>
+                             )}
+                         </div>
+                    ))}
+                    
+                    {/* Trainees */}
+                    {traineeEmployees.map((emp: Employee) => (
+                         <div key={emp.id} className={`flex items-center gap-1 bg-orange-50 text-orange-800 px-2 py-1 rounded text-xs border border-orange-200 ${isLocked ? 'opacity-80' : ''}`}>
+                             <GraduationCap size={10} className="text-orange-600"/>
+                             <span className="font-medium max-w-[80px] truncate">{emp.name}</span>
+                             {!isLocked && (
+                                <button onClick={() => onRemoveTrainee(station.id, emp.id)} className="text-orange-400 hover:text-red-500 ml-1"><X size={12}/></button>
+                             )}
                          </div>
                     ))}
                 </div>
 
-                {/* Add Action */}
-                {!isFull && (
-                    <div className="mt-2">
-                        {isSelecting ? (
-                             <select 
-                                autoFocus
-                                onBlur={() => setIsSelecting(false)}
-                                onChange={handleSelect}
-                                className="w-full text-xs p-1.5 border border-blue-300 rounded bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                defaultValue=""
-                             >
-                                <option value="" disabled>Selecione...</option>
-                                {availableEmployees.length === 0 && <option disabled>Sem staff disponível</option>}
-                                {availableEmployees.map((emp: Employee) => (
-                                    <option key={emp.id} value={emp.id}>{emp.name} ({ROLE_LABELS[emp.role]})</option>
-                                ))}
-                             </select>
-                        ) : (
-                            <button 
-                                onClick={() => setIsSelecting(true)}
-                                className="w-full py-1 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
-                            >
-                                <Plus size={14} />
-                            </button>
+                {/* Add Actions */}
+                {!isLocked && (
+                    <div className="flex gap-2 mt-2">
+                        {/* Add Staff */}
+                        {!isFull && (
+                            <div className="flex-1">
+                                {isSelecting ? (
+                                    <select 
+                                        autoFocus
+                                        onBlur={() => setIsSelecting(false)}
+                                        onChange={handleSelect}
+                                        className="w-full text-xs p-1.5 border border-blue-300 rounded bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Selecione...</option>
+                                        {availableEmployees.length === 0 && <option disabled>Sem staff disponível</option>}
+                                        {availableEmployees.map((emp: Employee) => (
+                                            <option key={emp.id} value={emp.id}>{emp.name} ({ROLE_LABELS[emp.role]})</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <button 
+                                        onClick={() => { setIsSelecting(true); setIsSelectingTrainee(false); }}
+                                        className="w-full py-1 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                                        title="Adicionar Colaborador"
+                                    >
+                                        <Plus size={14} />
+                                    </button>
+                                )}
+                            </div>
                         )}
+                        
+                        {/* Add Trainee */}
+                        <div className={`${isFull ? 'w-full' : 'w-auto'}`}>
+                             {isSelectingTrainee ? (
+                                    <select 
+                                        autoFocus
+                                        onBlur={() => setIsSelectingTrainee(false)}
+                                        onChange={handleSelectTrainee}
+                                        className="w-full text-xs p-1.5 border border-orange-300 rounded bg-orange-50 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Selecione Formando...</option>
+                                        {availableEmployees.length === 0 && <option disabled>Sem staff disponível</option>}
+                                        {availableEmployees.map((emp: Employee) => (
+                                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <button 
+                                        onClick={() => { setIsSelectingTrainee(true); setIsSelecting(false); }}
+                                        className={`py-1 ${isFull ? 'w-full' : 'px-3'} border border-dashed border-orange-200 rounded-lg text-orange-300 hover:text-orange-600 hover:border-orange-400 hover:bg-orange-50 transition-colors flex items-center justify-center gap-1`}
+                                        title="Adicionar Formando (Não conta para o staff)"
+                                    >
+                                        <GraduationCap size={14} />
+                                    </button>
+                                )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -744,6 +993,11 @@ const PrintCard = ({ station, schedule, selectedShift, employees }: any) => {
         .map((id: string) => employees.find((e: Employee) => e.id === id))
         .filter(Boolean);
 
+    const traineeIds = (schedule.trainees?.[selectedShift]?.[station.id] || []) as string[];
+    const traineeEmployees = traineeIds
+        .map((id: string) => employees.find((e: Employee) => e.id === id))
+        .filter(Boolean);
+
     return (
         <div className="border border-slate-200 rounded p-2 bg-white break-inside-avoid shadow-sm">
             <div className="flex justify-between items-center mb-1">
@@ -754,12 +1008,18 @@ const PrintCard = ({ station, schedule, selectedShift, employees }: any) => {
                    {assignedEmployees.length}/{station.defaultSlots}
                 </div>
             </div>
-            {assignedEmployees.length > 0 ? (
+            {(assignedEmployees.length > 0 || traineeEmployees.length > 0) ? (
                 <div className="flex flex-col gap-1">
                     {assignedEmployees.map((emp: Employee) => (
                         <div key={emp.id} className="flex items-center gap-1.5">
                             <div className={`w-2 h-2 rounded-full ${ROLE_COLORS[emp.role].split(' ')[0]}`}></div>
                             <span className="text-xs font-medium text-slate-600 truncate">{emp.name}</span>
+                        </div>
+                    ))}
+                    {traineeEmployees.map((emp: Employee) => (
+                        <div key={emp.id} className="flex items-center gap-1.5">
+                            <GraduationCap size={10} className="text-orange-500"/>
+                            <span className="text-xs font-medium text-orange-600 truncate italic">{emp.name}</span>
                         </div>
                     ))}
                 </div>

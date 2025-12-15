@@ -88,10 +88,22 @@ export interface DailySchedule {
   shifts: {
     [key in ShiftType]?: StationAssignment; 
   };
+  // New field for trainees (separate from main shifts to not count towards total)
+  trainees?: {
+    [key in ShiftType]?: StationAssignment;
+  };
   shiftManagers?: {
     [key in ShiftType]?: string; 
   };
+  // New field for objectives
+  shiftObjectives?: {
+    [key in ShiftType]?: {
+       turnObjective?: string;
+       productionObjective?: string;
+    };
+  };
   notes?: string;
+  isLocked?: boolean; // New field to indicate finalized/read-only state
 }
 
 export interface AISuggestion {

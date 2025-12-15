@@ -14,7 +14,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({ employees, setEmploy
   
   // Form State
   const [name, setName] = useState('');
-  const [role, setRole] = useState<RoleType>('SALA');
+  const [role, setRole] = useState<RoleType>('TREINADOR');
 
   const openModal = (emp?: Employee) => {
     if (emp) {
@@ -24,7 +24,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({ employees, setEmploy
     } else {
       setEditingId(null);
       setName('');
-      setRole('SALA');
+      setRole('TREINADOR');
     }
     setIsModalOpen(true);
   };
