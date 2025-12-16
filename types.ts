@@ -18,7 +18,7 @@ export interface StationConfig {
   designation?: string; // Short code/name
   icon: string;
   defaultSlots: number;
-  area: 'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage'; // Expanded areas
+  area: 'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'; // Expanded areas
   isActive: boolean; // New field to toggle in settings
 }
 

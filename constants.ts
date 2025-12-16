@@ -19,32 +19,32 @@ export const STATIONS: StationConfig[] = [
   { id: 'k_fin_1', label: 'Finalizador 1', designation: 'FIN 1', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
   { id: 'k_fin_2', label: 'Finalizador 2', designation: 'FIN 2', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
   
-  { id: 'k_fries_1', label: 'Batata 1', designation: 'BAT 1', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_fries_2', label: 'Batata 2', designation: 'BAT 2', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'kitchen', isActive: true },
+  // --- BATATAS (FRIES) ---
+  { id: 'fries_1', label: 'Batata - Posto 1', designation: 'BAT 1', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'fries', isActive: true },
+  { id: 'fries_2', label: 'Batata - Posto 2', designation: 'BAT 2', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'fries', isActive: true },
+
+  // --- DRIVE ---
+  { id: 'drv_pay', label: 'Drive - Caixa', designation: 'DRV PAG', icon: 'UserCircle', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_pres_1', label: 'Drive - Apresentador 1', designation: 'DRV PRES 1', icon: 'Smile', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_pres_2', label: 'Drive - Apresentador 2', designation: 'DRV PRES 2', icon: 'Smile', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_run_1', label: 'Drive - Runner 1', designation: 'DRV RUN 1', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_run_2', label: 'Drive - Runner 2', designation: 'DRV RUN 2', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_ot_1', label: 'Drive - Tomador Pedidos 1', designation: 'DRV OT 1', icon: 'Headset', defaultSlots: 1, area: 'drive', isActive: true },
 
   // --- BEBIDAS (CELL) ---
   { id: 'bev_init', label: 'Bebidas - Iniciador', designation: 'BEB INI', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
   { id: 'bev_fin', label: 'Bebidas - Finalizador', designation: 'BEB FIN', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
   { id: 'bev_ice', label: 'Bebidas - Gelados', designation: 'GELADOS', icon: 'IceCream', defaultSlots: 1, area: 'beverage', isActive: true },
 
-  // --- SERVIÇO ---
-  { id: 'svc_exp_1', label: 'Expedidor 1', designation: 'EXP 1', icon: 'Monitor', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_exp_2', label: 'Expedidor 2', designation: 'EXP 2', icon: 'Monitor', defaultSlots: 1, area: 'service', isActive: true },
-  
-  { id: 'svc_run_1', label: 'Runner 1', designation: 'RUN 1', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_run_2', label: 'Runner 2', designation: 'RUN 2', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_run_3', label: 'Runner 3', designation: 'RUN 3', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_run_4', label: 'Runner 4', designation: 'RUN 4', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
-  
-  { id: 'svc_pres_1', label: 'Apresentador 1', designation: 'APRES 1', icon: 'Smile', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_pres_2', label: 'Apresentador 2', designation: 'APRES 2', icon: 'Smile', defaultSlots: 1, area: 'service', isActive: true },
-  
-  { id: 'svc_ext_1', label: 'Apresentador Externo 1', designation: 'EXT 1', icon: 'CarFront', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_ext_2', label: 'Apresentador Externo 2', designation: 'EXT 2', icon: 'CarFront', defaultSlots: 1, area: 'service', isActive: true },
-  
-  { id: 'svc_cash_1', label: 'Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_cash_2', label: 'Caixa 2', designation: 'CX 2', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_cash_3', label: 'Caixa 3', designation: 'CX 3', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
+  // --- McCAFÉ ---
+  { id: 'mc_barista_1', label: 'McCafé - Barista 1', designation: 'BARISTA 1', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
+  { id: 'mc_barista_2', label: 'McCafé - Barista 2', designation: 'BARISTA 2', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
+
+  // --- SERVIÇO (BALCÃO) ---
+  { id: 'svc_exp_1', label: 'Balcão - Expedidor 1', designation: 'EXP 1', icon: 'Monitor', defaultSlots: 1, area: 'service', isActive: true },
+  { id: 'svc_run_1', label: 'Balcão - Runner 1', designation: 'RUN 1', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
+  { id: 'svc_pres_1', label: 'Balcão - Apresentador 1', designation: 'APRES 1', icon: 'Smile', defaultSlots: 1, area: 'service', isActive: true },
+  { id: 'svc_cash_1', label: 'Balcão - Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
 
   // --- DELIVERY ---
   { id: 'del_prep', label: 'Delivery - Preparador', designation: 'DEL PREP', icon: 'ShoppingBag', defaultSlots: 1, area: 'delivery', isActive: true },

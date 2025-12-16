@@ -4,7 +4,7 @@ import { AVAILABLE_AREAS, AVAILABLE_SHIFTS, AVAILABLE_TYPOLOGIES, ROLE_COLORS, R
 import { 
   Save, Plus, Trash2, User, Edit2, X, Check, Store, Clock, LayoutGrid, Briefcase, 
   Flame, Utensils, Sandwich, Thermometer, CupSoda, Monitor, ShoppingBag, Smile, 
-  CarFront, UserCircle, CheckCircle2, Coffee, Users, HeartHandshake, Package, Flag
+  CarFront, UserCircle, CheckCircle2, Coffee, Users, HeartHandshake, Package, Flag, Car
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -17,8 +17,13 @@ interface SettingsProps {
 // Helper to categorize stations based on keywords in their label
 const getStationCategory = (label: string) => {
     const lower = label.toLowerCase();
+    
+    // Explicit Areas (if label contains specific keywords for the new areas)
+    if (lower.includes('drive') || lower.includes('drv')) return { key: 'drive', label: 'Drive', icon: Car, color: 'bg-slate-200 text-slate-700' };
+    if (lower.includes('mccafé') || lower.includes('mccafe') || lower.includes('barista')) return { key: 'mccafe', label: 'McCafé', icon: Coffee, color: 'bg-amber-100 text-amber-800' };
+    if (lower.includes('batata') || lower.includes('fries') || lower.includes('frit')) return { key: 'fries', label: 'Batatas', icon: Utensils, color: 'bg-yellow-100 text-yellow-700' };
+
     if (lower.includes('batch cooker') || lower.includes('bc ')) return { key: 'batch_cooker', label: 'Batch Cooker', icon: Flame, color: 'bg-orange-100 text-orange-700' };
-    if (lower.includes('fritadeira') || lower.includes('batata')) return { key: 'fries', label: 'Batatas & Fritos', icon: Thermometer, color: 'bg-yellow-100 text-yellow-700' };
     if (lower.includes('iniciador')) return { key: 'init', label: 'Iniciador', icon: Sandwich, color: 'bg-red-100 text-red-700' };
     if (lower.includes('preparador') && !lower.includes('delivery')) return { key: 'prep', label: 'Preparador', icon: Utensils, color: 'bg-red-100 text-red-700' };
     if (lower.includes('finalizador')) return { key: 'fin', label: 'Finalizador', icon: Flag, color: 'bg-red-100 text-red-700' };
@@ -49,7 +54,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   // Station Form Fields
   const [stationLabel, setStationLabel] = useState('');
   const [stationDesignation, setStationDesignation] = useState('');
-  const [stationArea, setStationArea] = useState<'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage'>('service');
+  const [stationArea, setStationArea] = useState<'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'>('service');
   const [stationSlots, setStationSlots] = useState(1);
 
   // --- Settings State ---
@@ -68,7 +73,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
     });
 
     // Sort groups order if needed, or stick to predefined order
-    const orderedKeys = ['batch_cooker', 'init', 'prep', 'fin', 'fries', 'bev', 'exp', 'run', 'pres', 'cash', 'del', 'lobby', 'other'];
+    const orderedKeys = ['drive', 'mccafe', 'batch_cooker', 'fries', 'init', 'prep', 'fin', 'bev', 'exp', 'run', 'pres', 'cash', 'del', 'lobby', 'other'];
     return orderedKeys.map(key => groups[key]).filter(Boolean);
   }, [localSettings.customStations]);
 
@@ -536,6 +541,9 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                     >
                         <option value="kitchen">Produção (Cozinha)</option>
                         <option value="service">Serviço (Balcão)</option>
+                        <option value="drive">Drive</option>
+                        <option value="fries">Batatas (Fries)</option>
+                        <option value="mccafe">McCafé</option>
                         <option value="delivery">Delivery</option>
                         <option value="beverage">Bebidas (Cell)</option>
                         <option value="lobby">Sala (Lobby)</option>
