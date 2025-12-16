@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
-import { ROLE_COLORS, ROLE_LABELS, AVAILABLE_SHIFTS, STATIONS } from '../constants';
+import { ROLE_COLORS, AVAILABLE_SHIFTS, STATIONS } from '../constants';
 import { 
   Users, AlertCircle, X, 
-  Bike, ShoppingBag, UtensilsCrossed, Monitor, Coffee, ChefHat, Flame, Sun, Moon, Sunrise, Store, MoonStar, 
-  Car, CarFront, CupSoda, Headset, IceCream, HeartHandshake, Sandwich, Utensils, Thermometer, Droplets, ClipboardList, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Eye, EyeOff, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap
+  Bike, ShoppingBag, UtensilsCrossed, Monitor, Coffee, Flame, Sun, Moon, Sunrise, Store, MoonStar, 
+  Car, CupSoda, Headset, IceCream, HeartHandshake, Sandwich, Utensils, Thermometer, TrendingUp,
+  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap
 } from 'lucide-react';
 
 interface PositioningProps {
@@ -570,42 +570,27 @@ export const Positioning: React.FC<PositioningProps> = ({
       {/* 5. Station Grid (Grouped by Area) */}
       <div className="flex-1 overflow-auto grid grid-cols-1 xl:grid-cols-3 gap-6 pb-20">
          
-         {(kitchenStations.length > 0 || friesStations.length > 0) && (
+         {/* Column 1: Kitchen Only */}
+         {kitchenStations.length > 0 && (
              <div className="flex flex-col gap-6">
-                {kitchenStations.length > 0 && (
-                    <StationGroup 
-                        title="Produção (Cozinha)" 
-                        stations={kitchenStations} 
-                        schedule={schedule}
-                        selectedShift={selectedShift}
-                        employees={employees}
-                        onAssign={handleAssign}
-                        onRemove={handleRemove}
-                        onAssignTrainee={handleAssignTrainee}
-                        onRemoveTrainee={handleRemoveTrainee}
-                        color="red"
-                        isLocked={schedule.isLocked}
-                    />
-                )}
-                {friesStations.length > 0 && (
-                    <StationGroup 
-                        title="Batatas (Fries)" 
-                        stations={friesStations} 
-                        schedule={schedule}
-                        selectedShift={selectedShift}
-                        employees={employees}
-                        onAssign={handleAssign}
-                        onRemove={handleRemove}
-                        onAssignTrainee={handleAssignTrainee}
-                        onRemoveTrainee={handleRemoveTrainee}
-                        color="yellow"
-                        isLocked={schedule.isLocked}
-                    />
-                )}
+                <StationGroup 
+                    title="Produção (Cozinha)" 
+                    stations={kitchenStations} 
+                    schedule={schedule}
+                    selectedShift={selectedShift}
+                    employees={employees}
+                    onAssign={handleAssign}
+                    onRemove={handleRemove}
+                    onAssignTrainee={handleAssignTrainee}
+                    onRemoveTrainee={handleRemoveTrainee}
+                    color="red"
+                    isLocked={schedule.isLocked}
+                />
              </div>
          )}
 
-         {(serviceStations.length > 0 || driveStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0) && (
+         {/* Column 2: Drive + Service */}
+         {(serviceStations.length > 0 || driveStations.length > 0) && (
              <div className="flex flex-col gap-6">
                  {driveStations.length > 0 && (
                      <StationGroup 
@@ -618,7 +603,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                         onRemove={handleRemove}
                         onAssignTrainee={handleAssignTrainee}
                         onRemoveTrainee={handleRemoveTrainee}
-                        color="blue" // Darker blue/Slate ideally, reusing 'blue' for now or map to specific styles
+                        color="blue"
                         isLocked={schedule.isLocked}
                     />
                  )}
@@ -637,22 +622,50 @@ export const Positioning: React.FC<PositioningProps> = ({
                         isLocked={schedule.isLocked}
                     />
                  )}
-                 {beverageStations.length > 0 && (
-                     <StationGroup 
-                        title="Bebidas (Cell)" 
-                        stations={beverageStations} 
-                        schedule={schedule}
-                        selectedShift={selectedShift}
-                        employees={employees}
-                        onAssign={handleAssign}
-                        onRemove={handleRemove}
-                        onAssignTrainee={handleAssignTrainee}
-                        onRemoveTrainee={handleRemoveTrainee}
-                        color="purple"
-                        isLocked={schedule.isLocked}
-                    />
-                 )}
-                 {mccafeStations.length > 0 && (
+             </div>
+         )}
+
+        {/* Column 3: Support Areas (Fries, Beverage, McCafe, Delivery, Lobby) */}
+        {(deliveryStations.length > 0 || lobbyStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0 || friesStations.length > 0) && (
+            <div className="flex flex-col gap-6">
+                
+                {/* Fries & Beverage Grouped visually as Support */}
+                {(friesStations.length > 0 || beverageStations.length > 0) && (
+                    <>
+                        {friesStations.length > 0 && (
+                            <StationGroup 
+                                title="Batatas (Fries)" 
+                                stations={friesStations} 
+                                schedule={schedule}
+                                selectedShift={selectedShift}
+                                employees={employees}
+                                onAssign={handleAssign}
+                                onRemove={handleRemove}
+                                onAssignTrainee={handleAssignTrainee}
+                                onRemoveTrainee={handleRemoveTrainee}
+                                color="yellow"
+                                isLocked={schedule.isLocked}
+                            />
+                        )}
+                        {beverageStations.length > 0 && (
+                            <StationGroup 
+                                title="Bebidas (Cell)" 
+                                stations={beverageStations} 
+                                schedule={schedule}
+                                selectedShift={selectedShift}
+                                employees={employees}
+                                onAssign={handleAssign}
+                                onRemove={handleRemove}
+                                onAssignTrainee={handleAssignTrainee}
+                                onRemoveTrainee={handleRemoveTrainee}
+                                color="purple"
+                                isLocked={schedule.isLocked}
+                            />
+                        )}
+                    </>
+                )}
+
+                {mccafeStations.length > 0 && (
                      <StationGroup 
                         title="McCafé" 
                         stations={mccafeStations} 
@@ -663,15 +676,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                         onRemove={handleRemove}
                         onAssignTrainee={handleAssignTrainee}
                         onRemoveTrainee={handleRemoveTrainee}
-                        color="yellow" // Or brown logic
+                        color="yellow"
                         isLocked={schedule.isLocked}
                     />
                  )}
-             </div>
-         )}
 
-        {(deliveryStations.length > 0 || lobbyStations.length > 0) && (
-            <div className="flex flex-col gap-6">
                 {deliveryStations.length > 0 && (
                     <StationGroup 
                         title="Delivery" 
@@ -722,67 +731,64 @@ export const Positioning: React.FC<PositioningProps> = ({
     </div>
 
     {/* ================= PRINT VIEW (VISUAL MAP) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-800 overflow-hidden">
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-2 text-slate-800 overflow-hidden">
         
         {/* Print Header */}
-        <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-slate-900">
+        <div className="flex justify-between items-start mb-2 pb-2 border-b-2 border-slate-900">
             <div>
-                <h1 className="text-3xl font-extrabold uppercase tracking-tight text-slate-900 mb-1">{settings.restaurantName}</h1>
-                <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Mapa de Posicionamento Operacional</p>
+                <h1 className="text-2xl font-extrabold uppercase tracking-tight text-slate-900 mb-0 leading-none">{settings.restaurantName}</h1>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Mapa de Posicionamento Operacional</p>
             </div>
             <div className="text-right">
-                <div className="inline-block bg-slate-900 text-white px-4 py-1 rounded-full text-2xl font-black uppercase mb-2">{getShiftLabel(selectedShift)}</div>
-                <div className="text-lg font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div className="inline-block bg-slate-900 text-white px-3 py-0.5 rounded-full text-lg font-black uppercase mb-1">{getShiftLabel(selectedShift)}</div>
+                <div className="text-xs font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
             </div>
         </div>
 
-        {/* Top Stats Bar */}
-        <div className="flex gap-4 mb-6">
-            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+        {/* Top Stats Bar - Compact */}
+        <div className="flex gap-2 mb-3">
+            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Gerente Turno</span>
-                    <div className="font-bold text-lg leading-none">{shiftManagerName}</div>
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Gerente</span>
+                    <div className="font-bold text-sm leading-none truncate">{shiftManagerName}</div>
                  </div>
-                 <UserCircle className="text-slate-300" size={24} />
             </div>
-            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Previsão</span>
-                    <div className="font-bold text-lg leading-none">{activeSalesData.totalSales} €</div>
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Previsão</span>
+                    <div className="font-bold text-sm leading-none">{activeSalesData.totalSales} €</div>
                  </div>
-                 <TrendingUp className="text-slate-300" size={24} />
             </div>
-            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Staff Necessário</span>
-                    <div className="font-bold text-lg leading-none">{requirement.count}</div>
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Staff Nec.</span>
+                    <div className="font-bold text-sm leading-none">{requirement.count}</div>
                  </div>
-                 <Calculator className="text-slate-300" size={24} />
             </div>
-            <div className="flex-[2] bg-white border-2 border-slate-200 rounded-xl p-3 flex gap-4">
+            <div className="flex-[2] bg-white border border-slate-200 rounded-lg p-2 flex gap-2">
                  {(currentObjectives.turnObjective || currentObjectives.productionObjective) ? (
                     <>
                         {currentObjectives.turnObjective && (
-                            <div className="flex-1">
-                                <span className="text-[10px] font-bold uppercase text-blue-500 mb-1 block">Obj. Turno</span>
-                                <p className="text-xs font-medium leading-tight">{currentObjectives.turnObjective}</p>
+                            <div className="flex-1 overflow-hidden">
+                                <span className="text-[8px] font-bold uppercase text-blue-500 mb-0 block">Obj. Turno</span>
+                                <p className="text-[10px] font-medium leading-tight truncate">{currentObjectives.turnObjective}</p>
                             </div>
                         )}
                         {currentObjectives.productionObjective && (
-                             <div className="flex-1 border-l border-slate-100 pl-4">
-                                <span className="text-[10px] font-bold uppercase text-orange-500 mb-1 block">Obj. Produção</span>
-                                <p className="text-xs font-medium leading-tight">{currentObjectives.productionObjective}</p>
+                             <div className="flex-1 border-l border-slate-100 pl-2 overflow-hidden">
+                                <span className="text-[8px] font-bold uppercase text-orange-500 mb-0 block">Obj. Produção</span>
+                                <p className="text-[10px] font-medium leading-tight truncate">{currentObjectives.productionObjective}</p>
                             </div>
                         )}
                     </>
                  ) : (
-                    <span className="text-xs text-slate-400 italic flex items-center">Sem objetivos definidos.</span>
+                    <span className="text-[10px] text-slate-400 italic flex items-center">Sem objetivos.</span>
                  )}
             </div>
         </div>
 
-        {/* Visual Map Layout - FIXED GRID */}
-        <div className="flex-1 grid grid-cols-12 gap-6 h-[75vh]">
+        {/* Visual Map Layout - FIXED GRID (More Compact for Print) */}
+        <div className="flex-1 grid grid-cols-12 gap-2 h-auto">
             
             {/* ROW 1: DRIVE (Full Width) */}
             {driveStations.length > 0 && (
@@ -794,14 +800,27 @@ export const Positioning: React.FC<PositioningProps> = ({
                         schedule={schedule} 
                         selectedShift={selectedShift} 
                         employees={employees}
-                        className="bg-slate-100 border-slate-300 flex-row flex-wrap"
+                        className="bg-slate-50 border-slate-300 flex-row flex-nowrap overflow-hidden"
                         headerColor="text-slate-800"
+                        stationClassName="w-auto flex-1 min-w-[80px]"
                     />
                 </div>
             )}
 
-            {/* ROW 2 - COLUMN 1: SUPPORT AREAS (Beverage, Fries) */}
-            <div className="col-span-3 flex flex-col gap-4">
+            {/* ROW 2 - COLUMN 1: SUPPORT AREAS (Left) */}
+            <div className="col-span-3 flex flex-col gap-2">
+                {friesStations.length > 0 && (
+                    <VisualPrintZone 
+                        title="Batatas" 
+                        icon={UtensilsCrossed} 
+                        stations={friesStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-yellow-50 border-yellow-200"
+                        headerColor="text-yellow-700"
+                    />
+                )}
                 {beverageStations.length > 0 && (
                     <VisualPrintZone 
                         title="Bebidas" 
@@ -814,33 +833,6 @@ export const Positioning: React.FC<PositioningProps> = ({
                         headerColor="text-purple-800"
                     />
                 )}
-                {friesStations.length > 0 && (
-                    <VisualPrintZone 
-                        title="Batatas (Fries)" 
-                        icon={UtensilsCrossed} 
-                        stations={friesStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-yellow-50 border-yellow-200 flex-1"
-                        headerColor="text-yellow-700"
-                    />
-                )}
-            </div>
-
-            {/* ROW 2 - COLUMN 2: CENTER STAGE (Kitchen + McCafe) */}
-            <div className="col-span-5 flex flex-col gap-4">
-                 <VisualPrintZone 
-                    title="Cozinha (Produção)" 
-                    icon={Flame} 
-                    stations={kitchenStations} 
-                    schedule={schedule} 
-                    selectedShift={selectedShift} 
-                    employees={employees}
-                    className="bg-red-50 border-red-200 flex-1"
-                    headerColor="text-red-800"
-                    stationClassName="w-full"
-                />
                 {mccafeStations.length > 0 && (
                      <VisualPrintZone 
                         title="McCafé" 
@@ -855,8 +847,23 @@ export const Positioning: React.FC<PositioningProps> = ({
                 )}
             </div>
 
-            {/* ROW 2 - COLUMN 3: SERVICE & EXTENSIONS */}
-            <div className="col-span-4 flex flex-col gap-4">
+            {/* ROW 2 - COLUMN 2: CENTER STAGE (Kitchen) */}
+            <div className="col-span-5 flex flex-col gap-2">
+                 <VisualPrintZone 
+                    title="Cozinha (Produção)" 
+                    icon={Flame} 
+                    stations={kitchenStations} 
+                    schedule={schedule} 
+                    selectedShift={selectedShift} 
+                    employees={employees}
+                    className="bg-red-50 border-red-200 h-full"
+                    headerColor="text-red-800"
+                    stationClassName="w-[48%] mb-1"
+                />
+            </div>
+
+            {/* ROW 2 - COLUMN 3: SERVICE & EXTENSIONS (Right) */}
+            <div className="col-span-4 flex flex-col gap-2">
                 <VisualPrintZone 
                     title="Balcão (Serviço)" 
                     icon={Store} 
@@ -868,7 +875,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     headerColor="text-blue-800"
                 />
                 
-                <div className="flex gap-4">
+                <div className="flex gap-2">
                     {deliveryStations.length > 0 && (
                         <div className="flex-1">
                             <VisualPrintZone 
@@ -902,9 +909,9 @@ export const Positioning: React.FC<PositioningProps> = ({
 
         </div>
 
-        <div className="fixed bottom-0 left-0 w-full p-4 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 bg-white">
+        <div className="fixed bottom-0 left-0 w-full p-2 border-t border-slate-100 flex justify-between text-[8px] text-slate-400 bg-white">
             <span>TeamPos &bull; Documento de Gestão Interna</span>
-            <span>Impresso a {new Date().toLocaleString('pt-PT')}</span>
+            <span>{new Date().toLocaleString('pt-PT')}</span>
         </div>
     </div>
     </>
@@ -948,103 +955,143 @@ const StationGroup: React.FC<StationGroupProps> = ({
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {stations.map(station => {
-                    const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
-                    const assignedTrainees = schedule.trainees?.[selectedShift]?.[station.id] || [];
-                    
                     return (
-                        <div key={station.id} className="border border-gray-100 rounded-lg p-3 hover:shadow-md transition-shadow flex flex-col gap-2">
-                             <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-2">
-                                     <div className={`p-1.5 rounded-md ${colors.accent} ${colors.text}`}>
-                                        <Briefcase size={14} /> 
-                                     </div>
-                                     <div className="min-w-0">
-                                        <div className="font-bold text-gray-700 text-sm leading-tight truncate" title={station.label}>{station.label}</div>
-                                        {station.designation && <div className="text-[10px] text-gray-400 font-mono">{station.designation}</div>}
-                                     </div>
-                                </div>
-                                <div className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 whitespace-nowrap">
-                                    Max: {station.defaultSlots}
-                                </div>
-                             </div>
+                        <StationCard 
+                            key={station.id}
+                            station={station}
+                            schedule={schedule}
+                            selectedShift={selectedShift}
+                            employees={employees}
+                            onAssign={onAssign}
+                            onRemove={onRemove}
+                            onAssignTrainee={onAssignTrainee}
+                            onRemoveTrainee={onRemoveTrainee}
+                            colors={colors}
+                            isLocked={isLocked}
+                        />
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
 
-                             <div className="space-y-1.5 mt-1">
-                                {assignedIds.map(empId => {
-                                    const emp = employees.find(e => e.id === empId);
-                                    if (!emp) return null;
-                                    return (
-                                        <div key={empId} className="flex justify-between items-center bg-blue-50 text-blue-900 px-2 py-1.5 rounded text-xs font-medium border border-blue-100 group">
-                                            <div className="flex items-center gap-1.5 truncate">
-                                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${emp.role === 'GERENTE' ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
-                                                <span className="truncate">{emp.name}</span>
-                                            </div>
-                                            {!isLocked && (
-                                                <button onClick={() => onRemove(station.id, empId)} className="text-blue-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1">
-                                                    <X size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                                
-                                {assignedTrainees.map(empId => {
-                                    const emp = employees.find(e => e.id === empId);
-                                    if (!emp) return null;
-                                    return (
-                                        <div key={empId} className="flex justify-between items-center bg-green-50 text-green-900 px-2 py-1.5 rounded text-xs font-medium border border-green-100 group">
-                                            <div className="flex items-center gap-1.5 truncate">
-                                                <GraduationCap size={12} className="text-green-600 shrink-0"/>
-                                                <span className="truncate">{emp.name}</span>
-                                            </div>
-                                            {!isLocked && (
-                                                <button onClick={() => onRemoveTrainee(station.id, empId)} className="text-green-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1">
-                                                    <X size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                             </div>
+// Refactored StationCard for better UI
+const StationCard = ({ station, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, colors, isLocked }: any) => {
+    const [addingMode, setAddingMode] = useState<'none' | 'staff' | 'trainee'>('none');
 
-                             {!isLocked && (
-                                 <div className="flex flex-col gap-1 mt-auto pt-2">
-                                     <select 
-                                        className="w-full text-xs p-1.5 bg-gray-50 border border-gray-200 rounded focus:ring-1 focus:ring-blue-500 outline-none text-gray-500 truncate"
-                                        onChange={(e) => {
-                                            if(e.target.value) {
-                                                onAssign(station.id, e.target.value);
-                                                e.target.value = "";
-                                            }
-                                        }}
-                                        defaultValue=""
-                                     >
-                                        <option value="" disabled>+ Staff</option>
-                                        {employees.sort((a,b) => a.name.localeCompare(b.name)).map(e => (
-                                            <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                                        ))}
-                                     </select>
-                                     
-                                      <select 
-                                        className="w-full text-xs p-1.5 bg-gray-50 border border-gray-200 rounded focus:ring-1 focus:ring-green-500 outline-none text-gray-500 truncate"
-                                        onChange={(e) => {
-                                            if(e.target.value) {
-                                                onAssignTrainee(station.id, e.target.value);
-                                                e.target.value = "";
-                                            }
-                                        }}
-                                        defaultValue=""
-                                     >
-                                        <option value="" disabled>+ Treinando</option>
-                                        {employees.sort((a,b) => a.name.localeCompare(b.name)).map(e => (
-                                            <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                                        ))}
-                                     </select>
-                                 </div>
-                             )}
+    const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
+    const assignedTrainees = schedule.trainees?.[selectedShift]?.[station.id] || [];
+
+    const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (val) {
+            if (addingMode === 'staff') onAssign(station.id, val);
+            if (addingMode === 'trainee') onAssignTrainee(station.id, val);
+            setAddingMode('none');
+        } else {
+            setAddingMode('none'); // Cancel if selected default
+        }
+    };
+
+    // Sort employees alphabetically
+    const sortedEmployees = [...employees].sort((a: Employee, b: Employee) => a.name.localeCompare(b.name));
+
+    return (
+        <div className="border border-gray-100 rounded-lg p-3 hover:shadow-md transition-shadow flex flex-col gap-2">
+            <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-md ${colors.accent} ${colors.text}`}>
+                        <Briefcase size={14} /> 
+                    </div>
+                    <div className="min-w-0">
+                        <div className="font-bold text-gray-700 text-sm leading-tight truncate" title={station.label}>{station.label}</div>
+                        {station.designation && <div className="text-[10px] text-gray-400 font-mono">{station.designation}</div>}
+                    </div>
+                </div>
+                <div className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 whitespace-nowrap">
+                    Max: {station.defaultSlots}
+                </div>
+            </div>
+
+            <div className="space-y-1.5 mt-1 min-h-[20px]">
+                {/* Assignments */}
+                {assignedIds.map((empId: string) => {
+                    const emp = employees.find((e: Employee) => e.id === empId);
+                    if (!emp) return null;
+                    return (
+                        <div key={empId} className="flex justify-between items-center bg-blue-50 text-blue-900 px-2 py-1.5 rounded text-xs font-medium border border-blue-100 group animate-fade-in">
+                            <div className="flex items-center gap-1.5 truncate">
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${emp.role === 'GERENTE' ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
+                                <span className="truncate">{emp.name}</span>
+                            </div>
+                            {!isLocked && (
+                                <button onClick={() => onRemove(station.id, empId)} className="text-blue-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1">
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                
+                {/* Trainees */}
+                {assignedTrainees.map((empId: string) => {
+                    const emp = employees.find((e: Employee) => e.id === empId);
+                    if (!emp) return null;
+                    return (
+                        <div key={empId} className="flex justify-between items-center bg-green-50 text-green-900 px-2 py-1.5 rounded text-xs font-medium border border-green-100 group animate-fade-in">
+                            <div className="flex items-center gap-1.5 truncate">
+                                <GraduationCap size={12} className="text-green-600 shrink-0"/>
+                                <span className="truncate">{emp.name}</span>
+                            </div>
+                            {!isLocked && (
+                                <button onClick={() => onRemoveTrainee(station.id, empId)} className="text-green-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1">
+                                    <X size={12} />
+                                </button>
+                            )}
                         </div>
                     );
                 })}
             </div>
+
+            {/* Footer Actions */}
+            {!isLocked && (
+                <div className="mt-auto pt-2">
+                    {addingMode === 'none' ? (
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setAddingMode('staff')}
+                                className="flex-1 py-1 text-[10px] border border-dashed border-gray-300 rounded text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                            >
+                                <Plus size={10} /> Staff
+                            </button>
+                            <button 
+                                onClick={() => setAddingMode('trainee')}
+                                className="flex-1 py-1 text-[10px] border border-dashed border-gray-300 rounded text-gray-400 hover:text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors flex items-center justify-center gap-1"
+                            >
+                                <GraduationCap size={10} /> Formando
+                            </button>
+                        </div>
+                    ) : (
+                        <select 
+                            autoFocus
+                            onBlur={() => setAddingMode('none')}
+                            onChange={handleSelect}
+                            className={`w-full text-xs p-1.5 border rounded focus:outline-none transition-colors animate-scale-up ${
+                                addingMode === 'staff' 
+                                    ? 'bg-blue-50 border-blue-200 focus:ring-1 focus:ring-blue-500 text-blue-800' 
+                                    : 'bg-green-50 border-green-200 focus:ring-1 focus:ring-green-500 text-green-800'
+                            }`}
+                            defaultValue=""
+                        >
+                            <option value="">{addingMode === 'staff' ? 'Selecionar Staff...' : 'Selecionar Formando...'}</option>
+                            {sortedEmployees.map(e => (
+                                <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -1065,38 +1112,38 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, icon: Icon, stations, schedule, selectedShift, employees, className, headerColor, stationClassName 
 }) => {
     return (
-        <div className={`rounded-xl border p-4 flex flex-col h-full ${className}`}>
-            <div className={`flex items-center gap-2 mb-3 ${headerColor} font-bold uppercase tracking-wider text-sm border-b border-black/5 pb-2`}>
-                <Icon size={18} />
+        <div className={`rounded-lg border p-2 flex flex-col h-full ${className}`}>
+            <div className={`flex items-center gap-1 mb-2 ${headerColor} font-bold uppercase tracking-wider text-[10px] border-b border-black/5 pb-1`}>
+                <Icon size={12} />
                 {title}
             </div>
-            <div className="flex-1 flex flex-wrap content-start gap-3">
+            <div className="flex-1 flex flex-wrap content-start gap-2">
                 {stations.map(station => {
                      const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                      const assignedTrainees = schedule.trainees?.[selectedShift]?.[station.id] || [];
                      const allAssigned = [...assignedIds, ...assignedTrainees];
 
                      return (
-                        <div key={station.id} className={`bg-white border border-slate-200 rounded-lg p-2 min-h-[60px] flex flex-col shadow-sm ${stationClassName || 'w-[48%]'} break-inside-avoid`}>
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1 truncate" title={station.label}>
+                        <div key={station.id} className={`bg-white border border-slate-200 rounded p-1 min-h-[40px] flex flex-col shadow-sm ${stationClassName || 'w-full'} break-inside-avoid`}>
+                            <div className="text-[8px] font-bold text-slate-500 uppercase mb-0.5 truncate" title={station.label}>
                                 {station.designation || station.label}
                             </div>
-                            <div className="flex-1 flex flex-col justify-center gap-1">
+                            <div className="flex-1 flex flex-col justify-center gap-0.5">
                                 {allAssigned.length > 0 ? (
                                     allAssigned.map((id, idx) => {
                                         const emp = employees.find(e => e.id === id);
                                         const isTrainee = schedule.trainees?.[selectedShift]?.[station.id]?.includes(id);
                                         return (
-                                            <div key={`${id}-${idx}`} className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1">
+                                            <div key={`${id}-${idx}`} className="text-[9px] font-bold text-slate-900 leading-tight flex items-center gap-1 truncate">
                                                 {isTrainee && (
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+                                                    <span className="w-1 h-1 rounded-full bg-green-500 shrink-0"></span>
                                                 )}
                                                 <span className="truncate">{emp?.name || '???'}</span>
                                             </div>
                                         )
                                     })
                                 ) : (
-                                    <div className="text-[10px] text-slate-300 italic">Vazio</div>
+                                    <div className="text-[8px] text-slate-300 italic">Vazio</div>
                                 )}
                             </div>
                         </div>
