@@ -781,10 +781,10 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
         </div>
 
-        {/* Visual Map Layout */}
+        {/* Visual Map Layout - FIXED GRID */}
         <div className="flex-1 grid grid-cols-12 gap-6 h-[75vh]">
             
-            {/* TOP ROW: DRIVE (Spans full width typically, or large section) */}
+            {/* ROW 1: DRIVE (Full Width) */}
             {driveStations.length > 0 && (
                 <div className="col-span-12">
                     <VisualPrintZone 
@@ -800,10 +800,8 @@ export const Positioning: React.FC<PositioningProps> = ({
                 </div>
             )}
 
-            {/* COLUMN 1: SERVICE SUPPORT & McCafe */}
-            <div className="col-span-4 flex flex-col gap-6">
-                
-                {/* Beverage */}
+            {/* ROW 2 - COLUMN 1: SUPPORT AREAS (Beverage, Fries) */}
+            <div className="col-span-3 flex flex-col gap-4">
                 {beverageStations.length > 0 && (
                     <VisualPrintZone 
                         title="Bebidas" 
@@ -816,20 +814,33 @@ export const Positioning: React.FC<PositioningProps> = ({
                         headerColor="text-purple-800"
                     />
                 )}
+                {friesStations.length > 0 && (
+                    <VisualPrintZone 
+                        title="Batatas (Fries)" 
+                        icon={UtensilsCrossed} 
+                        stations={friesStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-yellow-50 border-yellow-200 flex-1"
+                        headerColor="text-yellow-700"
+                    />
+                )}
+            </div>
 
-                {/* Service / Counter */}
-                <VisualPrintZone 
-                    title="Balcão" 
-                    icon={Store} 
-                    stations={serviceStations} 
+            {/* ROW 2 - COLUMN 2: CENTER STAGE (Kitchen + McCafe) */}
+            <div className="col-span-5 flex flex-col gap-4">
+                 <VisualPrintZone 
+                    title="Cozinha (Produção)" 
+                    icon={Flame} 
+                    stations={kitchenStations} 
                     schedule={schedule} 
                     selectedShift={selectedShift} 
                     employees={employees}
-                    className="bg-blue-50 border-blue-200 flex-1"
-                    headerColor="text-blue-800"
+                    className="bg-red-50 border-red-200 flex-1"
+                    headerColor="text-red-800"
+                    stationClassName="w-full"
                 />
-
-                {/* McCafe */}
                 {mccafeStations.length > 0 && (
                      <VisualPrintZone 
                         title="McCafé" 
@@ -842,66 +853,51 @@ export const Positioning: React.FC<PositioningProps> = ({
                         headerColor="text-amber-900"
                     />
                 )}
-
             </div>
 
-            {/* COLUMN 2: PRODUCTION (Kitchen + Fries) - Center Stage */}
-            <div className="col-span-5 flex flex-col gap-4">
-                 <VisualPrintZone 
-                    title="Cozinha (Produção)" 
-                    icon={Flame} 
-                    stations={kitchenStations} 
+            {/* ROW 2 - COLUMN 3: SERVICE & EXTENSIONS */}
+            <div className="col-span-4 flex flex-col gap-4">
+                <VisualPrintZone 
+                    title="Balcão (Serviço)" 
+                    icon={Store} 
+                    stations={serviceStations} 
                     schedule={schedule} 
                     selectedShift={selectedShift} 
                     employees={employees}
-                    className="bg-red-50 border-red-200 flex-1"
-                    headerColor="text-red-800"
-                    stationClassName="w-full" // Make stations wide in kitchen
+                    className="bg-blue-50 border-blue-200 flex-1"
+                    headerColor="text-blue-800"
                 />
-                 {friesStations.length > 0 && (
-                    <VisualPrintZone 
-                        title="Batatas (Fries)" 
-                        icon={UtensilsCrossed} 
-                        stations={friesStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-yellow-50 border-yellow-200"
-                        headerColor="text-yellow-700"
-                    />
-                )}
-            </div>
-
-            {/* COLUMN 3: EXTENSIONS (Delivery, Lobby) */}
-            <div className="col-span-3 flex flex-col gap-6">
                 
-                {/* Delivery */}
-                {deliveryStations.length > 0 && (
-                     <VisualPrintZone 
-                        title="Delivery" 
-                        icon={Bike} 
-                        stations={deliveryStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-green-50 border-green-200"
-                        headerColor="text-green-800"
-                    />
-                )}
-
-                {/* Lobby */}
-                {lobbyStations.length > 0 && (
-                     <VisualPrintZone 
-                        title="Sala (Lobby)" 
-                        icon={Users} 
-                        stations={lobbyStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-yellow-50 border-yellow-200 flex-1"
-                        headerColor="text-yellow-800"
-                    />
-                )}
+                <div className="flex gap-4">
+                    {deliveryStations.length > 0 && (
+                        <div className="flex-1">
+                            <VisualPrintZone 
+                                title="Delivery" 
+                                icon={Bike} 
+                                stations={deliveryStations} 
+                                schedule={schedule} 
+                                selectedShift={selectedShift} 
+                                employees={employees}
+                                className="bg-green-50 border-green-200 h-full"
+                                headerColor="text-green-800"
+                            />
+                        </div>
+                    )}
+                    {lobbyStations.length > 0 && (
+                        <div className="flex-1">
+                            <VisualPrintZone 
+                                title="Sala" 
+                                icon={Users} 
+                                stations={lobbyStations} 
+                                schedule={schedule} 
+                                selectedShift={selectedShift} 
+                                employees={employees}
+                                className="bg-yellow-50 border-yellow-200 h-full"
+                                headerColor="text-yellow-800"
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
         </div>

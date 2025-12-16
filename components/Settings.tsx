@@ -72,8 +72,13 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         groups[category.key].stations.push(station);
     });
 
-    // Sort groups order if needed, or stick to predefined order
-    const orderedKeys = ['drive', 'mccafe', 'batch_cooker', 'fries', 'init', 'prep', 'fin', 'bev', 'exp', 'run', 'pres', 'cash', 'del', 'lobby', 'other'];
+    // Explicit sort order: Drive/McCafe/Fries at the top of the list for better visibility as requested
+    const orderedKeys = [
+        'drive', 'mccafe', 'fries', // Priority
+        'batch_cooker', 'init', 'prep', 'fin', // Kitchen
+        'bev', 'exp', 'run', 'pres', 'cash', // Service
+        'del', 'lobby', 'other' // Support
+    ];
     return orderedKeys.map(key => groups[key]).filter(Boolean);
   }, [localSettings.customStations]);
 
