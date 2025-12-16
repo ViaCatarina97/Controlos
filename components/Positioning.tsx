@@ -672,109 +672,151 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-800">
+    {/* ================= PRINT VIEW (VISUAL MAP) ================= */}
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-800 overflow-hidden">
         
         {/* Print Header */}
-        <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
+        <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-slate-900">
             <div>
                 <h1 className="text-3xl font-extrabold uppercase tracking-tight text-slate-900 mb-1">{settings.restaurantName}</h1>
-                <p className="text-sm text-slate-500 font-medium">Plano de Posicionamento Operacional</p>
+                <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Mapa de Posicionamento Operacional</p>
             </div>
             <div className="text-right">
-                <div className="text-4xl font-black text-slate-900">{getShiftLabel(selectedShift)}</div>
-                <div className="text-lg text-slate-600 font-medium">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div className="inline-block bg-slate-900 text-white px-4 py-1 rounded-full text-2xl font-black uppercase mb-2">{getShiftLabel(selectedShift)}</div>
+                <div className="text-lg font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
             </div>
         </div>
 
-        {/* Print Objectives (If any) */}
-        {(currentObjectives.turnObjective || currentObjectives.productionObjective) && (
-            <div className="grid grid-cols-2 gap-4 mb-4">
-                 <div className="bg-slate-50 p-3 rounded border border-slate-200">
-                    <h4 className="font-bold text-xs uppercase text-slate-400 mb-1">Objetivo de Turno</h4>
-                    <p className="text-sm font-medium">{currentObjectives.turnObjective || '---'}</p>
+        {/* Top Stats Bar */}
+        <div className="flex gap-4 mb-6">
+            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+                 <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Gerente Turno</span>
+                    <div className="font-bold text-lg leading-none">{shiftManagerName}</div>
                  </div>
-                 <div className="bg-slate-50 p-3 rounded border border-slate-200">
-                    <h4 className="font-bold text-xs uppercase text-slate-400 mb-1">Objetivo de Produção</h4>
-                    <p className="text-sm font-medium">{currentObjectives.productionObjective || '---'}</p>
-                 </div>
+                 <UserCircle className="text-slate-300" size={24} />
             </div>
-        )}
-
-        {/* Print KPIs */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 flex justify-between items-center">
-             <div className="flex items-center gap-4">
-                 <div className="px-4 py-2 border-r border-slate-200">
-                     <div className="text-xs uppercase font-bold text-slate-400">Gerente de Turno</div>
-                     <div className="text-xl font-bold text-slate-800">{shiftManagerName}</div>
+            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+                 <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Previsão</span>
+                    <div className="font-bold text-lg leading-none">{activeSalesData.totalSales} €</div>
                  </div>
-                 <div className="px-4 py-2">
-                     <div className="text-xs uppercase font-bold text-slate-400">Previsão Vendas ({manualPeakHour || 'Hora de Pico'})</div>
-                     <div className="text-xl font-bold text-slate-800">{activeSalesData.totalSales} €</div>
+                 <TrendingUp className="text-slate-300" size={24} />
+            </div>
+            <div className="flex-1 bg-slate-100 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+                 <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Staff Necessário</span>
+                    <div className="font-bold text-lg leading-none">{requirement.count}</div>
                  </div>
-             </div>
-
-             <div className="flex gap-4">
-                 <div className="text-center px-4">
-                     <div className="text-3xl font-black text-blue-600">{requirement.count}</div>
-                     <div className="text-[10px] uppercase font-bold text-slate-400">Necessários</div>
-                 </div>
-                 <div className="text-center px-4 border-l border-slate-200">
-                     <div className="text-3xl font-black text-slate-700">{currentAssignedCount}</div>
-                     <div className="text-[10px] uppercase font-bold text-slate-400">Posicionados</div>
-                 </div>
-                 <div className="text-center px-4 border-l border-slate-200">
-                     <div className={`text-3xl font-black ${gap > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{gap > 0 ? `-${gap}` : 'OK'}</div>
-                     <div className="text-[10px] uppercase font-bold text-slate-400">Diferença</div>
-                 </div>
-             </div>
+                 <Calculator className="text-slate-300" size={24} />
+            </div>
+            <div className="flex-[2] bg-white border-2 border-slate-200 rounded-xl p-3 flex gap-4">
+                 {(currentObjectives.turnObjective || currentObjectives.productionObjective) ? (
+                    <>
+                        {currentObjectives.turnObjective && (
+                            <div className="flex-1">
+                                <span className="text-[10px] font-bold uppercase text-blue-500 mb-1 block">Obj. Turno</span>
+                                <p className="text-xs font-medium leading-tight">{currentObjectives.turnObjective}</p>
+                            </div>
+                        )}
+                        {currentObjectives.productionObjective && (
+                             <div className="flex-1 border-l border-slate-100 pl-4">
+                                <span className="text-[10px] font-bold uppercase text-orange-500 mb-1 block">Obj. Produção</span>
+                                <p className="text-xs font-medium leading-tight">{currentObjectives.productionObjective}</p>
+                            </div>
+                        )}
+                    </>
+                 ) : (
+                    <span className="text-xs text-slate-400 italic flex items-center">Sem objetivos definidos.</span>
+                 )}
+            </div>
         </div>
 
-        {/* Print Grid */}
-        <div className="grid grid-cols-4 gap-4 text-xs">
-            {/* Column 1: Kitchen */}
-            <div className="space-y-2">
-                <div className="font-bold uppercase text-slate-400 border-b border-slate-200 pb-1 mb-2">Produção</div>
-                {kitchenStations.map(s => <PrintCard key={s.id} station={s} schedule={schedule} selectedShift={selectedShift} employees={employees} />)}
-            </div>
-
-            {/* Column 2: Beverage & Service */}
-            <div className="space-y-2">
+        {/* Visual Map Layout */}
+        <div className="flex-1 grid grid-cols-12 gap-6 h-[75vh]">
+            
+            {/* COLUMN 1: SERVICE SUPPORT (Beverage, Drive, Counter) */}
+            <div className="col-span-4 flex flex-col gap-6">
+                
+                {/* Beverage */}
                 {beverageStations.length > 0 && (
-                    <>
-                    <div className="font-bold uppercase text-slate-400 border-b border-slate-200 pb-1 mb-2">Bebidas</div>
-                    {beverageStations.map(s => <PrintCard key={s.id} station={s} schedule={schedule} selectedShift={selectedShift} employees={employees} />)}
-                    <div className="h-4"></div>
-                    </>
+                    <VisualPrintZone 
+                        title="Bebidas & Sobremesas" 
+                        icon={CupSoda} 
+                        stations={beverageStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-purple-50 border-purple-200"
+                        headerColor="text-purple-800"
+                    />
                 )}
-                 <div className="font-bold uppercase text-slate-400 border-b border-slate-200 pb-1 mb-2">Balcão</div>
-                 {serviceStations.map(s => <PrintCard key={s.id} station={s} schedule={schedule} selectedShift={selectedShift} employees={employees} />)}
+
+                {/* Service / Counter */}
+                <VisualPrintZone 
+                    title="Balcão & Drive" 
+                    icon={Store} 
+                    stations={serviceStations} 
+                    schedule={schedule} 
+                    selectedShift={selectedShift} 
+                    employees={employees}
+                    className="bg-blue-50 border-blue-200 flex-1"
+                    headerColor="text-blue-800"
+                />
+
             </div>
 
-            {/* Column 3: Delivery */}
-            <div className="space-y-2">
+            {/* COLUMN 2: PRODUCTION (Kitchen) - Center Stage */}
+            <div className="col-span-5 flex flex-col">
+                 <VisualPrintZone 
+                    title="Cozinha (Produção)" 
+                    icon={Flame} 
+                    stations={kitchenStations} 
+                    schedule={schedule} 
+                    selectedShift={selectedShift} 
+                    employees={employees}
+                    className="bg-red-50 border-red-200 h-full"
+                    headerColor="text-red-800"
+                    stationClassName="w-full" // Make stations wide in kitchen
+                />
+            </div>
+
+            {/* COLUMN 3: EXTENSIONS (Delivery, Lobby) */}
+            <div className="col-span-3 flex flex-col gap-6">
+                
+                {/* Delivery */}
                 {deliveryStations.length > 0 && (
-                    <>
-                    <div className="font-bold uppercase text-slate-400 border-b border-slate-200 pb-1 mb-2">Delivery</div>
-                    {deliveryStations.map(s => <PrintCard key={s.id} station={s} schedule={schedule} selectedShift={selectedShift} employees={employees} />)}
-                    </>
+                     <VisualPrintZone 
+                        title="Delivery" 
+                        icon={Bike} 
+                        stations={deliveryStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-green-50 border-green-200"
+                        headerColor="text-green-800"
+                    />
                 )}
-            </div>
 
-             {/* Column 4: Lobby */}
-            <div className="space-y-2">
+                {/* Lobby */}
                 {lobbyStations.length > 0 && (
-                    <>
-                    <div className="font-bold uppercase text-slate-400 border-b border-slate-200 pb-1 mb-2">Sala</div>
-                    {lobbyStations.map(s => <PrintCard key={s.id} station={s} schedule={schedule} selectedShift={selectedShift} employees={employees} />)}
-                    </>
+                     <VisualPrintZone 
+                        title="Sala (Lobby)" 
+                        icon={Users} 
+                        stations={lobbyStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-yellow-50 border-yellow-200 flex-1"
+                        headerColor="text-yellow-800"
+                    />
                 )}
             </div>
 
         </div>
 
-        <div className="fixed bottom-0 left-0 w-full p-4 border-t border-slate-100 flex justify-between text-[10px] text-slate-400">
-            <span>TeamPos - Documento Interno</span>
+        <div className="fixed bottom-0 left-0 w-full p-4 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 bg-white">
+            <span>TeamPos &bull; Documento de Gestão Interna</span>
             <span>Impresso a {new Date().toLocaleString('pt-PT')}</span>
         </div>
     </div>
@@ -986,46 +1028,76 @@ const StationCard = ({ station, schedule, selectedShift, employees, onAssign, on
     );
 };
 
-// --- Print Specific Components ---
-const PrintCard = ({ station, schedule, selectedShift, employees }: any) => {
+// --- Visual Print Components ---
+
+const VisualPrintZone = ({ title, icon: Icon, stations, schedule, selectedShift, employees, className, headerColor, stationClassName }: any) => (
+    <div className={`rounded-3xl border-4 p-4 flex flex-col gap-4 ${className}`}>
+        <div className="flex items-center gap-3 border-b-2 border-black/5 pb-2">
+            <div className={`p-2 bg-white rounded-full shadow-sm`}>
+                <Icon size={20} className={headerColor} />
+            </div>
+            <h3 className={`font-black uppercase tracking-wider text-sm ${headerColor}`}>{title}</h3>
+        </div>
+        <div className="flex flex-wrap gap-3">
+            {stations.map((s: StationConfig) => (
+                <VisualPrintStation 
+                    key={s.id} 
+                    station={s} 
+                    schedule={schedule} 
+                    selectedShift={selectedShift} 
+                    employees={employees} 
+                    className={stationClassName}
+                />
+            ))}
+        </div>
+    </div>
+);
+
+const VisualPrintStation = ({ station, schedule, selectedShift, employees, className }: any) => {
     const assignedIds = (schedule.shifts[selectedShift]?.[station.id] || []) as string[];
     const assignedEmployees = assignedIds
-        .map((id: string) => employees.find((e: Employee) => e.id === id))
+        .map(id => employees.find((e: Employee) => e.id === id))
         .filter(Boolean);
 
     const traineeIds = (schedule.trainees?.[selectedShift]?.[station.id] || []) as string[];
     const traineeEmployees = traineeIds
-        .map((id: string) => employees.find((e: Employee) => e.id === id))
+        .map(id => employees.find((e: Employee) => e.id === id))
         .filter(Boolean);
 
+    const hasStaff = assignedEmployees.length > 0 || traineeEmployees.length > 0;
+
     return (
-        <div className="border border-slate-200 rounded p-2 bg-white break-inside-avoid shadow-sm">
-            <div className="flex justify-between items-center mb-1">
-                <div className="font-bold text-slate-800 text-xs truncate max-w-[80%]">
-                    {station.designation || station.label}
-                </div>
-                <div className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
-                   {assignedEmployees.length}/{station.defaultSlots}
-                </div>
+        <div className={`
+            relative bg-white border-2 border-slate-300 rounded-2xl p-2 min-w-[140px] shadow-sm flex-1
+            ${hasStaff ? 'border-slate-800' : ''}
+            ${className}
+        `}>
+            {/* Station Label */}
+            <div className="absolute -top-3 left-3 bg-white px-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 border border-slate-200 rounded-md">
+                {station.designation || station.label}
             </div>
-            {(assignedEmployees.length > 0 || traineeEmployees.length > 0) ? (
-                <div className="flex flex-col gap-1">
-                    {assignedEmployees.map((emp: Employee) => (
-                        <div key={emp.id} className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full ${ROLE_COLORS[emp.role].split(' ')[0]}`}></div>
-                            <span className="text-xs font-medium text-slate-600 truncate">{emp.name}</span>
-                        </div>
-                    ))}
-                    {traineeEmployees.map((emp: Employee) => (
-                        <div key={emp.id} className="flex items-center gap-1.5">
-                            <GraduationCap size={10} className="text-orange-500"/>
-                            <span className="text-xs font-medium text-orange-600 truncate italic">{emp.name}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="h-4 bg-slate-50 rounded border border-dashed border-slate-200"></div>
-            )}
+
+            <div className="mt-2 flex flex-col gap-1 min-h-[30px] justify-center">
+                 {assignedEmployees.map((emp: Employee) => (
+                     <div key={emp.id} className="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
+                         <div className={`w-2 h-2 rounded-full ${ROLE_COLORS[emp.role].split(' ')[0]}`}></div>
+                         <span className="font-bold text-sm text-slate-900 truncate">{emp.name}</span>
+                     </div>
+                 ))}
+                 
+                 {traineeEmployees.map((emp: Employee) => (
+                     <div key={emp.id} className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-lg px-2 py-1">
+                         <GraduationCap size={12} className="text-orange-500"/>
+                         <span className="font-bold text-sm text-orange-700 truncate">{emp.name}</span>
+                     </div>
+                 ))}
+
+                 {!hasStaff && (
+                     <div className="text-center text-slate-300 text-xs py-1">
+                         Vazio
+                     </div>
+                 )}
+            </div>
         </div>
     );
 };
