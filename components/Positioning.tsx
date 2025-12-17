@@ -161,62 +161,60 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color
 }) => {
-    // Determine the number of columns for this area's grid based on station count
-    // This allows the cards to be larger if there are fewer stations
+    // Determine grid columns dynamically: 
+    // Small areas stay in 1 column to maximize width for names
+    // Larger areas use 2 columns to fill space and prevent long vertical blocks
     const getGridCols = (count: number) => {
-        if (count <= 1) return 'grid-cols-1';
-        if (count <= 3) return 'grid-cols-1'; // Keep single column for better readability in columns layout
-        return 'grid-cols-2';
+        if (count <= 2) return 'grid-cols-1';
+        return 'grid-cols-2'; 
     };
 
-    const headerColorMap: Record<string, string> = {
-        red: 'bg-red-600 border-red-700',
-        blue: 'bg-blue-600 border-blue-700',
-        yellow: 'bg-yellow-500 border-yellow-600',
-        purple: 'bg-purple-600 border-purple-700',
-        green: 'bg-emerald-600 border-emerald-700',
-        slate: 'bg-slate-700 border-slate-800',
+    const headerColors: Record<string, string> = {
+        red: 'bg-red-700',
+        blue: 'bg-blue-700',
+        yellow: 'bg-amber-500',
+        purple: 'bg-purple-700',
+        green: 'bg-emerald-700',
+        slate: 'bg-slate-700'
     };
-
-    const headerClass = headerColorMap[color] || 'bg-slate-800 border-slate-900';
 
     return (
-        <div className="break-inside-avoid mb-4 border-2 border-slate-900 rounded-lg overflow-hidden bg-white shadow-sm flex flex-col">
-            <div className={`${headerClass} px-3 py-1.5 flex justify-between items-center shrink-0 border-b`}>
-                <span className="font-black text-[12px] text-white uppercase tracking-widest leading-none">{title}</span>
-                <span className="text-[10px] font-black text-slate-900 bg-white px-1.5 rounded-sm leading-none py-0.5">
+        <div className="break-inside-avoid mb-6 border-2 border-slate-900 rounded-xl overflow-hidden bg-white shadow-md flex flex-col">
+            <div className={`${headerColors[color] || 'bg-slate-800'} px-4 py-2 flex justify-between items-center shrink-0`}>
+                <span className="font-black text-[14px] text-white uppercase tracking-wider leading-none">{title}</span>
+                <span className="text-[12px] font-black text-slate-900 bg-yellow-400 px-2 rounded leading-none py-1">
                     {stations.length}
                 </span>
             </div>
             
-            <div className={`p-2 grid gap-2 ${getGridCols(stations.length)}`}>
+            <div className={`p-3 grid gap-3 ${getGridCols(stations.length)}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[52px] flex-grow">
-                             <div className="bg-slate-50 px-2 py-0.5 border-b border-slate-200 flex justify-between items-center">
-                                <span className="font-bold text-[9px] text-slate-500 uppercase truncate">
+                        <div key={station.id} className="bg-white border-2 border-slate-200 rounded-lg flex flex-col min-h-[60px] h-full">
+                             <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 flex justify-between items-center">
+                                <span className="font-black text-[10px] text-slate-500 uppercase truncate">
                                     {station.label}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 p-2 flex flex-col justify-center gap-1">
+                             <div className="flex-1 p-2 flex flex-col justify-center gap-1.5">
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => (
-                                         <div key={id} className="text-[14px] font-black text-slate-950 uppercase leading-none tracking-tighter">
+                                         <div key={id} className="text-[16px] font-black text-slate-950 uppercase leading-none tracking-tight">
                                              {employees.find(e => e.id === id)?.name}
                                          </div>
                                      ))
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-0.5 w-4 bg-slate-100 rounded mx-auto" />
+                                     <div className="h-0.5 w-6 bg-slate-100 rounded-full mx-auto" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-1 pt-1">
-                                         <GraduationCap size={10} className="shrink-0" />
-                                         <span className="truncate uppercase leading-none">{employees.find(e => e.id === id)?.name}</span>
+                                     <div key={id} className="text-[11px] font-bold text-amber-600 flex items-center gap-1 italic border-t border-amber-50 mt-1 pt-1">
+                                         <GraduationCap size={12} className="shrink-0" />
+                                         <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
                              </div>
@@ -376,7 +374,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     return allStations.filter(s => {
         if (!s.isActive) return false;
         
-        // Logical filtering based on business platforms
+        // Dynamic filtering based on active platforms in settings
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
@@ -390,14 +388,14 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Group stations by Area for BOTH screen and print
+  // Group stations by Area
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Order: Drive -> Production -> Fries -> Service -> Cell -> Delivery -> Lobby -> McCafe last
+    // Operational Priority Order: Drive -> Prod -> Fries -> Service -> Cell -> Delivery -> Lobby -> McCafe
     const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
@@ -646,42 +644,42 @@ export const Positioning: React.FC<PositioningProps> = ({
 
     {/* ================= PRINT VIEW (AUTOMATIC ADAPTIVE LAYOUT) ================= */}
     <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-visible min-h-screen">
-        <div className="flex justify-between items-end mb-4 pb-2 border-b-4 border-slate-900">
+        {/* Header Section */}
+        <div className="flex justify-between items-end mb-6 pb-2 border-b-4 border-slate-900">
             <div className="flex flex-col">
-                <h1 className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none">{settings.restaurantName}</h1>
-                <div className="text-[12px] font-bold text-slate-500 mt-1 uppercase">Mapa de Posicionamento Operacional</div>
+                <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">{settings.restaurantName}</h1>
+                <div className="text-[12px] font-bold text-slate-500 mt-2 uppercase tracking-widest">Mapa de Posicionamento Operacional</div>
             </div>
-            <div className="text-right">
-                <div className="text-[14px] font-black text-slate-800">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded text-lg font-black uppercase mt-1 leading-none">{getShiftLabel(selectedShift)}</div>
-            </div>
-        </div>
-
-        {/* Header Metrics for Print */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
-            <div className="bg-slate-50 rounded border-2 border-slate-200 p-2">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Gerente de Turno</span>
-                <div className="font-black text-sm text-slate-900 uppercase truncate">{shiftManagerName}</div>
-            </div>
-            <div className="bg-slate-50 rounded border-2 border-slate-200 p-2">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Previsão Vendas</span>
-                <div className="font-black text-sm text-slate-900">{activeSalesData.totalSales} € <span className="text-[10px] text-slate-400 font-bold ml-1">({manualPeakHour})</span></div>
-            </div>
-            <div className="col-span-2 bg-white rounded border-2 border-slate-200 p-2 flex gap-4">
-                <div className="flex-1 overflow-hidden">
-                    <span className="text-[9px] font-black uppercase text-blue-600 block mb-1">Objetivo Turno</span>
-                    <p className="text-[10px] font-bold leading-tight line-clamp-2 text-slate-700">{currentObjectives.turnObjective || 'Sem objetivo definido.'}</p>
-                </div>
-                <div className="w-px bg-slate-100" />
-                <div className="flex-1 overflow-hidden">
-                    <span className="text-[9px] font-black uppercase text-orange-600 block mb-1">Objetivo Produção</span>
-                    <p className="text-[10px] font-bold leading-tight line-clamp-2 text-slate-700">{currentObjectives.productionObjective || 'Sem objetivo definido.'}</p>
-                </div>
+            <div className="text-right flex flex-col items-end">
+                <div className="text-[14px] font-black text-slate-800 bg-slate-100 px-3 py-1 rounded-full">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                <div className="inline-block bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xl font-black uppercase mt-2 leading-none">{getShiftLabel(selectedShift)}</div>
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Grid of Areas */}
-        <div className="columns-2 lg:columns-3 gap-4 h-auto">
+        {/* Info Blocks */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Responsável de Turno</span>
+                <div className="font-black text-[16px] text-slate-900 uppercase truncate">{shiftManagerName}</div>
+            </div>
+            <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-3">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Previsão Vendas</span>
+                <div className="font-black text-[16px] text-slate-900">{activeSalesData.totalSales} € <span className="text-[11px] text-slate-400 font-bold ml-1">({manualPeakHour})</span></div>
+            </div>
+            <div className="col-span-2 bg-white rounded-xl border-2 border-slate-200 p-3 flex gap-4">
+                <div className="flex-1 overflow-hidden border-r border-slate-100 pr-2">
+                    <span className="text-[10px] font-black uppercase text-blue-600 block mb-1">Foco do Turno</span>
+                    <p className="text-[11px] font-bold leading-tight text-slate-700 italic">"{currentObjectives.turnObjective || 'Manter a excelência operacional.'}"</p>
+                </div>
+                <div className="flex-1 overflow-hidden pl-2">
+                    <span className="text-[10px] font-black uppercase text-orange-600 block mb-1">Objetivo Produção</span>
+                    <p className="text-[11px] font-bold leading-tight text-slate-700 italic">"{currentObjectives.productionObjective || 'Garantir a frescura e qualidade.'}"</p>
+                </div>
+            </div>
+        </div>
+
+        {/* Dynamic Multi-Column Grid (CSS Columns for Masonry effect) */}
+        <div className="columns-2 lg:columns-3 gap-6 h-auto">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -695,10 +693,10 @@ export const Positioning: React.FC<PositioningProps> = ({
             ))}
         </div>
 
-        {/* Footer for print */}
-        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-white">
-            <span>&copy; TeamPos &bull; Documento de Apoio Operacional</span>
-            <span className="mr-8">Impressão: {new Date().toLocaleString()}</span>
+        {/* Print Footer */}
+        <div className="fixed bottom-4 left-6 right-6 flex justify-between text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] bg-white border-t border-slate-50 pt-2">
+            <span>TEAMPOS &bull; INTELIGÊNCIA OPERACIONAL</span>
+            <span>DATA DE IMPRESSÃO: {new Date().toLocaleString()}</span>
         </div>
     </div>
     </>
