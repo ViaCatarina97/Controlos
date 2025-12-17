@@ -105,39 +105,45 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     try {
         const wb = XLSX.read(buffer, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        // raw: true gets us the underlying data type
+        // raw: true para capturar números de série de data do Excel
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' }) as any[][];
         const newEntries: HistoryEntry[] = [];
 
         const parseDate = (val: any) => {
             if (val === undefined || val === null || val === '') return null;
             
-            // Handle Excel serial date
+            // 1. Já é um objeto Date?
+            if (val instanceof Date) {
+              return val.toISOString().split('T')[0];
+            }
+
+            // 2. É um número serial do Excel?
             if (typeof val === 'number') {
-                const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                if (!isNaN(date.getTime())) {
-                  return date.toISOString().split('T')[0];
+                if (val > 10000) { // Validação básica para evitar números que não sejam datas
+                  const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                  if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                  }
                 }
+                return null;
             }
 
             const str = String(val).trim();
-            // Ignore headers
+            // Ignorar linhas que contenham as palavras de cabeçalho
             if (!str || str.toLowerCase().includes('data')) return null;
 
-            // Handle DD/MM/YYYY or DD/MM/YY
-            if (str.includes('/')) {
-                const parts = str.split('/');
-                if (parts.length === 3) {
-                    const day = parts[0].padStart(2, '0');
-                    const month = parts[1].padStart(2, '0');
-                    let year = parts[2];
-                    if (year.length === 2) year = '20' + year;
-                    return `${year}-${month}-${day}`;
-                }
+            // 3. Formato dd/mm/yyyy ou dd/mm/yy
+            const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            if (dmyMatch) {
+                const day = dmyMatch[1].padStart(2, '0');
+                const month = dmyMatch[2].padStart(2, '0');
+                let year = dmyMatch[3];
+                if (year.length === 2) year = '20' + year;
+                return `${year}-${month}-${day}`;
             }
 
-            // Handle YYYY-MM-DD
-            if (str.includes('-') && str.split('-')[0].length === 4) return str;
+            // 4. Formato ISO yyyy-mm-dd
+            if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
             
             return null;
         };
@@ -148,10 +154,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             return parseFloat(clean) || 0;
         };
 
-        rows.forEach((row, index) => {
-            // Skip typical header rows if necessary
+        rows.forEach((row) => {
             const dateStr = parseDate(row[0]);
-            if (!dateStr) return; 
+            if (!dateStr) return; // Se não houver data válida na Coluna A, ignora a linha (cabeçalhos, etc)
 
             const dateObj = new Date(dateStr);
             if (isNaN(dateObj.getTime())) return;
@@ -165,10 +170,11 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 slots: {}
             };
 
+            // Mapeamento das colunas (E até P)
             const mappings = [
-                { key: "12:00-13:00", s: 4, g: 5 }, // Col E & F
-                { key: "13:00-14:00", s: 6, g: 7 }, // Col G & H
-                { key: "14:00-15:00", s: 8, g: 9 }, // ...
+                { key: "12:00-13:00", s: 4, g: 5 }, 
+                { key: "13:00-14:00", s: 6, g: 7 }, 
+                { key: "14:00-15:00", s: 8, g: 9 }, 
                 { key: "19:00-20:00", s: 10, g: 11 },
                 { key: "20:00-21:00", s: 12, g: 13 },
                 { key: "21:00-22:00", s: 14, g: 15 },
@@ -187,7 +193,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             entry.totalSales = Math.round(ts);
             entry.totalGC = Math.round(tg);
             
-            // Only add if there is actual sales data
             if (ts > 0) newEntries.push(entry);
         });
 
@@ -195,7 +200,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             setHistory(prev => [...prev, ...newEntries]);
             alert(`${newEntries.length} registos importados com sucesso!`);
         } else {
-            alert("Não foram encontrados dados válidos. Certifique-se que as datas estão na Coluna A (formato 01/01/2025) e as vendas começam na Coluna E.");
+            alert("Não foram encontrados dados válidos. Verifique se o ficheiro segue o modelo: Data na Coluna A (ex: 01/01/2025) e Vendas na Coluna E.");
         }
     } catch (err) {
         console.error("Erro na importação:", err);
