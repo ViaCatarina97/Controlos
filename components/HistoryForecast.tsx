@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HistoryEntry, SalesData, HourlyProjection } from '../types';
 import { MOCK_HISTORY, TIME_SLOTS_KEYS } from '../constants';
-import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
@@ -103,74 +103,63 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
   const parseExcel = (buffer: ArrayBuffer) => {
     try {
-        const wb = XLSX.read(buffer, { type: 'array' });
+        const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        // raw: true para capturar números de série de data do Excel
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' }) as any[][];
         const newEntries: HistoryEntry[] = [];
 
         const parseDate = (val: any) => {
             if (val === undefined || val === null || val === '') return null;
             
-            // 1. Já é um objeto Date?
+            // Caso 1: Objeto Date nativo (XLSX com cellDates: true)
             if (val instanceof Date) {
               return val.toISOString().split('T')[0];
             }
 
-            // 2. É um número serial do Excel?
+            // Caso 2: Serial do Excel
             if (typeof val === 'number') {
-                if (val > 10000) { // Validação básica para evitar números que não sejam datas
-                  const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                  if (!isNaN(date.getTime())) {
-                    return date.toISOString().split('T')[0];
-                  }
-                }
-                return null;
+                const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
             }
 
             const str = String(val).trim();
-            // Ignorar linhas que contenham as palavras de cabeçalho
-            if (!str || str.toLowerCase().includes('data')) return null;
+            // Ignorar se for cabeçalho ou vazio
+            if (!str || /^[a-zA-Záàãâéêíóôõú]/.test(str)) return null;
 
-            // 3. Formato dd/mm/yyyy ou dd/mm/yy
-            const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            // Caso 3: dd/mm/yyyy ou dd/mm/yy
+            const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
             if (dmyMatch) {
-                const day = dmyMatch[1].padStart(2, '0');
-                const month = dmyMatch[2].padStart(2, '0');
-                let year = dmyMatch[3];
-                if (year.length === 2) year = '20' + year;
-                return `${year}-${month}-${day}`;
+                const d = dmyMatch[1].padStart(2, '0');
+                const m = dmyMatch[2].padStart(2, '0');
+                let y = dmyMatch[3];
+                if (y.length === 2) y = '20' + y;
+                return `${y}-${m}-${d}`;
             }
 
-            // 4. Formato ISO yyyy-mm-dd
-            if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
-            
             return null;
         };
 
         const parseNum = (val: any) => {
             if (typeof val === 'number') return val;
-            const clean = String(val).replace(/[€\s]/g, '').replace(',', '.');
-            return parseFloat(clean) || 0;
+            const clean = String(val).replace(/[€\s\r\n\t]/g, '').replace(',', '.');
+            const n = parseFloat(clean);
+            return isNaN(n) ? 0 : n;
         };
 
-        rows.forEach((row) => {
+        rows.forEach((row, rowIndex) => {
             const dateStr = parseDate(row[0]);
-            if (!dateStr) return; // Se não houver data válida na Coluna A, ignora a linha (cabeçalhos, etc)
-
-            const dateObj = new Date(dateStr);
-            if (isNaN(dateObj.getTime())) return;
+            if (!dateStr) return; 
 
             const entry: HistoryEntry = {
                 id: crypto.randomUUID(),
                 date: dateStr,
-                dayOfWeek: dateObj.getDay(),
+                dayOfWeek: new Date(dateStr).getDay(),
                 totalSales: 0,
                 totalGC: 0,
                 slots: {}
             };
 
-            // Mapeamento das colunas (E até P)
+            // Mapeamento das colunas baseadas na imagem (A=0, B=1, C=Vendas Dia, D=GC Dia, E=12:00, ...)
             const mappings = [
                 { key: "12:00-13:00", s: 4, g: 5 }, 
                 { key: "13:00-14:00", s: 6, g: 7 }, 
@@ -181,30 +170,37 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             ];
 
             let ts = 0, tg = 0;
+            let hasHourlyData = false;
+
             mappings.forEach(m => {
-                if (row.length > m.g) {
-                    const s = parseNum(row[m.s]);
-                    const g = parseNum(row[m.g]);
-                    entry.slots[m.key] = { sales: s, gc: g };
-                    ts += s; tg += g;
-                }
+                const s = parseNum(row[m.s]);
+                const g = parseNum(row[m.g]);
+                if (s > 0 || g > 0) hasHourlyData = true;
+                entry.slots[m.key] = { sales: s, gc: g };
+                ts += s; tg += g;
             });
+
+            // Se não houver detalhe horário, tentamos ler os totais da Coluna C e D
+            if (!hasHourlyData) {
+                ts = parseNum(row[2]); // Coluna C
+                tg = parseNum(row[3]); // Coluna D
+            }
 
             entry.totalSales = Math.round(ts);
             entry.totalGC = Math.round(tg);
             
-            if (ts > 0) newEntries.push(entry);
+            if (entry.totalSales > 0) newEntries.push(entry);
         });
 
         if (newEntries.length > 0) {
             setHistory(prev => [...prev, ...newEntries]);
             alert(`${newEntries.length} registos importados com sucesso!`);
         } else {
-            alert("Não foram encontrados dados válidos. Verifique se o ficheiro segue o modelo: Data na Coluna A (ex: 01/01/2025) e Vendas na Coluna E.");
+            alert("Erro: Não foram encontrados dados válidos. \nCertifique-se que as DATAS estão na Coluna A e as VENDAS começam na Coluna C (Total) ou E (Horário).");
         }
     } catch (err) {
-        console.error("Erro na importação:", err);
-        alert("Erro ao ler o ficheiro Excel.");
+        console.error("XLSX Parse Error:", err);
+        alert("Erro técnico ao processar o Excel.");
     }
   };
 
