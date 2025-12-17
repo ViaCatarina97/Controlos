@@ -110,23 +110,25 @@ const StationGroup: React.FC<StationGroupProps> = ({
               {/* Add Buttons */}
               {!isLocked && (
                   <div className="flex gap-1">
-                     <select 
-                        className={`
-                            flex-1 text-xs border rounded p-1 outline-none focus:ring-1 focus:ring-blue-500 bg-white/50 hover:bg-white transition-colors
-                            border-gray-200 text-gray-600
-                        `}
-                        value=""
-                        onChange={(e) => {
-                            if(e.target.value) onAssign(station.id, e.target.value);
-                        }}
-                     >
-                        <option value="">+ Staff</option>
-                        {employees
-                            .filter(e => !assignedIds.includes(e.id)) 
-                            .map(e => (
-                            <option key={e.id} value={e.id}>{e.name}</option>
-                        ))}
-                     </select>
+                     {assignedIds.length < station.defaultSlots && (
+                        <select 
+                            className={`
+                                flex-1 text-xs border rounded p-1 outline-none focus:ring-1 focus:ring-blue-500 bg-white/50 hover:bg-white transition-colors
+                                border-gray-200 text-gray-600
+                            `}
+                            value=""
+                            onChange={(e) => {
+                                if(e.target.value) onAssign(station.id, e.target.value);
+                            }}
+                        >
+                            <option value="">+ Staff</option>
+                            {employees
+                                .filter(e => !assignedIds.includes(e.id)) 
+                                .map(e => (
+                                <option key={e.id} value={e.id}>{e.name}</option>
+                            ))}
+                        </select>
+                     )}
 
                      {/* Trainee Add (Always available) */}
                      <select 
@@ -189,7 +191,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     return (
                         <div key={station.id} className="bg-white border border-slate-200 rounded p-1 flex flex-col justify-between overflow-hidden">
                              <div className="flex justify-between items-start leading-none mb-1">
-                                <span className="font-bold text-[9px] text-slate-700 truncate pr-1">{station.designation || station.label}</span>
+                                <span className="font-bold text-[9px] text-slate-700 truncate pr-1">{station.label}</span>
                                 {assignedIds.length > 0 && (
                                     <span className="text-[7px] bg-slate-100 px-1 rounded text-slate-500 shrink-0">{assignedIds.length}</span>
                                 )}
