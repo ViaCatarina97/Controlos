@@ -56,8 +56,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
         {stations.map(station => {
           const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
           const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
-          // const isFull = assignedIds.length >= station.defaultSlots; // Removed check to allow over-assignment
-
+          
           return (
             <div key={station.id} className="p-3 hover:bg-white/40 transition-colors">
               <div className="flex justify-between items-start mb-2">
@@ -163,33 +162,40 @@ interface VisualPrintZoneProps {
   employees: Employee[];
   className?: string;
   headerColor?: string;
-  stationClassName?: string;
+  cols?: number;
 }
 
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, icon: Icon, stations, schedule, selectedShift, employees, className = '', headerColor = '', stationClassName = ''
+  title, icon: Icon, stations, schedule, selectedShift, employees, className = '', headerColor = '', cols = 2
 }) => {
     return (
-        <div className={`border rounded flex flex-col ${className}`}>
-            <div className={`p-1 flex items-center gap-1 border-b border-black/5 ${headerColor}`}>
+        <div className={`border rounded flex flex-col h-full ${className}`}>
+            <div className={`p-1 flex items-center gap-1 border-b border-black/5 ${headerColor} shrink-0`}>
                 {Icon && <Icon size={12} />}
                 <span className="font-bold text-[10px] uppercase">{title}</span>
             </div>
-            <div className="flex-1 p-1 flex flex-wrap content-start gap-1">
+            {/* Dynamic Grid: Fills height (h-full) and distributes rows evenly (auto-rows: 1fr) */}
+            <div 
+                className="flex-1 p-1 grid gap-1"
+                style={{ 
+                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                    gridAutoRows: '1fr' 
+                }}
+            >
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border border-slate-200 rounded p-1 flex flex-col justify-between min-h-[40px] ${stationClassName}`}>
+                        <div key={station.id} className="bg-white border border-slate-200 rounded p-1 flex flex-col justify-between overflow-hidden">
                              <div className="flex justify-between items-start leading-none mb-1">
-                                <span className="font-bold text-[9px] text-slate-700 truncate">{station.designation || station.label}</span>
+                                <span className="font-bold text-[9px] text-slate-700 truncate pr-1">{station.designation || station.label}</span>
                                 {assignedIds.length > 0 && (
-                                    <span className="text-[7px] bg-slate-100 px-1 rounded text-slate-500">{assignedIds.length}</span>
+                                    <span className="text-[7px] bg-slate-100 px-1 rounded text-slate-500 shrink-0">{assignedIds.length}</span>
                                 )}
                              </div>
                              
-                             <div className="flex flex-col gap-0.5">
+                             <div className="flex flex-col gap-0.5 overflow-hidden">
                                  {/* Staff */}
                                  {assignedIds.map(id => {
                                      const emp = employees.find(e => e.id === id);
@@ -210,7 +216,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                  })}
                                  
                                  {assignedIds.length === 0 && assignedTraineeIds.length === 0 && (
-                                     <div className="h-3 bg-slate-50/50 rounded"></div>
+                                     <div className="h-full min-h-[4px] bg-slate-50/50 rounded"></div>
                                  )}
                              </div>
                         </div>
@@ -1052,9 +1058,9 @@ export const Positioning: React.FC<PositioningProps> = ({
                         schedule={schedule} 
                         selectedShift={selectedShift} 
                         employees={employees}
-                        className="bg-slate-50 border-slate-300 flex-row flex-wrap"
+                        className="bg-slate-50 border-slate-300"
                         headerColor="text-slate-800"
-                        stationClassName="flex-1 min-w-[80px]"
+                        cols={driveStations.length || 1}
                     />
                 </div>
             )}
@@ -1074,6 +1080,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                             employees={employees}
                             className="bg-purple-50 border-purple-200 h-full"
                             headerColor="text-purple-800"
+                            cols={2}
                         />
                     </div>
                 )}
@@ -1088,6 +1095,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                             employees={employees}
                             className="bg-yellow-50 border-yellow-200 h-full"
                             headerColor="text-yellow-700"
+                            cols={2}
                         />
                     </div>
                 )}
@@ -1104,7 +1112,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     employees={employees}
                     className="bg-red-50 border-red-200 h-full"
                     headerColor="text-red-800"
-                    stationClassName="w-[48%] mb-1" 
+                    cols={2} 
                 />
             </div>
 
@@ -1122,7 +1130,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                         employees={employees}
                         className="bg-blue-50 border-blue-200 h-full"
                         headerColor="text-blue-800"
-                        stationClassName="w-[48%]"
+                        cols={2}
                     />
                     
                     {mccafeStations.length > 0 ? (
@@ -1135,6 +1143,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                             employees={employees}
                             className="bg-amber-50 border-amber-200 h-full"
                             headerColor="text-amber-900"
+                            cols={1}
                         />
                     ) : <div />}
                 </div>
@@ -1151,6 +1160,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                             employees={employees}
                             className="bg-green-50 border-green-200 h-full"
                             headerColor="text-green-800"
+                            cols={1}
                         />
                     ) : <div className="border border-transparent" />}
                     
@@ -1164,6 +1174,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                             employees={employees}
                             className="bg-yellow-50 border-yellow-200 h-full"
                             headerColor="text-yellow-800"
+                            cols={1}
                         />
                     ) : <div />}
                 </div>
