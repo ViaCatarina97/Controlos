@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { ROLE_COLORS, AVAILABLE_SHIFTS, STATIONS } from '../constants';
 import { 
-  Users, AlertCircle, X, 
+  Users, User, AlertCircle, X, 
   Bike, ShoppingBag, UtensilsCrossed, Monitor, Coffee, Flame, Sun, Moon, Sunrise, Store, MoonStar, 
   Car, CupSoda, Headset, IceCream, HeartHandshake, Sandwich, Utensils, Thermometer, TrendingUp,
   Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap
@@ -420,18 +420,19 @@ export const Positioning: React.FC<PositioningProps> = ({
   const driveStations = filteredStations.filter(s => s.area === 'drive');
   const mccafeStations = filteredStations.filter(s => s.area === 'mccafe');
 
-  // Special logic: If it says 'Batata' or is area 'fries', it goes to Fries.
-  // This prevents 'Batata' stations from staying in Kitchen if data is legacy.
-  const friesStations = filteredStations.filter(s => 
-      s.area === 'fries' || 
-      s.label.toLowerCase().includes('batata') || 
-      s.id.includes('fries')
-  );
+  // Helper to identify Fries stations regardless of configured area (fixes legacy data issues)
+  // Forces 'Batata', 'Fries', 'Frit' to be in Fries section
+  const isFriesStation = (s: StationConfig) => {
+      const label = s.label.toLowerCase();
+      const id = s.id.toLowerCase();
+      return s.area === 'fries' || label.includes('batata') || label.includes('fries') || label.includes('frit') || id.includes('fries');
+  };
 
+  const friesStations = filteredStations.filter(s => isFriesStation(s));
+
+  // Kitchen excludes Fries explicitly
   const kitchenStations = filteredStations.filter(s => 
-      s.area === 'kitchen' && 
-      !s.label.toLowerCase().includes('batata') && 
-      !s.id.includes('fries')
+      s.area === 'kitchen' && !isFriesStation(s)
   );
 
   // --- Assignment Handlers (Staff) ---
@@ -563,9 +564,9 @@ export const Positioning: React.FC<PositioningProps> = ({
                     `}
                   >
                       <option value="">Selecione o Gerente...</option>
-                      {employees.map(emp => (
+                      {employees.filter(e => e.role === 'GERENTE').map(emp => (
                           <option key={emp.id} value={emp.id}>
-                              {emp.name} {emp.role === 'GERENTE' ? '★' : ''}
+                              {emp.name}
                           </option>
                       ))}
                   </select>
