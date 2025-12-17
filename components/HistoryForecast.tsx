@@ -23,12 +23,12 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   setHourlyData,
   onNavigateToPositioning
 }) => {
-  // Local History State (starts with Mock, but can receive imports)
+  // Local History State
   const [history, setHistory] = useState<HistoryEntry[]>(MOCK_HISTORY);
   
   // State for selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [dayFilter, setDayFilter] = useState<number | null>(5); // Default to Friday (5) based on screenshot
+  const [dayFilter, setDayFilter] = useState<number | null>(5); // Default to Friday
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter Data based on Day of Week
@@ -50,45 +50,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     if (newSet.has(id)) newSet.delete(id);
     else newSet.add(id);
     setSelectedIds(newSet);
-  };
-
-  // Generate Random Demo Data for Testing
-  const handleGenerateMockData = () => {
-    const newEntries: HistoryEntry[] = [];
-    const baseDate = new Date();
-    
-    // Generate 4 weeks of data back
-    for (let i = 1; i <= 4; i++) {
-        const date = new Date(baseDate);
-        date.setDate(date.getDate() - (i * 7)); // Go back weeks
-        
-        // Randomize Sales between 6000 and 9000
-        const totalSales = Math.floor(Math.random() * (9000 - 6000 + 1)) + 6000;
-        const totalGC = Math.floor(totalSales / 8.5); // Avg check approx 8.5
-        
-        const slots: any = {};
-        TIME_SLOTS_KEYS.forEach(key => {
-            // Distribute mostly evenly with some randomness
-            const share = (1 / TIME_SLOTS_KEYS.length);
-            const slotSales = Math.floor(totalSales * share * (0.8 + Math.random() * 0.4));
-            const slotGC = Math.floor(slotSales / 8.5);
-            slots[key] = { sales: slotSales, gc: slotGC };
-        });
-
-        newEntries.push({
-            id: crypto.randomUUID(),
-            date: date.toISOString().split('T')[0],
-            dayOfWeek: date.getDay(),
-            totalSales,
-            totalGC,
-            slots
-        });
-    }
-
-    setHistory(prev => [...prev, ...newEntries]);
-    // Auto set filter to current day of week to show data immediately
-    setDayFilter(baseDate.getDay());
-    alert("Dados de demonstração gerados com sucesso! Selecione as linhas para criar a previsão.");
   };
 
   // Calculate Average of Selected
@@ -125,22 +86,18 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   const handleApplyForecast = () => {
     if (!averageData) return;
 
-    // 1. Update Target Sales
     setTargetSales(averageData.totalSales);
 
-    // 2. Transform into HourlyProjection format for Positioning page
     const hourlyProjections: HourlyProjection[] = TIME_SLOTS_KEYS.map(slotKey => {
       const metrics = averageData.slots[slotKey];
       
-      // Simple logic to distribute GCs (mock distribution percentages from the image: 15% counter, 73% kiosk, etc)
       const totalGC = metrics.gc;
       const counterGC = Math.round(totalGC * 0.15);
       const sokGC = Math.round(totalGC * 0.73);
       const deliveryGC = Math.round(totalGC * 0.07);
-      const driveGC = Math.round(totalGC * 0.05); // Remaining
+      const driveGC = Math.round(totalGC * 0.05);
 
       return {
-        // Fix: Replace all occurrences of :00 with h to match '12h-13h' format expected by Positioning
         hour: slotKey.replace(/:00/g, 'h'), 
         totalSales: metrics.sales,
         totalGC: metrics.gc,
@@ -170,7 +127,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         }
     };
     reader.readAsArrayBuffer(file);
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -180,18 +136,14 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         const sheetName = wb.SheetNames[0];
         const sheet = wb.Sheets[sheetName];
         
-        // Convert to 2D Array with raw values to better handle numbers/dates
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' }) as string[][];
 
         const newEntries: HistoryEntry[] = [];
         
-        // Helper to parse currency/numbers
         const parseNumber = (val: string | number) => {
             if (typeof val === 'number') return val;
             if (!val) return 0;
-            // Clean string "1.000,00 €" -> 1000.00
             let clean = val.replace(/[€\s]/g, '');
-            // Check for Portuguese format (dots thousands, comma decimal)
             if (clean.includes(',') && clean.indexOf('.') < clean.indexOf(',')) {
                 clean = clean.replace(/\./g, '').replace(',', '.');
             } else if (clean.includes(',')) {
@@ -200,35 +152,33 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             return parseFloat(clean) || 0;
         };
 
-        // Helper to parse date
         const parseDateStr = (dateStr: string | number) => {
            if (!dateStr) return null;
-           // If raw date string "07/01/2022"
            if (typeof dateStr === 'string' && dateStr.includes('/')) {
                 const parts = dateStr.trim().split('/');
                 if (parts.length === 3) {
-                    return `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+                    let year = parts[2];
+                    if (year.length === 2) year = '20' + year;
+                    return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                 }
            }
-           // If excel pre-formatted string YYYY-MM-DD
            if (typeof dateStr === 'string' && dateStr.includes('-')) {
              return dateStr;
            }
            return null;
         };
 
-        // Iterate rows. Start checking from row 1 (index 1) assuming row 0 is header
         rows.forEach((row) => {
             if (!row || row.length < 2) return;
 
-            // Column B (Index 1) should be date
-            const dateStr = parseDateStr(row[1]);
-            if (!dateStr) return; // Skip invalid rows or headers
+            // Column A (Index 0) is Date in the provided format
+            const dateStr = parseDateStr(row[0]);
+            if (!dateStr) return; 
 
             const dateObj = new Date(dateStr);
             if (isNaN(dateObj.getTime())) return;
 
-            const dayOfWeek = dateObj.getDay(); // 0-6
+            const dayOfWeek = dateObj.getDay();
 
             const entry: HistoryEntry = {
                 id: crypto.randomUUID(),
@@ -239,26 +189,23 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 slots: {}
             };
 
-            // Column Mapping based on Image Structure
+            // Mapping based on the image format: E-F, G-H, I-J, K-L, M-N, O-P
             const slotMappings = [
                 { key: "12:00-13:00", salesIdx: 4, gcIdx: 5 },
-                { key: "13:00-14:00", salesIdx: 9, gcIdx: 10 },
-                { key: "14:00-15:00", salesIdx: 14, gcIdx: 15 },
-                { key: "19:00-20:00", salesIdx: 19, gcIdx: 20 },
-                { key: "20:00-21:00", salesIdx: 24, gcIdx: 25 },
-                { key: "21:00-22:00", salesIdx: 29, gcIdx: 30 },
+                { key: "13:00-14:00", salesIdx: 6, gcIdx: 7 },
+                { key: "14:00-15:00", salesIdx: 8, gcIdx: 9 },
+                { key: "19:00-20:00", salesIdx: 10, gcIdx: 11 },
+                { key: "20:00-21:00", salesIdx: 12, gcIdx: 13 },
+                { key: "21:00-22:00", salesIdx: 14, gcIdx: 15 },
             ];
 
             let totalS = 0;
             let totalG = 0;
 
             slotMappings.forEach(map => {
-                // Ensure row has enough columns
                 if (row.length <= map.gcIdx) return;
-                
                 const sales = parseNumber(row[map.salesIdx]);
                 const gc = parseNumber(row[map.gcIdx]);
-                
                 entry.slots[map.key] = { sales, gc };
                 totalS += sales;
                 totalG += gc;
@@ -267,7 +214,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             entry.totalSales = Math.round(totalS);
             entry.totalGC = Math.round(totalG);
 
-            // Only add if we actually found data
             if (totalS > 0) {
                 newEntries.push(entry);
             }
@@ -277,7 +223,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             setHistory(prev => [...prev, ...newEntries]);
             alert(`${newEntries.length} registos importados com sucesso!`);
         } else {
-            alert("Não foram encontrados registos válidos. Verifique se o Excel corresponde ao modelo (Data na Coluna B, Vendas/GC nas colunas corretas).");
+            alert("Não foram encontrados registos válidos. Verifique se o Excel corresponde ao modelo (Data na Coluna A).");
         }
 
     } catch (error) {
@@ -286,7 +232,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     }
   };
 
-  // Format Helpers
   const formatCurrency = (val: number) => `€ ${val.toLocaleString('pt-PT')}`;
   const getDayName = (day: number) => ['Domingo', '2ª Feira', '3ª Feira', '4ª Feira', '5ª Feira', '6ª Feira', 'Sábado'][day];
 
@@ -315,7 +260,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                             key={d}
                             onClick={() => {
                                 setDayFilter(d === dayFilter ? null : d);
-                                setSelectedIds(new Set()); // Reset selection on filter change
+                                setSelectedIds(new Set());
                             }}
                             className={`
                                 w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-colors
@@ -332,7 +277,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             {/* Actions Group */}
             <div className="flex items-center gap-3">
                
-               {/* Import/Generate Button Group */}
                <div className="flex gap-2 h-full">
                   <input 
                     type="file" 
@@ -341,15 +285,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                     className="hidden"
                     onChange={handleFileUpload}
                   />
-                  <button 
-                    onClick={handleGenerateMockData}
-                    className="flex items-center gap-2 bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium h-full"
-                    title="Gerar dados aleatórios para teste"
-                  >
-                    <Database size={18} />
-                    <span className="hidden md:inline">Gerar Demo</span>
-                  </button>
-
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm text-sm font-medium h-full"
@@ -360,7 +295,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                   </button>
                </div>
 
-               {/* Target Date */}
                <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Previsão Para</span>
                   <input 
@@ -393,14 +327,12 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                <th className="p-3 bg-yellow-100/50 border-r border-yellow-200 text-yellow-800 w-24">Dia Sem.</th>
                <th className="p-3 bg-yellow-100/50 border-r border-yellow-200 text-yellow-800 font-extrabold w-32">Vendas Totais</th>
                
-               {/* Time Slot Headers */}
                {TIME_SLOTS_KEYS.map(slot => (
                  <th key={slot} className={`p-2 border-r border-white/50 text-white min-w-[120px] ${parseInt(slot) >= 19 ? 'bg-orange-500' : 'bg-slate-600'}`}>
                     {slot}
                  </th>
                ))}
              </tr>
-             {/* Sub-header for Sales/GC */}
              <tr className="text-[10px] text-gray-500 bg-gray-100 border-b border-gray-200">
                <th className="sticky left-0 bg-gray-100 border-r border-gray-200"></th>
                <th className="border-r border-gray-200"></th>
@@ -453,10 +385,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                          <Search size={32} className="opacity-20" />
                          <p>Nenhum histórico encontrado para o filtro selecionado.</p>
                          <div className="flex gap-2 mt-2">
-                             <button onClick={handleGenerateMockData} className="text-purple-600 hover:underline text-xs font-bold">
-                                Gerar dados demo
-                             </button>
-                             <span className="text-gray-300">|</span>
                              <button onClick={() => fileInputRef.current?.click()} className="text-blue-500 hover:underline text-xs">
                                Importar Excel
                              </button>
