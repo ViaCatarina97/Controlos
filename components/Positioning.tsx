@@ -1037,8 +1037,8 @@ export const Positioning: React.FC<PositioningProps> = ({
 
             {/* MAIN CONTENT COLUMNS */}
             
-            {/* COLUMN 1: SUPPORT (Bebidas TOP, Batatas BOTTOM) - 20% */}
-            <div className="col-span-3 flex flex-col gap-2 h-full">
+            {/* COLUMN 1: SUPPORT (Bebidas TOP, Batatas BOTTOM) - 33% */}
+            <div className="col-span-4 flex flex-col gap-2 h-full">
                 {beverageStations.length > 0 && (
                     <div className="flex-1">
                         <VisualPrintZone 
@@ -1069,8 +1069,8 @@ export const Positioning: React.FC<PositioningProps> = ({
                 )}
             </div>
 
-            {/* COLUMN 2: KITCHEN (Produção) - 45% (Wider for grid) */}
-            <div className="col-span-5 flex flex-col gap-2 h-full">
+            {/* COLUMN 2: KITCHEN (Produção) - 33% (Wider for grid) */}
+            <div className="col-span-4 flex flex-col gap-2 h-full">
                  <VisualPrintZone 
                     title="Cozinha (Produção)" 
                     icon={Flame} 
@@ -1080,11 +1080,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                     employees={employees}
                     className="bg-red-50 border-red-200 h-full"
                     headerColor="text-red-800"
-                    stationClassName="w-[32%] mb-1" // 3 items per row approx
+                    stationClassName="w-[48%] mb-1" 
                 />
             </div>
 
-            {/* COLUMN 3: SERVICE + MCCAFE (Top), DELIVERY + LOBBY (Bottom) - 35% */}
+            {/* COLUMN 3: SERVICE + MCCAFE (Top), DELIVERY + LOBBY (Bottom) - 33% */}
             <div className="col-span-4 flex flex-col gap-2 h-full">
                 
                 {/* Upper: Service + McCafe Side-by-Side */}
@@ -1096,7 +1096,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                         schedule={schedule} 
                         selectedShift={selectedShift} 
                         employees={employees}
-                        className="bg-blue-50 border-blue-200 flex-[1.5] h-full"
+                        className="bg-blue-50 border-blue-200 flex-1 h-full"
                         headerColor="text-blue-800"
                         stationClassName="w-[48%]"
                     />
