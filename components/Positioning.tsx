@@ -5,7 +5,7 @@ import {
   Users, User, AlertCircle, X, 
   Bike, ShoppingBag, UtensilsCrossed, Monitor, Coffee, Flame, Sun, Moon, Sunrise, Store, MoonStar, 
   Car, CupSoda, Headset, IceCream, HeartHandshake, Sandwich, Utensils, Thermometer, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap
+  Calculator, CheckCircle2, AlertTriangle, Smile, Calendar, UserCircle, Plus, Circle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -56,7 +56,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
         {stations.map(station => {
           const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
           const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
-          const isFull = assignedIds.length >= station.defaultSlots;
+          // const isFull = assignedIds.length >= station.defaultSlots; // Removed check to allow over-assignment
 
           return (
             <div key={station.id} className="p-3 hover:bg-white/40 transition-colors">
@@ -114,15 +114,14 @@ const StationGroup: React.FC<StationGroupProps> = ({
                      <select 
                         className={`
                             flex-1 text-xs border rounded p-1 outline-none focus:ring-1 focus:ring-blue-500 bg-white/50 hover:bg-white transition-colors
-                            ${isFull ? 'border-red-200 text-red-400' : 'border-gray-200 text-gray-600'}
+                            border-gray-200 text-gray-600
                         `}
                         value=""
                         onChange={(e) => {
                             if(e.target.value) onAssign(station.id, e.target.value);
                         }}
-                        disabled={isFull}
                      >
-                        <option value="">{isFull ? 'Cheio' : '+ Staff'}</option>
+                        <option value="">+ Staff</option>
                         {employees
                             .filter(e => !assignedIds.includes(e.id)) 
                             .map(e => (
@@ -379,6 +378,23 @@ export const Positioning: React.FC<PositioningProps> = ({
   const handleUnlock = () => {
       const unlockedSchedule = { ...schedule, isLocked: false };
       onSaveSchedule(unlockedSchedule);
+  };
+
+  const handleClearAssignments = () => {
+      if (schedule.isLocked) return;
+      if (confirm('Tem a certeza que deseja limpar todos os posicionamentos deste turno?')) {
+          setSchedule({
+              ...schedule,
+              shifts: {
+                  ...schedule.shifts,
+                  [selectedShift]: {} // Clear assignments for this shift
+              },
+              trainees: {
+                  ...schedule.trainees,
+                  [selectedShift]: {} // Clear trainees for this shift
+              }
+          });
+      }
   };
 
   const getShiftIcon = (id: ShiftType) => {
@@ -766,6 +782,14 @@ export const Positioning: React.FC<PositioningProps> = ({
                         <Edit size={16} /> Editar
                     </button>
                 )}
+                {!schedule.isLocked && (
+                    <button
+                        onClick={handleClearAssignments}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm"
+                    >
+                        <Trash2 size={16} /> Limpar
+                    </button>
+                )}
                 <button
                     onClick={handlePrint}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
@@ -1085,10 +1109,10 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
 
             {/* COLUMN 3: SERVICE + MCCAFE (Top), DELIVERY + LOBBY (Bottom) - 33% */}
-            <div className="col-span-4 flex flex-col gap-2 h-full">
+            <div className="col-span-4 grid grid-rows-2 gap-2 h-full">
                 
                 {/* Upper: Service + McCafe Side-by-Side */}
-                <div className="flex gap-2 flex-1">
+                <div className="grid grid-cols-2 gap-2">
                      <VisualPrintZone 
                         title="Balcão (Serviço)" 
                         icon={Store} 
@@ -1096,12 +1120,12 @@ export const Positioning: React.FC<PositioningProps> = ({
                         schedule={schedule} 
                         selectedShift={selectedShift} 
                         employees={employees}
-                        className="bg-blue-50 border-blue-200 flex-1 h-full"
+                        className="bg-blue-50 border-blue-200 h-full"
                         headerColor="text-blue-800"
                         stationClassName="w-[48%]"
                     />
                     
-                    {mccafeStations.length > 0 && (
+                    {mccafeStations.length > 0 ? (
                         <VisualPrintZone 
                             title="McCafé" 
                             icon={Coffee} 
@@ -1109,42 +1133,39 @@ export const Positioning: React.FC<PositioningProps> = ({
                             schedule={schedule} 
                             selectedShift={selectedShift} 
                             employees={employees}
-                            className="bg-amber-50 border-amber-200 flex-1 h-full"
+                            className="bg-amber-50 border-amber-200 h-full"
                             headerColor="text-amber-900"
                         />
-                    )}
+                    ) : <div />}
                 </div>
                 
                 {/* Lower: Delivery + Lobby Side-by-Side */}
-                <div className="flex gap-2 flex-1">
-                    {deliveryStations.length > 0 && (
-                        <div className="flex-1">
-                            <VisualPrintZone 
-                                title="Delivery" 
-                                icon={Bike} 
-                                stations={deliveryStations} 
-                                schedule={schedule} 
-                                selectedShift={selectedShift} 
-                                employees={employees}
-                                className="bg-green-50 border-green-200 h-full"
-                                headerColor="text-green-800"
-                            />
-                        </div>
-                    )}
-                    {lobbyStations.length > 0 && (
-                        <div className="flex-1">
-                            <VisualPrintZone 
-                                title="Sala" 
-                                icon={Users} 
-                                stations={lobbyStations} 
-                                schedule={schedule} 
-                                selectedShift={selectedShift} 
-                                employees={employees}
-                                className="bg-yellow-50 border-yellow-200 h-full"
-                                headerColor="text-yellow-800"
-                            />
-                        </div>
-                    )}
+                <div className="grid grid-cols-2 gap-2">
+                    {deliveryStations.length > 0 ? (
+                         <VisualPrintZone 
+                            title="Delivery" 
+                            icon={Bike} 
+                            stations={deliveryStations} 
+                            schedule={schedule} 
+                            selectedShift={selectedShift} 
+                            employees={employees}
+                            className="bg-green-50 border-green-200 h-full"
+                            headerColor="text-green-800"
+                        />
+                    ) : <div className="border border-transparent" />}
+                    
+                    {lobbyStations.length > 0 ? (
+                        <VisualPrintZone 
+                            title="Sala" 
+                            icon={Users} 
+                            stations={lobbyStations} 
+                            schedule={schedule} 
+                            selectedShift={selectedShift} 
+                            employees={employees}
+                            className="bg-yellow-50 border-yellow-200 h-full"
+                            headerColor="text-yellow-800"
+                        />
+                    ) : <div />}
                 </div>
             </div>
 
