@@ -629,57 +629,61 @@ export const Positioning: React.FC<PositioningProps> = ({
         {(deliveryStations.length > 0 || lobbyStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0 || friesStations.length > 0) && (
             <div className="flex flex-col gap-6">
                 
-                {/* Fries & Beverage Grouped visually as Support */}
-                {(friesStations.length > 0 || beverageStations.length > 0) && (
-                    <>
-                        {friesStations.length > 0 && (
-                            <StationGroup 
-                                title="Batatas (Fries)" 
-                                stations={friesStations} 
-                                schedule={schedule}
-                                selectedShift={selectedShift}
-                                employees={employees}
-                                onAssign={handleAssign}
-                                onRemove={handleRemove}
-                                onAssignTrainee={handleAssignTrainee}
-                                onRemoveTrainee={handleRemoveTrainee}
-                                color="yellow"
-                                isLocked={schedule.isLocked}
-                            />
-                        )}
-                        {beverageStations.length > 0 && (
-                            <StationGroup 
-                                title="Bebidas (Cell)" 
-                                stations={beverageStations} 
-                                schedule={schedule}
-                                selectedShift={selectedShift}
-                                employees={employees}
-                                onAssign={handleAssign}
-                                onRemove={handleRemove}
-                                onAssignTrainee={handleAssignTrainee}
-                                onRemoveTrainee={handleRemoveTrainee}
-                                color="purple"
-                                isLocked={schedule.isLocked}
-                            />
-                        )}
-                    </>
+                {/* Fries, Beverage & McCafe Grouped visually as Support */}
+                {(friesStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0) && (
+                    <div className="rounded-xl border border-yellow-200 overflow-hidden shadow-sm bg-white">
+                        <div className="px-4 py-3 bg-yellow-50 border-b border-yellow-200 flex justify-between items-center">
+                            <h4 className="font-bold text-yellow-800 uppercase text-sm tracking-wide">Áreas de Apoio</h4>
+                        </div>
+                        <div className="p-4 flex flex-col gap-4">
+                             {friesStations.length > 0 && (
+                                <StationGroup 
+                                    title="Batatas (Fries)" 
+                                    stations={friesStations} 
+                                    schedule={schedule}
+                                    selectedShift={selectedShift}
+                                    employees={employees}
+                                    onAssign={handleAssign}
+                                    onRemove={handleRemove}
+                                    onAssignTrainee={handleAssignTrainee}
+                                    onRemoveTrainee={handleRemoveTrainee}
+                                    color="yellow"
+                                    isLocked={schedule.isLocked}
+                                />
+                             )}
+                             {beverageStations.length > 0 && (
+                                <StationGroup 
+                                    title="Bebidas (Cell)" 
+                                    stations={beverageStations} 
+                                    schedule={schedule}
+                                    selectedShift={selectedShift}
+                                    employees={employees}
+                                    onAssign={handleAssign}
+                                    onRemove={handleRemove}
+                                    onAssignTrainee={handleAssignTrainee}
+                                    onRemoveTrainee={handleRemoveTrainee}
+                                    color="purple"
+                                    isLocked={schedule.isLocked}
+                                />
+                             )}
+                             {mccafeStations.length > 0 && (
+                                <StationGroup 
+                                    title="McCafé" 
+                                    stations={mccafeStations} 
+                                    schedule={schedule}
+                                    selectedShift={selectedShift}
+                                    employees={employees}
+                                    onAssign={handleAssign}
+                                    onRemove={handleRemove}
+                                    onAssignTrainee={handleAssignTrainee}
+                                    onRemoveTrainee={handleRemoveTrainee}
+                                    color="yellow"
+                                    isLocked={schedule.isLocked}
+                                />
+                            )}
+                        </div>
+                    </div>
                 )}
-
-                {mccafeStations.length > 0 && (
-                     <StationGroup 
-                        title="McCafé" 
-                        stations={mccafeStations} 
-                        schedule={schedule}
-                        selectedShift={selectedShift}
-                        employees={employees}
-                        onAssign={handleAssign}
-                        onRemove={handleRemove}
-                        onAssignTrainee={handleAssignTrainee}
-                        onRemoveTrainee={handleRemoveTrainee}
-                        color="yellow"
-                        isLocked={schedule.isLocked}
-                    />
-                 )}
 
                 {deliveryStations.length > 0 && (
                     <StationGroup 
@@ -731,64 +735,63 @@ export const Positioning: React.FC<PositioningProps> = ({
     </div>
 
     {/* ================= PRINT VIEW (VISUAL MAP) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-2 text-slate-800 overflow-hidden">
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-2 text-slate-800 overflow-visible min-h-screen">
         
-        {/* Print Header */}
-        <div className="flex justify-between items-start mb-2 pb-2 border-b-2 border-slate-900">
+        {/* Print Header - Compact */}
+        <div className="flex justify-between items-start mb-2 pb-1 border-b-2 border-slate-900">
             <div>
-                <h1 className="text-2xl font-extrabold uppercase tracking-tight text-slate-900 mb-0 leading-none">{settings.restaurantName}</h1>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Mapa de Posicionamento Operacional</p>
+                <h1 className="text-xl font-extrabold uppercase tracking-tight text-slate-900 mb-0 leading-none">{settings.restaurantName}</h1>
             </div>
-            <div className="text-right">
-                <div className="inline-block bg-slate-900 text-white px-3 py-0.5 rounded-full text-lg font-black uppercase mb-1">{getShiftLabel(selectedShift)}</div>
-                <div className="text-xs font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div className="text-right flex items-center gap-4">
+                 <div className="text-[10px] font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                 <div className="inline-block bg-slate-900 text-white px-2 py-0.5 rounded text-sm font-black uppercase">{getShiftLabel(selectedShift)}</div>
             </div>
         </div>
 
-        {/* Top Stats Bar - Compact */}
-        <div className="flex gap-2 mb-3">
-            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
+        {/* Top Stats Bar - Extremely Compact */}
+        <div className="flex gap-2 mb-2">
+            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between">
                  <div>
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Gerente</span>
-                    <div className="font-bold text-sm leading-none truncate">{shiftManagerName}</div>
+                    <div className="font-bold text-xs leading-none truncate">{shiftManagerName}</div>
                  </div>
             </div>
-            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
+            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between">
                  <div>
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Previsão</span>
-                    <div className="font-bold text-sm leading-none">{activeSalesData.totalSales} €</div>
+                    <div className="font-bold text-xs leading-none">{activeSalesData.totalSales} €</div>
                  </div>
             </div>
-            <div className="flex-1 bg-slate-100 rounded-lg p-2 border border-slate-200 flex items-center justify-between">
+            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between">
                  <div>
-                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Staff Nec.</span>
-                    <div className="font-bold text-sm leading-none">{requirement.count}</div>
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Staff</span>
+                    <div className="font-bold text-xs leading-none">{requirement.count}</div>
                  </div>
             </div>
-            <div className="flex-[2] bg-white border border-slate-200 rounded-lg p-2 flex gap-2">
+            <div className="flex-[2] bg-white border border-slate-200 rounded p-1.5 flex gap-2">
                  {(currentObjectives.turnObjective || currentObjectives.productionObjective) ? (
                     <>
                         {currentObjectives.turnObjective && (
                             <div className="flex-1 overflow-hidden">
                                 <span className="text-[8px] font-bold uppercase text-blue-500 mb-0 block">Obj. Turno</span>
-                                <p className="text-[10px] font-medium leading-tight truncate">{currentObjectives.turnObjective}</p>
+                                <p className="text-[9px] font-medium leading-tight truncate">{currentObjectives.turnObjective}</p>
                             </div>
                         )}
                         {currentObjectives.productionObjective && (
                              <div className="flex-1 border-l border-slate-100 pl-2 overflow-hidden">
                                 <span className="text-[8px] font-bold uppercase text-orange-500 mb-0 block">Obj. Produção</span>
-                                <p className="text-[10px] font-medium leading-tight truncate">{currentObjectives.productionObjective}</p>
+                                <p className="text-[9px] font-medium leading-tight truncate">{currentObjectives.productionObjective}</p>
                             </div>
                         )}
                     </>
                  ) : (
-                    <span className="text-[10px] text-slate-400 italic flex items-center">Sem objetivos.</span>
+                    <span className="text-[9px] text-slate-400 italic flex items-center">Sem objetivos.</span>
                  )}
             </div>
         </div>
 
-        {/* Visual Map Layout - FIXED GRID (More Compact for Print) */}
-        <div className="flex-1 grid grid-cols-12 gap-2 h-auto">
+        {/* Visual Map Layout - FIXED GRID (A4 Landscape Optimized) */}
+        <div className="grid grid-cols-12 gap-2">
             
             {/* ROW 1: DRIVE (Full Width) */}
             {driveStations.length > 0 && (
@@ -800,14 +803,16 @@ export const Positioning: React.FC<PositioningProps> = ({
                         schedule={schedule} 
                         selectedShift={selectedShift} 
                         employees={employees}
-                        className="bg-slate-50 border-slate-300 flex-row flex-nowrap overflow-hidden"
+                        className="bg-slate-50 border-slate-300 flex-row flex-wrap"
                         headerColor="text-slate-800"
-                        stationClassName="w-auto flex-1 min-w-[80px]"
+                        stationClassName="flex-1 min-w-[80px]"
                     />
                 </div>
             )}
 
-            {/* ROW 2 - COLUMN 1: SUPPORT AREAS (Left) */}
+            {/* MAIN CONTENT COLUMNS */}
+            
+            {/* COLUMN 1: SUPPORT (Batatas, Bebidas, McCafe) - 25% */}
             <div className="col-span-3 flex flex-col gap-2">
                 {friesStations.length > 0 && (
                     <VisualPrintZone 
@@ -847,7 +852,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                 )}
             </div>
 
-            {/* ROW 2 - COLUMN 2: CENTER STAGE (Kitchen) */}
+            {/* COLUMN 2: KITCHEN (Produção) - 40% (Wider for grid) */}
             <div className="col-span-5 flex flex-col gap-2">
                  <VisualPrintZone 
                     title="Cozinha (Produção)" 
@@ -858,11 +863,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                     employees={employees}
                     className="bg-red-50 border-red-200 h-full"
                     headerColor="text-red-800"
-                    stationClassName="w-[48%] mb-1"
+                    stationClassName="w-[32%] mb-1" // 3 items per row approx
                 />
             </div>
 
-            {/* ROW 2 - COLUMN 3: SERVICE & EXTENSIONS (Right) */}
+            {/* COLUMN 3: SERVICE (Balcão, Delivery, Sala) - 35% */}
             <div className="col-span-4 flex flex-col gap-2">
                 <VisualPrintZone 
                     title="Balcão (Serviço)" 
@@ -873,6 +878,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     employees={employees}
                     className="bg-blue-50 border-blue-200 flex-1"
                     headerColor="text-blue-800"
+                    stationClassName="w-[48%]"
                 />
                 
                 <div className="flex gap-2">
@@ -909,9 +915,8 @@ export const Positioning: React.FC<PositioningProps> = ({
 
         </div>
 
-        <div className="fixed bottom-0 left-0 w-full p-2 border-t border-slate-100 flex justify-between text-[8px] text-slate-400 bg-white">
+        <div className="fixed bottom-0 left-0 w-full p-1 border-t border-slate-100 flex justify-between text-[8px] text-slate-400 bg-white">
             <span>TeamPos &bull; Documento de Gestão Interna</span>
-            <span>{new Date().toLocaleString('pt-PT')}</span>
         </div>
     </div>
     </>
@@ -1058,37 +1063,47 @@ const StationCard = ({ station, schedule, selectedShift, employees, onAssign, on
             {!isLocked && (
                 <div className="mt-auto pt-2">
                     {addingMode === 'none' ? (
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-1.5">
                             <button 
                                 onClick={() => setAddingMode('staff')}
-                                className="flex-1 py-1 text-[10px] border border-dashed border-gray-300 rounded text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-1.5 text-[10px] font-medium border border-dashed border-gray-300 rounded text-gray-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
                             >
-                                <Plus size={10} /> Staff
+                                <Plus size={12} /> Adicionar Staff
                             </button>
                             <button 
                                 onClick={() => setAddingMode('trainee')}
-                                className="flex-1 py-1 text-[10px] border border-dashed border-gray-300 rounded text-gray-400 hover:text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-1.5 text-[10px] font-medium border border-dashed border-gray-300 rounded text-gray-500 hover:text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
                             >
-                                <GraduationCap size={10} /> Formando
+                                <GraduationCap size={12} /> Adicionar Formando
                             </button>
                         </div>
                     ) : (
-                        <select 
-                            autoFocus
-                            onBlur={() => setAddingMode('none')}
-                            onChange={handleSelect}
-                            className={`w-full text-xs p-1.5 border rounded focus:outline-none transition-colors animate-scale-up ${
-                                addingMode === 'staff' 
-                                    ? 'bg-blue-50 border-blue-200 focus:ring-1 focus:ring-blue-500 text-blue-800' 
-                                    : 'bg-green-50 border-green-200 focus:ring-1 focus:ring-green-500 text-green-800'
-                            }`}
-                            defaultValue=""
-                        >
-                            <option value="">{addingMode === 'staff' ? 'Selecionar Staff...' : 'Selecionar Formando...'}</option>
-                            {sortedEmployees.map(e => (
-                                <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                            ))}
-                        </select>
+                        <div className="animate-scale-up">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase">
+                                    {addingMode === 'staff' ? 'Selecionar Staff' : 'Selecionar Formando'}
+                                </span>
+                                <button onClick={() => setAddingMode('none')} className="text-gray-400 hover:text-red-500">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                            <select 
+                                autoFocus
+                                onBlur={() => setAddingMode('none')}
+                                onChange={handleSelect}
+                                className={`w-full text-xs p-1.5 border rounded focus:outline-none transition-colors ${
+                                    addingMode === 'staff' 
+                                        ? 'bg-blue-50 border-blue-200 focus:ring-1 focus:ring-blue-500 text-blue-800' 
+                                        : 'bg-green-50 border-green-200 focus:ring-1 focus:ring-green-500 text-green-800'
+                                }`}
+                                defaultValue=""
+                            >
+                                <option value="">Selecione da lista...</option>
+                                {sortedEmployees.map(e => (
+                                    <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
+                                ))}
+                            </select>
+                        </div>
                     )}
                 </div>
             )}
@@ -1112,19 +1127,19 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, icon: Icon, stations, schedule, selectedShift, employees, className, headerColor, stationClassName 
 }) => {
     return (
-        <div className={`rounded-lg border p-2 flex flex-col h-full ${className}`}>
-            <div className={`flex items-center gap-1 mb-2 ${headerColor} font-bold uppercase tracking-wider text-[10px] border-b border-black/5 pb-1`}>
-                <Icon size={12} />
+        <div className={`rounded-lg border p-1.5 flex flex-col h-full ${className} break-inside-avoid`}>
+            <div className={`flex items-center gap-1 mb-1 ${headerColor} font-bold uppercase tracking-wider text-[9px] border-b border-black/5 pb-1`}>
+                <Icon size={10} />
                 {title}
             </div>
-            <div className="flex-1 flex flex-wrap content-start gap-2">
+            <div className="flex-1 flex flex-wrap content-start gap-1">
                 {stations.map(station => {
                      const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                      const assignedTrainees = schedule.trainees?.[selectedShift]?.[station.id] || [];
                      const allAssigned = [...assignedIds, ...assignedTrainees];
 
                      return (
-                        <div key={station.id} className={`bg-white border border-slate-200 rounded p-1 min-h-[40px] flex flex-col shadow-sm ${stationClassName || 'w-full'} break-inside-avoid`}>
+                        <div key={station.id} className={`bg-white border border-slate-200 rounded p-1 min-h-[36px] flex flex-col shadow-sm ${stationClassName || 'w-full'} break-inside-avoid`}>
                             <div className="text-[8px] font-bold text-slate-500 uppercase mb-0.5 truncate" title={station.label}>
                                 {station.designation || station.label}
                             </div>
@@ -1143,7 +1158,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                         )
                                     })
                                 ) : (
-                                    <div className="text-[8px] text-slate-300 italic">Vazio</div>
+                                    <div className="text-[7px] text-slate-300 italic">Vazio</div>
                                 )}
                             </div>
                         </div>
