@@ -1,5 +1,5 @@
 
-export type RoleType = 'GERENTE' | 'TREINADOR' | 'RP';
+export type RoleType = 'GERENTE' | 'TREINADOR' | 'RP' | 'FUNCIONÁRIO';
 
 export interface Employee {
   id: string;

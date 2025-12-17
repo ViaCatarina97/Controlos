@@ -1,3 +1,4 @@
+
 import { AppSettings, BusinessArea, Employee, HistoryEntry, RestaurantTypology, RoleType, ShiftType, StaffingTableEntry, StationConfig } from "./types";
 
 export const STATIONS: StationConfig[] = [
@@ -176,13 +177,15 @@ export const AVAILABLE_SHIFTS: { id: ShiftType; label: string }[] = [
 export const ROLE_LABELS: Record<RoleType, string> = {
   GERENTE: "Gerente",
   TREINADOR: "Treinador",
-  RP: "Relações Públicas"
+  RP: "Relações Públicas",
+  FUNCIONÁRIO: "Funcionário"
 };
 
 export const ROLE_COLORS: Record<RoleType, string> = {
   GERENTE: "bg-blue-100 text-blue-800 border-blue-200 ring-blue-500",
   TREINADOR: "bg-green-100 text-green-800 border-green-200 ring-green-500",
-  RP: "bg-pink-100 text-pink-800 border-pink-200 ring-pink-500"
+  RP: "bg-pink-100 text-pink-800 border-pink-200 ring-pink-500",
+  FUNCIONÁRIO: "bg-gray-100 text-gray-800 border-gray-200 ring-gray-500"
 };
 
 export const TIME_SLOTS_KEYS = [
