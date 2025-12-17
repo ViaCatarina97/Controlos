@@ -5,7 +5,7 @@ import {
   Users, User, AlertCircle, X, 
   Bike, UtensilsCrossed, Coffee, Flame, Sun, Store, MoonStar, 
   Car, CupSoda, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise
+  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise, Layout
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -33,6 +33,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
     yellow: 'border-yellow-200 bg-yellow-50',
     purple: 'border-purple-200 bg-purple-50',
     green: 'border-green-200 bg-green-50',
+    slate: 'border-slate-200 bg-slate-50',
   };
   const titleColorMap: Record<string, string> = {
     red: 'text-red-800',
@@ -40,6 +41,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
     yellow: 'text-yellow-800',
     purple: 'text-purple-800',
     green: 'text-green-800',
+    slate: 'text-slate-800',
   };
 
   const containerClass = colorMap[color] || 'border-gray-200 bg-white';
@@ -149,82 +151,61 @@ const StationGroup: React.FC<StationGroupProps> = ({
 
 interface VisualPrintZoneProps {
   title: string;
-  icon: any;
   stations: StationConfig[];
   schedule: DailySchedule;
   selectedShift: ShiftType;
   employees: Employee[];
-  className?: string;
-  headerColor?: string;
-  cols?: number;
 }
 
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, icon: Icon, stations, schedule, selectedShift, employees, className = '', headerColor = '', cols = 2
+  title, stations, schedule, selectedShift, employees
 }) => {
+    // Determine the number of columns for this area's grid based on station count
+    const getGridCols = (count: number) => {
+        if (count <= 2) return 'grid-cols-1';
+        if (count <= 4) return 'grid-cols-2';
+        return 'grid-cols-2'; // Max 2 columns per group to maintain readability
+    };
+
     return (
-        <div className={`border-2 rounded-lg flex flex-col h-full shadow-sm ${className}`}>
-            <div className={`p-1.5 flex items-center gap-1 border-b-2 border-black/10 ${headerColor} shrink-0`}>
-                {Icon && <Icon size={14} />}
-                <span className="font-black text-[12px] uppercase tracking-wider">{title}</span>
+        <div className="break-inside-avoid mb-4 border-2 border-slate-800 rounded-lg overflow-hidden bg-white shadow-sm flex flex-col">
+            <div className="bg-slate-800 px-3 py-1.5 flex justify-between items-center shrink-0">
+                <span className="font-black text-[12px] text-white uppercase tracking-widest leading-none">{title}</span>
+                <span className="text-[10px] font-black text-slate-800 bg-yellow-400 px-1.5 rounded-sm leading-none py-0.5">
+                    {stations.length}
+                </span>
             </div>
-            {/* Dynamic Grid: Distributed evenly to fill vertical space */}
-            <div 
-                className="flex-1 p-1.5 grid gap-2"
-                style={{ 
-                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                    gridAutoRows: '1fr' 
-                }}
-            >
+            
+            <div className={`p-2 grid gap-2 ${getGridCols(stations.length)}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-400 rounded-lg flex flex-col overflow-hidden relative">
-                             {/* Station Header - Distinct Stripe */}
-                             <div className="bg-slate-900 px-2 py-1 flex justify-between items-center shrink-0">
-                                <span className="font-black text-[11px] text-white uppercase truncate tracking-tight leading-none">
+                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[50px]">
+                             <div className="bg-slate-100 px-2 py-0.5 border-b border-slate-200 flex justify-between items-center">
+                                <span className="font-bold text-[9px] text-slate-600 uppercase truncate">
                                     {station.label}
                                 </span>
-                                {assignedIds.length > 0 && (
-                                    <span className="text-[9px] font-black text-slate-900 bg-yellow-400 px-1.5 rounded-sm leading-none py-0.5">
-                                        {assignedIds.length}
-                                    </span>
-                                )}
                              </div>
                              
-                             {/* Main Body - Centered and Large */}
-                             <div className="flex-1 flex flex-col justify-center items-center p-1.5 text-center">
+                             <div className="flex-1 p-1.5 flex flex-col justify-center gap-1">
                                  {assignedIds.length > 0 ? (
-                                     <div className="w-full flex flex-col gap-1 justify-center h-full">
-                                        {assignedIds.map(id => {
-                                            const emp = employees.find(e => e.id === id);
-                                            return (
-                                                <div key={id} className="text-[16px] sm:text-[18px] font-black text-slate-950 leading-tight uppercase tracking-tight break-words">
-                                                    {emp?.name}
-                                                </div>
-                                            )
-                                        })}
-                                     </div>
+                                     assignedIds.map(id => (
+                                         <div key={id} className="text-[14px] font-black text-slate-950 uppercase leading-none tracking-tighter">
+                                             {employees.find(e => e.id === id)?.name}
+                                         </div>
+                                     ))
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="w-1/2 h-0.5 bg-slate-100 rounded-full"></div>
+                                     <div className="h-0.5 w-4 bg-slate-100 rounded mx-auto" />
                                  ) : null}
 
-                                 {/* Trainees at bottom of body */}
-                                 {assignedTraineeIds.length > 0 && (
-                                     <div className={`w-full flex flex-col gap-0.5 ${assignedIds.length > 0 ? 'mt-auto border-t border-slate-200 pt-1' : 'justify-center h-full'}`}>
-                                        {assignedTraineeIds.map(id => {
-                                            const emp = employees.find(e => e.id === id);
-                                            return (
-                                                <div key={id} className="text-[12px] font-extrabold text-yellow-600 leading-none uppercase flex items-center justify-center gap-1 italic">
-                                                    <GraduationCap size={11} className="shrink-0" />
-                                                    <span className="truncate">{emp?.name}</span>
-                                                </div>
-                                            )
-                                        })}
+                                 {assignedTraineeIds.map(id => (
+                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-0.5 pt-0.5">
+                                         <GraduationCap size={10} className="shrink-0" />
+                                         <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
-                                 )}
+                                 ))}
                              </div>
                         </div>
                     );
@@ -388,21 +369,28 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift]);
 
-  const serviceStations = filteredStations.filter(s => s.area === 'service');
-  const deliveryStations = filteredStations.filter(s => s.area === 'delivery');
-  const beverageStations = filteredStations.filter(s => s.area === 'beverage');
-  const lobbyStations = filteredStations.filter(s => s.area === 'lobby');
-  const driveStations = filteredStations.filter(s => s.area === 'drive');
-  const mccafeStations = filteredStations.filter(s => s.area === 'mccafe');
-
-  const isFriesStation = (s: StationConfig) => {
-      const label = s.label.toLowerCase();
-      const id = s.id.toLowerCase();
-      return s.area === 'fries' || label.includes('batata') || label.includes('fries') || label.includes('frit') || id.includes('fries');
-  };
-
-  const friesStations = filteredStations.filter(s => isFriesStation(s));
-  const kitchenStations = filteredStations.filter(s => s.area === 'kitchen' && !isFriesStation(s));
+  // Group stations by Area for BOTH screen and print
+  const stationsByArea = useMemo(() => {
+    const groups: Record<string, StationConfig[]> = {};
+    filteredStations.forEach(s => {
+        if (!groups[s.area]) groups[s.area] = [];
+        groups[s.area].push(s);
+    });
+    // Order areas for logic
+    const order = ['drive', 'kitchen', 'fries', 'service', 'mccafe', 'beverage', 'delivery', 'lobby'];
+    return Object.keys(groups)
+        .sort((a, b) => {
+            const indexA = order.indexOf(a);
+            const indexB = order.indexOf(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        })
+        .reduce((acc, key) => {
+            acc[key] = groups[key];
+            return acc;
+        }, {} as Record<string, StationConfig[]>);
+  }, [filteredStations]);
 
   const handleAssign = (stationId: string, employeeId: string) => {
      if (schedule.isLocked || !employeeId) return;
@@ -458,9 +446,30 @@ export const Positioning: React.FC<PositioningProps> = ({
      });
   };
 
+  const getAreaLabel = (key: string) => {
+      const labels: Record<string, string> = {
+          kitchen: 'Cozinha / Produção',
+          service: 'Balcão / Serviço',
+          drive: 'Drive-Thru',
+          delivery: 'Delivery',
+          beverage: 'Bebidas (Cell)',
+          mccafe: 'McCafé',
+          fries: 'Batatas (Fries)',
+          lobby: 'Sala (Lobby)'
+      };
+      return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+  };
+
+  const getAreaColor = (key: string) => {
+      const colors: Record<string, string> = {
+          kitchen: 'red', service: 'blue', drive: 'blue', delivery: 'green', beverage: 'purple', mccafe: 'yellow', fries: 'yellow', lobby: 'yellow'
+      };
+      return colors[key] || 'slate';
+  };
+
   const shiftManagerName = useMemo(() => {
       const id = schedule.shiftManagers?.[selectedShift];
-      return employees.find(e => e.id === id)?.name || 'Não atribuído';
+      return employees.find(e => e.id === id)?.name || 'N/A';
   }, [schedule.shiftManagers, selectedShift, employees]);
 
   const currentObjectives = schedule.shiftObjectives?.[selectedShift] || {};
@@ -593,70 +602,81 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
 
       <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
-         {kitchenStations.length > 0 && <div className="flex flex-col gap-4"><StationGroup title="Produção (Cozinha)" stations={kitchenStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="red" isLocked={schedule.isLocked} /></div>}
-         {(serviceStations.length > 0 || driveStations.length > 0) && (
-             <div className="flex flex-col gap-4">
-                 {driveStations.length > 0 && <StationGroup title="Drive-Thru" stations={driveStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="blue" isLocked={schedule.isLocked} />}
-                 {serviceStations.length > 0 && <StationGroup title="Serviço & Balcão" stations={serviceStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="blue" isLocked={schedule.isLocked} />}
+         {Object.entries(stationsByArea).map(([area, stations]) => (
+             <div key={area} className="flex flex-col gap-4">
+                 <StationGroup 
+                    title={getAreaLabel(area)} 
+                    stations={stations} 
+                    schedule={schedule} 
+                    selectedShift={selectedShift} 
+                    employees={employees} 
+                    onAssign={handleAssign} 
+                    onRemove={handleRemove} 
+                    onAssignTrainee={handleAssignTrainee} 
+                    onRemoveTrainee={handleRemoveTrainee} 
+                    color={getAreaColor(area)} 
+                    isLocked={schedule.isLocked} 
+                 />
              </div>
-         )}
-        {(beverageStations.length > 0 || mccafeStations.length > 0 || friesStations.length > 0) && (
-            <div className="flex flex-col gap-4">
-                {mccafeStations.length > 0 && <StationGroup title="McCafé" stations={mccafeStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="yellow" isLocked={schedule.isLocked} />}
-                {beverageStations.length > 0 && <StationGroup title="Bebidas (Cell)" stations={beverageStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="purple" isLocked={schedule.isLocked} />}
-                {friesStations.length > 0 && <StationGroup title="Batatas (Fries)" stations={friesStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="yellow" isLocked={schedule.isLocked} />}
-            </div>
-        )}
-        {(deliveryStations.length > 0 || lobbyStations.length > 0) && (
-             <div className="flex flex-col gap-4">
-                {deliveryStations.length > 0 && <StationGroup title="Delivery" stations={deliveryStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="green" isLocked={schedule.isLocked} />}
-                {lobbyStations.length > 0 && <StationGroup title="Sala (Lobby)" stations={lobbyStations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color="yellow" isLocked={schedule.isLocked} />}
-             </div>
-        )}
+         ))}
         {filteredStations.length === 0 && <div className="col-span-full py-12 text-center text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-lg"><Filter size={48} className="mx-auto mb-4 opacity-20" /><p>Nenhum posto recomendado para o volume de vendas atual.</p><button onClick={() => setShowAllStations(true)} className="mt-2 text-blue-600 hover:underline font-bold">Mostrar todos os postos</button></div>}
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (VISUAL MAP) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-2 text-slate-800 overflow-visible min-h-screen">
-        <div className="flex justify-between items-start mb-2 pb-1 border-b-2 border-slate-900">
-            <div><h1 className="text-xl font-extrabold uppercase tracking-tight text-slate-900 mb-0 leading-none">{settings.restaurantName}</h1></div>
-            <div className="text-right flex items-center gap-4"><div className="text-[10px] font-bold text-slate-700">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div><div className="inline-block bg-slate-900 text-white px-2 py-0.5 rounded text-sm font-black uppercase">{getShiftLabel(selectedShift)}</div></div>
-        </div>
-
-        <div className="flex gap-2 mb-2">
-            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between"><div><span className="text-[8px] font-bold uppercase text-slate-400 block">Gerente</span><div className="font-bold text-xs leading-none truncate">{shiftManagerName}</div></div></div>
-            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between"><div><span className="text-[8px] font-bold uppercase text-slate-400 block">Previsão</span><div className="font-bold text-xs leading-none">{activeSalesData.totalSales} €</div></div></div>
-            <div className="flex-1 bg-slate-100 rounded p-1.5 border border-slate-200 flex items-center justify-between"><div><span className="text-[8px] font-bold uppercase text-slate-400 block">Staff</span><div className="font-bold text-xs leading-none">{requirement.count}</div></div></div>
-            <div className="flex-[2] bg-white border border-slate-200 rounded p-1.5 flex gap-2">
-                 {(currentObjectives.turnObjective || currentObjectives.productionObjective) ? (
-                    <>
-                        {currentObjectives.turnObjective && <div className="flex-1 overflow-hidden"><span className="text-[8px] font-bold uppercase text-blue-500 mb-0 block">Obj. Turno</span><p className="text-[9px] font-medium leading-tight truncate">{currentObjectives.turnObjective}</p></div>}
-                        {currentObjectives.productionObjective && <div className="flex-1 border-l border-slate-100 pl-2 overflow-hidden"><span className="text-[8px] font-bold uppercase text-orange-500 mb-0 block">Obj. Produção</span><p className="text-[9px] font-medium leading-tight truncate">{currentObjectives.productionObjective}</p></div>}
-                    </>
-                 ) : <span className="text-[9px] text-slate-400 italic flex items-center">Sem objetivos.</span>}
+    {/* ================= PRINT VIEW (DYNAMIC ADAPTIVE MAP) ================= */}
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-visible min-h-screen">
+        <div className="flex justify-between items-end mb-4 pb-2 border-b-4 border-slate-900">
+            <div className="flex flex-col">
+                <h1 className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none">{settings.restaurantName}</h1>
+                <div className="text-[12px] font-bold text-slate-500 mt-1 uppercase">Mapa de Posicionamento Operacional</div>
+            </div>
+            <div className="text-right">
+                <div className="text-[14px] font-black text-slate-800">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded text-lg font-black uppercase mt-1 leading-none">{getShiftLabel(selectedShift)}</div>
             </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-2 h-[85vh]">
-            {driveStations.length > 0 && <div className="col-span-12 h-auto shrink-0"><VisualPrintZone title="Drive-Thru" icon={Car} stations={driveStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-slate-50 border-slate-300" headerColor="text-slate-800" cols={driveStations.length || 1} /></div>}
-            <div className="col-span-4 flex flex-col gap-2 h-full">
-                {beverageStations.length > 0 && <div className="flex-1"><VisualPrintZone title="Bebidas" icon={CupSoda} stations={beverageStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-purple-50 border-purple-200 h-full" headerColor="text-purple-800" cols={2} /></div>}
-                {friesStations.length > 0 && <div className="flex-1"><VisualPrintZone title="Batatas" icon={UtensilsCrossed} stations={friesStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-yellow-50 border-yellow-200 h-full" headerColor="text-yellow-700" cols={2} /></div>}
+        {/* Resumo e Objetivos */}
+        <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="bg-slate-50 rounded border-2 border-slate-200 p-2">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Gerente de Turno</span>
+                <div className="font-black text-sm text-slate-900 uppercase">{shiftManagerName}</div>
             </div>
-            <div className="col-span-4 flex flex-col gap-2 h-full"><VisualPrintZone title="Cozinha (Produção)" icon={Flame} stations={kitchenStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-red-50 border-red-200 h-full" headerColor="text-red-800" cols={2} /></div>
-            <div className="col-span-4 grid grid-rows-2 gap-2 h-full">
-                <div className="grid grid-cols-2 gap-2">
-                     <VisualPrintZone title="Balcão (Serviço)" icon={Store} stations={serviceStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-blue-50 border-blue-200 h-full" headerColor="text-blue-800" cols={2} />
-                    {mccafeStations.length > 0 ? <VisualPrintZone title="McCafé" icon={Coffee} stations={mccafeStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-amber-50 border-amber-200 h-full" headerColor="text-amber-900" cols={1} /> : <div />}
+            <div className="bg-slate-50 rounded border-2 border-slate-200 p-2">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Previsão Vendas</span>
+                <div className="font-black text-sm text-slate-900">{activeSalesData.totalSales} € <span className="text-[10px] text-slate-400 font-bold ml-1">({manualPeakHour})</span></div>
+            </div>
+            <div className="col-span-2 bg-white rounded border-2 border-slate-200 p-2 flex gap-4">
+                <div className="flex-1 overflow-hidden">
+                    <span className="text-[9px] font-black uppercase text-blue-600 block mb-1">Objetivo Turno</span>
+                    <p className="text-[10px] font-bold leading-tight line-clamp-2 text-slate-700">{currentObjectives.turnObjective || 'Sem objetivo definido.'}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                    {deliveryStations.length > 0 ? <VisualPrintZone title="Delivery" icon={Bike} stations={deliveryStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-green-50 border-green-200 h-full" headerColor="text-green-800" cols={1} /> : <div className="border border-transparent" />}
-                    {lobbyStations.length > 0 ? <VisualPrintZone title="Sala" icon={Users} stations={lobbyStations} schedule={schedule} selectedShift={selectedShift} employees={employees} className="bg-yellow-50 border-yellow-200 h-full" headerColor="text-yellow-800" cols={1} /> : <div />}
+                <div className="w-px bg-slate-100" />
+                <div className="flex-1 overflow-hidden">
+                    <span className="text-[9px] font-black uppercase text-orange-600 block mb-1">Objetivo Produção</span>
+                    <p className="text-[10px] font-bold leading-tight line-clamp-2 text-slate-700">{currentObjectives.productionObjective || 'Sem objetivo definido.'}</p>
                 </div>
             </div>
         </div>
-        <div className="fixed bottom-0 left-0 w-full p-1 border-t border-slate-100 flex justify-between text-[8px] text-slate-400 bg-white"><span>TeamPos &bull; Documento de Gestão Interna</span></div>
+
+        {/* Grelha Dinâmica de Áreas */}
+        <div className="columns-2 lg:columns-3 gap-4 h-auto">
+            {Object.entries(stationsByArea).map(([area, stations]) => (
+                <VisualPrintZone 
+                    key={area}
+                    title={getAreaLabel(area)}
+                    stations={stations}
+                    schedule={schedule}
+                    selectedShift={selectedShift}
+                    employees={employees}
+                />
+            ))}
+        </div>
+
+        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-white">
+            <span>&copy; TeamPos &bull; Documento de Apoio Operacional</span>
+            <span className="mr-8">Data de Impressão: {new Date().toLocaleString()}</span>
+        </div>
     </div>
     </>
   );
