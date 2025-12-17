@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HistoryEntry, SalesData, HourlyProjection } from '../types';
 import { MOCK_HISTORY, TIME_SLOTS_KEYS } from '../constants';
-import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
@@ -45,6 +45,15 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     if (newSet.has(id)) newSet.delete(id);
     else newSet.add(id);
     setSelectedIds(newSet);
+  };
+
+  const handleDeleteEntry = (id: string) => {
+    if (confirm('Tem a certeza que deseja eliminar este registo histórico?')) {
+      setHistory(prev => prev.filter(h => h.id !== id));
+      const newSelected = new Set(selectedIds);
+      newSelected.delete(id);
+      setSelectedIds(newSelected);
+    }
   };
 
   const averageData = useMemo(() => {
@@ -111,7 +120,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         const parseDate = (val: any) => {
             if (val === undefined || val === null || val === '') return null;
             
-            // Caso 1: Objeto Date nativo (XLSX com cellDates: true)
+            // Caso 1: Objeto Date nativo
             if (val instanceof Date) {
               return val.toISOString().split('T')[0];
             }
@@ -123,10 +132,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             }
 
             const str = String(val).trim();
-            // Ignorar se for cabeçalho ou vazio
             if (!str || /^[a-zA-Záàãâéêíóôõú]/.test(str)) return null;
 
-            // Caso 3: dd/mm/yyyy ou dd/mm/yy
+            // Caso 3: dd/mm/yyyy
             const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
             if (dmyMatch) {
                 const d = dmyMatch[1].padStart(2, '0');
@@ -146,7 +154,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             return isNaN(n) ? 0 : n;
         };
 
-        rows.forEach((row, rowIndex) => {
+        rows.forEach((row) => {
             const dateStr = parseDate(row[0]);
             if (!dateStr) return; 
 
@@ -159,7 +167,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 slots: {}
             };
 
-            // Mapeamento das colunas baseadas na imagem (A=0, B=1, C=Vendas Dia, D=GC Dia, E=12:00, ...)
             const mappings = [
                 { key: "12:00-13:00", s: 4, g: 5 }, 
                 { key: "13:00-14:00", s: 6, g: 7 }, 
@@ -180,10 +187,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 ts += s; tg += g;
             });
 
-            // Se não houver detalhe horário, tentamos ler os totais da Coluna C e D
             if (!hasHourlyData) {
-                ts = parseNum(row[2]); // Coluna C
-                tg = parseNum(row[3]); // Coluna D
+                ts = parseNum(row[2]); 
+                tg = parseNum(row[3]); 
             }
 
             entry.totalSales = Math.round(ts);
@@ -196,33 +202,33 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             setHistory(prev => [...prev, ...newEntries]);
             alert(`${newEntries.length} registos importados com sucesso!`);
         } else {
-            alert("Erro: Não foram encontrados dados válidos. \nCertifique-se que as DATAS estão na Coluna A e as VENDAS começam na Coluna C (Total) ou E (Horário).");
+            alert("Erro: Não foram encontrados dados válidos. Certifique-se que as DATAS estão na Coluna A (dd/mm/yyyy).");
         }
     } catch (err) {
-        console.error("XLSX Parse Error:", err);
+        console.error("XLSX Error:", err);
         alert("Erro técnico ao processar o Excel.");
     }
   };
 
   const formatCurrency = (val: number) => `€ ${val.toLocaleString('pt-PT')}`;
-  const getDayName = (day: number) => ['Domingo', '2ª Feira', '3ª Feira', '4ª Feira', '5ª Feira', '6ª Feira', 'Sábado'][day];
+  const getDayName = (day: number) => ['Dom', '2ª', '3ª', '4ª', '5ª', '6ª', 'Sáb'][day];
 
   return (
     <div className="space-y-6 h-full flex flex-col animate-fade-in">
       <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-blue-600" /> Histórico & Previsão</h2>
-          <p className="text-sm text-gray-500">Selecione dias similares para gerar a previsão.</p>
+          <p className="text-sm text-gray-500">Importe e selecione dias similares para gerar a previsão.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dia da Semana</span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dia</span>
                     <div className="flex gap-1 mt-1">
                         {[1,2,3,4,5,6,0].map(d => (
                         <button key={d} onClick={() => { setDayFilter(d === dayFilter ? null : d); setSelectedIds(new Set()); }}
-                            className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-colors ${dayFilter === d ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
-                            {getDayName(d).charAt(0)}
+                            className={`w-7 h-7 rounded text-[10px] font-bold flex items-center justify-center transition-colors ${dayFilter === d ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
+                            {getDayName(d)}
                         </button>
                         ))}
                     </div>
@@ -232,11 +238,11 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                <div className="flex gap-2 h-full">
                   <input type="file" ref={fileInputRef} accept=".xls,.xlsx" className="hidden" onChange={handleFileUpload} />
                   <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm text-sm font-medium h-full">
-                    <FileSpreadsheet size={18} /> <span className="hidden md:inline">Importar Excel</span>
+                    <FileSpreadsheet size={18} /> <span className="hidden md:inline">Importar</span>
                   </button>
                </div>
                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Previsão Para</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Data Destino</span>
                   <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="bg-white border border-gray-300 text-gray-800 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
                </div>
             </div>
@@ -260,6 +266,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                     {slot}
                  </th>
                ))}
+               <th className="p-3 bg-gray-50 text-gray-400 w-16">Ações</th>
              </tr>
              <tr className="text-[10px] text-gray-500 bg-gray-100 border-b border-gray-200">
                <th className="sticky left-0 bg-gray-100 border-r border-gray-200"></th>
@@ -270,17 +277,22 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                     <div className="grid grid-cols-2 gap-1"><span>Vendas</span><span>GC</span></div>
                  </th>
                ))}
+               <th></th>
              </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
              {filteredHistory.map((entry) => {
                const isSelected = selectedIds.has(entry.id);
+               // Format date explicitly as dd/mm/yyyy for display
+               const [y, m, d] = entry.date.split('-');
+               const displayDate = `${d}/${m}/${y}`;
+               
                return (
                  <tr key={entry.id} className={`hover:bg-blue-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
                    <td className="p-3 sticky left-0 bg-white border-r border-gray-100 text-left font-medium text-gray-900 z-10">
                       <div className="flex items-center gap-3">
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelection(entry.id)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
-                        {new Date(entry.date).toLocaleDateString('pt-PT')}
+                        {displayDate}
                       </div>
                    </td>
                    <td className="p-2 border-r border-gray-100 text-gray-500">{entry.dayOfWeek}</td>
@@ -293,12 +305,21 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                         </div>
                      </td>
                    ))}
+                   <td className="p-2 flex justify-center items-center">
+                      <button 
+                        onClick={() => handleDeleteEntry(entry.id)}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        title="Apagar Registo"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                   </td>
                  </tr>
                );
              })}
              {filteredHistory.length === 0 && (
                 <tr>
-                    <td colSpan={10} className="p-12 text-center text-gray-400">
+                    <td colSpan={11} className="p-12 text-center text-gray-400">
                        <div className="flex flex-col items-center gap-2">
                          <Search size={32} className="opacity-20" />
                          <p>Nenhum histórico encontrado para o filtro selecionado.</p>
