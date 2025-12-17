@@ -376,7 +376,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Order areas for logic
+    // Restore Original Order that was working
     const order = ['drive', 'kitchen', 'fries', 'service', 'mccafe', 'beverage', 'delivery', 'lobby'];
     return Object.keys(groups)
         .sort((a, b) => {
