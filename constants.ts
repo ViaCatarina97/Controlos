@@ -6,7 +6,7 @@ export const STATIONS: StationConfig[] = [
   { id: 'drv_w1', label: 'Drive - Janela 1', designation: 'JAN 1', icon: 'UserCircle', defaultSlots: 1, area: 'drive', isActive: true },
   { id: 'drv_w2', label: 'Drive - Janela 2', designation: 'JAN 2', icon: 'UserCircle', defaultSlots: 1, area: 'drive', isActive: true },
   { id: 'drv_del', label: 'Drive - Entregas', designation: 'ENTREGAS', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
-  { id: 'drv_runner', label: 'Drive - Runner', designation: 'RUN DRV', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'drv_runner', label: 'Drive - Runner', designation: 'RUN DRV', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true }, // Mantive um runner opcional
 
   // --- PRODUÇÃO (COZINHA) ---
   { id: 'k_grill_1', label: 'BC Grelhador 1', designation: 'GRELH 1', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
@@ -22,7 +22,7 @@ export const STATIONS: StationConfig[] = [
   { id: 'k_fin_1', label: 'Finalizador 1', designation: 'FIN 1', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
   { id: 'k_fin_2', label: 'Finalizador 2', designation: 'FIN 2', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
   
-  // --- BATATAS (FRIES) ---
+  // --- BATATAS (FRIES) - Área Independente ---
   { id: 'fries_1', label: 'Batata - Posto 1', designation: 'BAT 1', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'fries', isActive: true },
   { id: 'fries_2', label: 'Batata - Posto 2', designation: 'BAT 2', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'fries', isActive: true },
 
@@ -162,7 +162,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
   businessAreas: ['Loja', 'Delivery', 'McCafé'],
   deliveryProviders: ["Uber Eats", "Glovo"],
-  customStations: STATIONS
+  customStations: STATIONS // Initialize with default list
 };
 
 export const AVAILABLE_TYPOLOGIES: RestaurantTypology[] = ['Loja de Rua', 'Drive', 'Shopping'];

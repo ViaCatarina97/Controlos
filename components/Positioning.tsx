@@ -202,7 +202,6 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
 
                                  {assignedTraineeIds.map(id => (
                                      <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-0.5 pt-0.5">
-                                         <GraduationCap size={10} className="shrink-0" />
                                          <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
@@ -376,8 +375,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Restore Original Order that was working
-    const order = ['drive', 'kitchen', 'fries', 'service', 'mccafe', 'beverage', 'delivery', 'lobby'];
+    // Order areas for logic - Updated order swapping McCafe with Lobby/Sala
+    const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
             const indexA = order.indexOf(a);
