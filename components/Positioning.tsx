@@ -567,12 +567,12 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
       </div>
 
-      {/* 5. Station Grid (Grouped by Area) */}
-      <div className="flex-1 overflow-auto grid grid-cols-1 xl:grid-cols-3 gap-6 pb-20">
+      {/* 5. Station Grid (Grouped by Area) - Optimized for Show All */}
+      <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
          
          {/* Column 1: Kitchen Only */}
          {kitchenStations.length > 0 && (
-             <div className="flex flex-col gap-6">
+             <div className="flex flex-col gap-4">
                 <StationGroup 
                     title="Produção (Cozinha)" 
                     stations={kitchenStations} 
@@ -591,7 +591,7 @@ export const Positioning: React.FC<PositioningProps> = ({
 
          {/* Column 2: Drive + Service */}
          {(serviceStations.length > 0 || driveStations.length > 0) && (
-             <div className="flex flex-col gap-6">
+             <div className="flex flex-col gap-4">
                  {driveStations.length > 0 && (
                      <StationGroup 
                         title="Drive-Thru" 
@@ -625,66 +625,63 @@ export const Positioning: React.FC<PositioningProps> = ({
              </div>
          )}
 
-        {/* Column 3: Support Areas (Fries, Beverage, McCafe, Delivery, Lobby) */}
-        {(deliveryStations.length > 0 || lobbyStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0 || friesStations.length > 0) && (
-            <div className="flex flex-col gap-6">
+        {/* Column 3: McCafe, Beverages, Fries */}
+        {(beverageStations.length > 0 || mccafeStations.length > 0 || friesStations.length > 0) && (
+            <div className="flex flex-col gap-4">
                 
-                {/* Fries, Beverage & McCafe Grouped visually as Support */}
-                {(friesStations.length > 0 || beverageStations.length > 0 || mccafeStations.length > 0) && (
-                    <div className="rounded-xl border border-yellow-200 overflow-hidden shadow-sm bg-white">
-                        <div className="px-4 py-3 bg-yellow-50 border-b border-yellow-200 flex justify-between items-center">
-                            <h4 className="font-bold text-yellow-800 uppercase text-sm tracking-wide">Áreas de Apoio</h4>
-                        </div>
-                        <div className="p-4 flex flex-col gap-4">
-                             {friesStations.length > 0 && (
-                                <StationGroup 
-                                    title="Batatas (Fries)" 
-                                    stations={friesStations} 
-                                    schedule={schedule}
-                                    selectedShift={selectedShift}
-                                    employees={employees}
-                                    onAssign={handleAssign}
-                                    onRemove={handleRemove}
-                                    onAssignTrainee={handleAssignTrainee}
-                                    onRemoveTrainee={handleRemoveTrainee}
-                                    color="yellow"
-                                    isLocked={schedule.isLocked}
-                                />
-                             )}
-                             {beverageStations.length > 0 && (
-                                <StationGroup 
-                                    title="Bebidas (Cell)" 
-                                    stations={beverageStations} 
-                                    schedule={schedule}
-                                    selectedShift={selectedShift}
-                                    employees={employees}
-                                    onAssign={handleAssign}
-                                    onRemove={handleRemove}
-                                    onAssignTrainee={handleAssignTrainee}
-                                    onRemoveTrainee={handleRemoveTrainee}
-                                    color="purple"
-                                    isLocked={schedule.isLocked}
-                                />
-                             )}
-                             {mccafeStations.length > 0 && (
-                                <StationGroup 
-                                    title="McCafé" 
-                                    stations={mccafeStations} 
-                                    schedule={schedule}
-                                    selectedShift={selectedShift}
-                                    employees={employees}
-                                    onAssign={handleAssign}
-                                    onRemove={handleRemove}
-                                    onAssignTrainee={handleAssignTrainee}
-                                    onRemoveTrainee={handleRemoveTrainee}
-                                    color="yellow"
-                                    isLocked={schedule.isLocked}
-                                />
-                            )}
-                        </div>
-                    </div>
+                {mccafeStations.length > 0 && (
+                     <StationGroup 
+                        title="McCafé" 
+                        stations={mccafeStations} 
+                        schedule={schedule}
+                        selectedShift={selectedShift}
+                        employees={employees}
+                        onAssign={handleAssign}
+                        onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
+                        color="yellow"
+                        isLocked={schedule.isLocked}
+                    />
                 )}
 
+                {beverageStations.length > 0 && (
+                    <StationGroup 
+                        title="Bebidas (Cell)" 
+                        stations={beverageStations} 
+                        schedule={schedule}
+                        selectedShift={selectedShift}
+                        employees={employees}
+                        onAssign={handleAssign}
+                        onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
+                        color="purple"
+                        isLocked={schedule.isLocked}
+                    />
+                )}
+                
+                {friesStations.length > 0 && (
+                    <StationGroup 
+                        title="Batatas (Fries)" 
+                        stations={friesStations} 
+                        schedule={schedule}
+                        selectedShift={selectedShift}
+                        employees={employees}
+                        onAssign={handleAssign}
+                        onRemove={handleRemove}
+                        onAssignTrainee={handleAssignTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
+                        color="yellow"
+                        isLocked={schedule.isLocked}
+                    />
+                )}
+            </div>
+        )}
+
+        {/* Column 4: Delivery, Lobby, etc */}
+        {(deliveryStations.length > 0 || lobbyStations.length > 0) && (
+             <div className="flex flex-col gap-4">
                 {deliveryStations.length > 0 && (
                     <StationGroup 
                         title="Delivery" 
@@ -716,7 +713,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                         isLocked={schedule.isLocked}
                     />
                 )}
-            </div>
+             </div>
         )}
         
         {filteredStations.length === 0 && (
@@ -791,11 +788,11 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Visual Map Layout - FIXED GRID (A4 Landscape Optimized) */}
-        <div className="grid grid-cols-12 gap-2">
+        <div className="grid grid-cols-12 gap-2 h-[85vh]">
             
             {/* ROW 1: DRIVE (Full Width) */}
             {driveStations.length > 0 && (
-                <div className="col-span-12">
+                <div className="col-span-12 h-auto shrink-0">
                     <VisualPrintZone 
                         title="Drive-Thru" 
                         icon={Car} 
@@ -812,48 +809,40 @@ export const Positioning: React.FC<PositioningProps> = ({
 
             {/* MAIN CONTENT COLUMNS */}
             
-            {/* COLUMN 1: SUPPORT (Batatas, Bebidas, McCafe) - 25% */}
-            <div className="col-span-3 flex flex-col gap-2">
-                {friesStations.length > 0 && (
-                    <VisualPrintZone 
-                        title="Batatas" 
-                        icon={UtensilsCrossed} 
-                        stations={friesStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-yellow-50 border-yellow-200"
-                        headerColor="text-yellow-700"
-                    />
-                )}
+            {/* COLUMN 1: SUPPORT (Bebidas TOP, Batatas BOTTOM) - 20% */}
+            <div className="col-span-3 flex flex-col gap-2 h-full">
                 {beverageStations.length > 0 && (
-                    <VisualPrintZone 
-                        title="Bebidas" 
-                        icon={CupSoda} 
-                        stations={beverageStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-purple-50 border-purple-200"
-                        headerColor="text-purple-800"
-                    />
+                    <div className="flex-1">
+                        <VisualPrintZone 
+                            title="Bebidas" 
+                            icon={CupSoda} 
+                            stations={beverageStations} 
+                            schedule={schedule} 
+                            selectedShift={selectedShift} 
+                            employees={employees}
+                            className="bg-purple-50 border-purple-200 h-full"
+                            headerColor="text-purple-800"
+                        />
+                    </div>
                 )}
-                {mccafeStations.length > 0 && (
-                     <VisualPrintZone 
-                        title="McCafé" 
-                        icon={Coffee} 
-                        stations={mccafeStations} 
-                        schedule={schedule} 
-                        selectedShift={selectedShift} 
-                        employees={employees}
-                        className="bg-amber-50 border-amber-200"
-                        headerColor="text-amber-900"
-                    />
+                {friesStations.length > 0 && (
+                    <div className="flex-1">
+                        <VisualPrintZone 
+                            title="Batatas" 
+                            icon={UtensilsCrossed} 
+                            stations={friesStations} 
+                            schedule={schedule} 
+                            selectedShift={selectedShift} 
+                            employees={employees}
+                            className="bg-yellow-50 border-yellow-200 h-full"
+                            headerColor="text-yellow-700"
+                        />
+                    </div>
                 )}
             </div>
 
-            {/* COLUMN 2: KITCHEN (Produção) - 40% (Wider for grid) */}
-            <div className="col-span-5 flex flex-col gap-2">
+            {/* COLUMN 2: KITCHEN (Produção) - 45% (Wider for grid) */}
+            <div className="col-span-5 flex flex-col gap-2 h-full">
                  <VisualPrintZone 
                     title="Cozinha (Produção)" 
                     icon={Flame} 
@@ -867,21 +856,39 @@ export const Positioning: React.FC<PositioningProps> = ({
                 />
             </div>
 
-            {/* COLUMN 3: SERVICE (Balcão, Delivery, Sala) - 35% */}
-            <div className="col-span-4 flex flex-col gap-2">
-                <VisualPrintZone 
-                    title="Balcão (Serviço)" 
-                    icon={Store} 
-                    stations={serviceStations} 
-                    schedule={schedule} 
-                    selectedShift={selectedShift} 
-                    employees={employees}
-                    className="bg-blue-50 border-blue-200 flex-1"
-                    headerColor="text-blue-800"
-                    stationClassName="w-[48%]"
-                />
+            {/* COLUMN 3: SERVICE + MCCAFE (Top), DELIVERY + LOBBY (Bottom) - 35% */}
+            <div className="col-span-4 flex flex-col gap-2 h-full">
                 
-                <div className="flex gap-2">
+                {/* Upper: Service + McCafe Side-by-Side */}
+                <div className="flex gap-2 flex-1">
+                     <VisualPrintZone 
+                        title="Balcão (Serviço)" 
+                        icon={Store} 
+                        stations={serviceStations} 
+                        schedule={schedule} 
+                        selectedShift={selectedShift} 
+                        employees={employees}
+                        className="bg-blue-50 border-blue-200 flex-[1.5] h-full"
+                        headerColor="text-blue-800"
+                        stationClassName="w-[48%]"
+                    />
+                    
+                    {mccafeStations.length > 0 && (
+                        <VisualPrintZone 
+                            title="McCafé" 
+                            icon={Coffee} 
+                            stations={mccafeStations} 
+                            schedule={schedule} 
+                            selectedShift={selectedShift} 
+                            employees={employees}
+                            className="bg-amber-50 border-amber-200 flex-1 h-full"
+                            headerColor="text-amber-900"
+                        />
+                    )}
+                </div>
+                
+                {/* Lower: Delivery + Lobby Side-by-Side */}
+                <div className="flex gap-2 flex-1">
                     {deliveryStations.length > 0 && (
                         <div className="flex-1">
                             <VisualPrintZone 
@@ -958,7 +965,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
                     {stations.length}
                 </span>
             </div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-4">
                 {stations.map(station => {
                     return (
                         <StationCard 
