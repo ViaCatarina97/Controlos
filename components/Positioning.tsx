@@ -160,18 +160,17 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees
 }) => {
-    // Determine the number of columns for this area's grid based on station count
+    // Determine grid columns based on content to auto-adjust
     const getGridCols = (count: number) => {
         if (count <= 2) return 'grid-cols-1';
-        if (count <= 4) return 'grid-cols-2';
-        return 'grid-cols-2'; // Max 2 columns per group to maintain readability
+        return 'grid-cols-2'; 
     };
 
     return (
-        <div className="break-inside-avoid mb-4 border-2 border-slate-800 rounded-lg overflow-hidden bg-white shadow-sm flex flex-col">
-            <div className="bg-slate-800 px-3 py-1.5 flex justify-between items-center shrink-0">
+        <div className="break-inside-avoid mb-4 border-2 border-slate-900 rounded-lg overflow-hidden bg-white shadow-sm flex flex-col">
+            <div className="bg-slate-900 px-3 py-1.5 flex justify-between items-center shrink-0">
                 <span className="font-black text-[12px] text-white uppercase tracking-widest leading-none">{title}</span>
-                <span className="text-[10px] font-black text-slate-800 bg-yellow-400 px-1.5 rounded-sm leading-none py-0.5">
+                <span className="text-[10px] font-black text-slate-900 bg-yellow-400 px-1.5 rounded-sm leading-none py-0.5">
                     {stations.length}
                 </span>
             </div>
@@ -182,7 +181,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[50px]">
+                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[54px] flex-grow">
                              <div className="bg-slate-100 px-2 py-0.5 border-b border-slate-200 flex justify-between items-center">
                                 <span className="font-bold text-[9px] text-slate-600 uppercase truncate">
                                     {station.label}
@@ -202,6 +201,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
 
                                  {assignedTraineeIds.map(id => (
                                      <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-0.5 pt-0.5">
+                                         <GraduationCap size={10} className="shrink-0" />
                                          <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
@@ -375,7 +375,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Order areas for logic - Updated order swapping McCafe with Lobby/Sala
+    // Target Order: McCafe as the very last (optional) after Lobby
     const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
@@ -659,7 +659,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Grelha Dinâmica de Áreas */}
-        <div className="columns-2 lg:columns-3 gap-4 h-auto">
+        <div className="columns-2 gap-4 h-auto">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
