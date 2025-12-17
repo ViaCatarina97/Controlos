@@ -164,12 +164,13 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
 }) => {
     return (
         <div className={`border-2 rounded-lg flex flex-col h-full shadow-sm ${className}`}>
-            <div className={`p-1 flex items-center gap-1 border-b-2 border-black/10 ${headerColor} shrink-0`}>
+            <div className={`p-1.5 flex items-center gap-1 border-b-2 border-black/10 ${headerColor} shrink-0`}>
                 {Icon && <Icon size={14} />}
-                <span className="font-black text-[11px] uppercase tracking-wider">{title}</span>
+                <span className="font-black text-[12px] uppercase tracking-wider">{title}</span>
             </div>
+            {/* Dynamic Grid: Distributed evenly to fill vertical space */}
             <div 
-                className="flex-1 p-1.5 grid gap-1.5"
+                className="flex-1 p-1.5 grid gap-2"
                 style={{ 
                     gridTemplateColumns: `repeat(${cols}, 1fr)`,
                     gridAutoRows: '1fr' 
@@ -180,47 +181,44 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-lg flex flex-col overflow-hidden relative group">
-                             {/* Station Header - Compact but Bold */}
-                             <div className="bg-slate-50 border-b border-slate-200 px-1.5 py-0.5 flex justify-between items-center shrink-0">
-                                <span className="font-black text-[10px] text-slate-600 uppercase truncate leading-none py-1">
+                        <div key={station.id} className="bg-white border-2 border-slate-400 rounded-lg flex flex-col overflow-hidden relative">
+                             {/* Station Header - Distinct Stripe */}
+                             <div className="bg-slate-900 px-2 py-1 flex justify-between items-center shrink-0">
+                                <span className="font-black text-[11px] text-white uppercase truncate tracking-tight leading-none">
                                     {station.label}
                                 </span>
                                 {assignedIds.length > 0 && (
-                                    <span className="text-[8px] font-bold text-slate-400 bg-white px-1 rounded-sm border border-slate-100">
+                                    <span className="text-[9px] font-black text-slate-900 bg-yellow-400 px-1.5 rounded-sm leading-none py-0.5">
                                         {assignedIds.length}
                                     </span>
                                 )}
                              </div>
                              
-                             {/* Main Content: Center Employee Name and make it HUGE */}
-                             <div className="flex-1 flex flex-col justify-center items-center p-1 text-center bg-white">
-                                 {/* Staff Names - Big Relevancy */}
+                             {/* Main Body - Centered and Large */}
+                             <div className="flex-1 flex flex-col justify-center items-center p-1.5 text-center">
                                  {assignedIds.length > 0 ? (
-                                     <div className="w-full flex flex-col gap-1">
+                                     <div className="w-full flex flex-col gap-1 justify-center h-full">
                                         {assignedIds.map(id => {
                                             const emp = employees.find(e => e.id === id);
                                             return (
-                                                <div key={id} className="text-[13px] sm:text-[14px] font-black text-slate-900 leading-[1.1] uppercase break-words px-1">
+                                                <div key={id} className="text-[16px] sm:text-[18px] font-black text-slate-950 leading-tight uppercase tracking-tight break-words">
                                                     {emp?.name}
                                                 </div>
                                             )
                                         })}
                                      </div>
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="w-full h-full flex items-center justify-center">
-                                         <div className="w-4/5 h-px bg-slate-100"></div>
-                                     </div>
+                                     <div className="w-1/2 h-0.5 bg-slate-100 rounded-full"></div>
                                  ) : null}
 
-                                 {/* Trainee Names - Slightly smaller but still prominent with icon */}
+                                 {/* Trainees at bottom of body */}
                                  {assignedTraineeIds.length > 0 && (
-                                     <div className="w-full flex flex-col gap-1 mt-0.5 border-t border-slate-100 pt-1">
+                                     <div className={`w-full flex flex-col gap-0.5 ${assignedIds.length > 0 ? 'mt-auto border-t border-slate-200 pt-1' : 'justify-center h-full'}`}>
                                         {assignedTraineeIds.map(id => {
                                             const emp = employees.find(e => e.id === id);
                                             return (
-                                                <div key={id} className="text-[11px] font-black text-yellow-700 leading-none uppercase flex items-center justify-center gap-1">
-                                                    <GraduationCap size={10} className="shrink-0" />
+                                                <div key={id} className="text-[12px] font-extrabold text-yellow-600 leading-none uppercase flex items-center justify-center gap-1 italic">
+                                                    <GraduationCap size={11} className="shrink-0" />
                                                     <span className="truncate">{emp?.name}</span>
                                                 </div>
                                             )
