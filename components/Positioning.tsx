@@ -160,9 +160,9 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees
 }) => {
-    // Determine grid columns based on content to auto-adjust
+    // Dynamic grid: if we have more than 2 stations, use 2 columns to save space
     const getGridCols = (count: number) => {
-        if (count <= 2) return 'grid-cols-1';
+        if (count <= 1) return 'grid-cols-1';
         return 'grid-cols-2'; 
     };
 
@@ -181,14 +181,14 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[54px] flex-grow">
+                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded-md flex flex-col min-h-[50px] flex-grow">
                              <div className="bg-slate-100 px-2 py-0.5 border-b border-slate-200 flex justify-between items-center">
                                 <span className="font-bold text-[9px] text-slate-600 uppercase truncate">
                                     {station.label}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 p-1.5 flex flex-col justify-center gap-1">
+                             <div className="flex-1 p-2 flex flex-col justify-center gap-1.5">
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => (
                                          <div key={id} className="text-[14px] font-black text-slate-950 uppercase leading-none tracking-tighter">
@@ -200,8 +200,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-0.5 pt-0.5">
-                                         <GraduationCap size={10} className="shrink-0" />
+                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-1 pt-1">
                                          <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
@@ -358,24 +357,34 @@ export const Positioning: React.FC<PositioningProps> = ({
   const allStations = settings.customStations || STATIONS;
 
   const filteredStations = useMemo(() => {
+    const activeBusinessAreas = settings.businessAreas || [];
     return allStations.filter(s => {
+        // Base filters
         if (!s.isActive) return false;
+        
+        // Dynamic area logic based on business platforms
+        if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
+        if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
+        if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
+
+        // Visual recommendation filter (if not showing all)
         if (showAllStations) return true;
+        
         const assigned = schedule.shifts[selectedShift]?.[s.id];
         const assignedTrainees = schedule.trainees?.[selectedShift]?.[s.id];
         if ((assigned && assigned.length > 0) || (assignedTrainees && assignedTrainees.length > 0)) return true;
         return recommendedStationLabels.has(s.label);
     });
-  }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift]);
+  }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Group stations by Area for BOTH screen and print
+  // Group stations by Area
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Target Order: McCafe as the very last (optional) after Lobby
+    // Strict Display Order: McCafe at the very end
     const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
@@ -658,7 +667,7 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
         </div>
 
-        {/* Grelha Dinâmica de Áreas */}
+        {/* Grelha Dinâmica de Áreas - Automatically adjusting spacing */}
         <div className="columns-2 gap-4 h-auto">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
