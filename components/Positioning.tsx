@@ -6,7 +6,7 @@ import {
   Bike, UtensilsCrossed, Coffee, Flame, Sun, Store, MoonStar, 
   Car, CupSoda, TrendingUp,
   Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise, Layout,
-  Beef, IceCream, Pizza, Info, MessageSquare, ClipboardList
+  Beef, IceCream, Info
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -34,7 +34,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
     yellow: 'border-yellow-200 bg-yellow-50',
     purple: 'border-purple-200 bg-purple-50',
     green: 'border-green-200 bg-green-50',
-    slate: 'border-slate-200 bg-slate-50',
+    slate: 'border-slate-200 bg-white',
   };
   const titleColorMap: Record<string, string> = {
     red: 'text-red-800',
@@ -42,7 +42,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
     yellow: 'text-yellow-800',
     purple: 'text-purple-800',
     green: 'text-green-800',
-    slate: 'text-slate-800',
+    slate: 'text-gray-800',
   };
 
   const containerClass = colorMap[color] || 'border-gray-200 bg-white';
@@ -157,15 +157,14 @@ interface VisualPrintZoneProps {
   selectedShift: ShiftType;
   employees: Employee[];
   color: string;
-  icon?: React.ReactNode;
 }
 
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, stations, schedule, selectedShift, employees, color, icon
+  title, stations, schedule, selectedShift, employees, color
 }) => {
-    // Dynamic grid: if we have more than 2 stations, use 2 columns to save space
+    // Dynamic grid: calculate if we should use 1 or 2 columns based on station count
     const getGridCols = (count: number) => {
-        if (count <= 1) return 'grid-cols-1';
+        if (count <= 2) return 'grid-cols-1';
         return 'grid-cols-2'; 
     };
 
@@ -178,52 +177,70 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
         slate: 'border-slate-400',
     };
 
-    const textColorMap: Record<string, string> = {
+    const titleColorMap: Record<string, string> = {
         red: 'text-red-700',
         blue: 'text-blue-700',
-        yellow: 'text-yellow-700',
+        yellow: 'text-yellow-600',
         purple: 'text-purple-700',
         green: 'text-green-700',
         slate: 'text-slate-700',
     };
 
+    const displayTitle = title.toUpperCase();
+    const borderClass = borderColorMap[color] || 'border-slate-200';
+    const textClass = titleColorMap[color] || 'text-slate-800';
+
     return (
-        <div className={`break-inside-avoid mb-6 border-2 ${borderColorMap[color] || 'border-slate-800'} rounded-lg overflow-hidden bg-white shadow-sm flex flex-col`}>
-            <div className={`px-3 py-2 border-b-2 ${borderColorMap[color] || 'border-slate-800'} flex items-center gap-2 shrink-0 bg-white`}>
-                {icon}
-                <span className={`font-black text-[14px] uppercase tracking-wider leading-none ${textColorMap[color] || 'text-slate-900'}`}>{title}</span>
+        <div className={`break-inside-avoid mb-8 border-t-2 border-l border-r border-b ${borderClass} rounded-lg overflow-hidden bg-slate-50/20 flex flex-col p-2 shadow-sm`}>
+            <div className="px-1 py-1 flex items-center gap-2 mb-3">
+                {color === 'purple' && <CupSoda size={16} className="text-purple-600" />}
+                {color === 'red' && <Flame size={16} className="text-red-600" />}
+                {color === 'blue' && <Store size={16} className="text-blue-600" />}
+                {color === 'yellow' && <Users size={16} className="text-yellow-600" />}
+                <span className={`font-black text-[13px] uppercase tracking-[0.1em] leading-none ${textClass}`}>{displayTitle}</span>
             </div>
             
-            <div className={`p-2 grid gap-2 ${getGridCols(stations.length)}`}>
+            <div className={`grid gap-3 ${getGridCols(stations.length)}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded overflow-hidden flex flex-col min-h-[140px]">
-                             <div className="bg-slate-900 px-2 py-1.5 flex justify-between items-center h-8">
-                                <span className="font-black text-[10px] text-white uppercase truncate tracking-tighter">
-                                    {station.label}
+                        <div key={station.id} className="bg-white border-2 border-slate-200 rounded-lg overflow-hidden flex flex-col min-h-[170px] shadow-sm">
+                             <div className="bg-slate-900 px-3 py-1.5 flex justify-between items-center h-9">
+                                <span className="font-black text-[10.5px] text-white uppercase truncate tracking-tight">
+                                    {station.label.toUpperCase()}
                                 </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[10px] px-1.5 py-0.5 rounded-sm">
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[10.5px] px-2 rounded-sm leading-tight py-0.5">
                                     {station.defaultSlots}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 p-3 flex flex-col justify-center items-center gap-1 text-center">
+                             <div className="flex-1 p-4 flex flex-col justify-center items-center gap-1.5 text-center">
                                  {assignedIds.length > 0 ? (
-                                     assignedIds.map(id => (
-                                         <div key={id} className="text-[20px] font-black text-slate-950 uppercase leading-none tracking-tighter whitespace-nowrap">
-                                             {employees.find(e => e.id === id)?.name}
-                                         </div>
-                                     ))
+                                     assignedIds.map(id => {
+                                         const name = employees.find(e => e.id === id)?.name || '';
+                                         const nameParts = name.split(' ');
+                                         return (
+                                            <div key={id} className="flex flex-col items-center">
+                                                <div className="text-[32px] font-black text-slate-950 uppercase leading-[0.85] tracking-tighter">
+                                                    {nameParts[0]}
+                                                </div>
+                                                {nameParts.length > 1 && (
+                                                    <div className="text-[26px] font-black text-slate-950 uppercase leading-[0.85] tracking-tighter mt-1">
+                                                        {nameParts[nameParts.length - 1]}
+                                                    </div>
+                                                )}
+                                            </div>
+                                         );
+                                     })
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-0.5 w-8 bg-slate-100 rounded-full" />
+                                     <div className="h-[2px] w-12 bg-slate-100 rounded-full" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[12px] font-black text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-2 pt-1 w-full justify-center">
-                                         <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
+                                     <div key={id} className="text-[12px] font-black text-yellow-600 flex flex-col items-center border-t border-yellow-100 mt-3 pt-2 w-full">
+                                         <span className="truncate uppercase tracking-tighter">🎓 {employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
                              </div>
@@ -388,6 +405,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
 
+        // Visual recommendation filter (if not showing all)
         if (showAllStations) return true;
         
         const assigned = schedule.shifts[selectedShift]?.[s.id];
@@ -404,8 +422,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Target Order: McCafe at the very end
-    const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
+    // Strict Display Order from Screenshot
+    const order = ['beverage', 'kitchen', 'service', 'fries', 'lobby', 'drive', 'delivery', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
             const indexA = order.indexOf(a);
@@ -493,20 +511,6 @@ export const Positioning: React.FC<PositioningProps> = ({
           kitchen: 'red', service: 'blue', drive: 'blue', delivery: 'green', beverage: 'purple', mccafe: 'yellow', fries: 'yellow', lobby: 'yellow'
       };
       return colors[key] || 'slate';
-  };
-
-  const getAreaIcon = (key: string) => {
-      switch(key) {
-          case 'kitchen': return <Flame size={18} className="text-red-600" />;
-          case 'service': return <Store size={18} className="text-blue-600" />;
-          case 'drive': return <Car size={18} className="text-blue-600" />;
-          case 'delivery': return <Bike size={18} className="text-green-600" />;
-          case 'beverage': return <IceCream size={18} className="text-purple-600" />;
-          case 'mccafe': return <Coffee size={18} className="text-yellow-600" />;
-          case 'fries': return <Beef size={18} className="text-yellow-600" />;
-          case 'lobby': return <Users size={18} className="text-yellow-600" />;
-          default: return <Info size={18} className="text-slate-600" />;
-      }
   };
 
   const shiftManagerName = useMemo(() => {
@@ -665,53 +669,59 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (FIDELITY LAYOUT) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-visible min-h-screen">
-        {/* Header (MCD VIA CATARINA Style) */}
-        <div className="flex justify-between items-center mb-6 pb-2 border-b-2 border-slate-900">
-            <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 leading-none">
+    {/* ================= PRINT VIEW (FIDELITY TO SCREENSHOT) ================= */}
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-5 text-slate-950 overflow-visible min-h-screen">
+        {/* Main Title Row */}
+        <div className="flex justify-between items-end mb-6">
+            <h1 className="text-[32px] font-black uppercase tracking-tight text-slate-900 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
-            <div className="flex items-center gap-4">
-                <span className="text-[12px] font-medium text-slate-800">
+            <div className="flex items-center gap-8">
+                <span className="text-[15px] font-bold text-slate-600">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <div className="bg-slate-950 text-white px-4 py-1 rounded text-[16px] font-black uppercase tracking-wider leading-none">
-                    {getShiftLabel(selectedShift)}
+                <div className="bg-slate-950 text-white px-6 py-2 rounded-md text-[20px] font-black uppercase tracking-widest leading-none">
+                    {getShiftLabel(selectedShift).toUpperCase()}
                 </div>
             </div>
         </div>
 
-        {/* Top Info Boxes (5 blocks) */}
-        <div className="grid grid-cols-5 gap-3 mb-8">
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
-                <div className="font-black text-[14px] text-slate-900 truncate">{shiftManagerName}</div>
+        {/* Top Info Blocks (Metric grid) */}
+        <div className="grid grid-cols-5 gap-4 mb-8">
+            <div className="bg-slate-50 border-2 border-slate-100 p-4 rounded-lg flex flex-col justify-center min-h-[70px]">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Gerente</span>
+                <div className="font-black text-[18px] text-slate-900 truncate uppercase tracking-tighter">
+                    {shiftManagerName}
+                </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
-                <div className="font-black text-[14px] text-slate-900">{activeSalesData.totalSales} €</div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-4 rounded-lg flex flex-col justify-center min-h-[70px]">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Previsão</span>
+                <div className="font-black text-[22px] text-slate-900">
+                    {activeSalesData.totalSales} €
+                </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
-                <div className="font-black text-[14px] text-slate-900">{currentAssignedCount}</div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-4 rounded-lg flex flex-col justify-center min-h-[70px]">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Staff</span>
+                <div className="font-black text-[22px] text-slate-900">
+                    {currentAssignedCount}
+                </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2.5 rounded shadow-sm overflow-hidden">
-                <span className="text-[9px] font-black uppercase text-blue-600 block mb-0.5">Obj. Turno</span>
-                <div className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">
+            <div className="bg-white border-2 border-slate-100 p-4 rounded-lg flex flex-col justify-center overflow-hidden min-h-[70px]">
+                <span className="text-[10px] font-black uppercase text-blue-600 block mb-1 leading-none">Obj. Turno</span>
+                <div className="text-[12.5px] font-bold text-slate-800 leading-tight mt-1 overflow-hidden">
                     {currentObjectives.turnObjective || '-'}
                 </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2.5 rounded shadow-sm overflow-hidden">
-                <span className="text-[9px] font-black uppercase text-orange-600 block mb-0.5">Obj. Produção</span>
-                <div className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">
+            <div className="bg-white border-2 border-slate-100 p-4 rounded-lg flex flex-col justify-center overflow-hidden min-h-[70px]">
+                <span className="text-[10px] font-black uppercase text-orange-600 block mb-1 leading-none">Obj. Produção</span>
+                <div className="text-[12.5px] font-bold text-slate-800 leading-tight mt-1 overflow-hidden">
                     {currentObjectives.productionObjective || '-'}
                 </div>
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Grid for Areas */}
-        <div className="columns-2 lg:columns-3 gap-6 h-auto">
+        {/* Responsive Area Grid with automatic sizing */}
+        <div className="columns-2 lg:columns-3 gap-8 h-auto pb-10">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -721,15 +731,13 @@ export const Positioning: React.FC<PositioningProps> = ({
                     selectedShift={selectedShift}
                     employees={employees}
                     color={getAreaColor(area)}
-                    icon={getAreaIcon(area)}
                 />
             ))}
         </div>
 
-        {/* Print Footer */}
-        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[9px] font-bold text-slate-300 uppercase tracking-widest bg-white">
+        {/* Fixed Footer */}
+        <div className="fixed bottom-3 left-4 w-full flex justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-white">
             <span>TeamPos &bull; Documento de Gestão Interna</span>
-            <span className="mr-8">ID: {settings.restaurantId} &bull; {new Date().toLocaleTimeString()}</span>
         </div>
     </div>
     </>
