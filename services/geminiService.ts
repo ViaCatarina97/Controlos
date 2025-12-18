@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StaffingTableEntry, AppSettings, Employee, SalesData } from "../types";
 
@@ -7,12 +8,8 @@ export const generateScheduleSuggestion = async (
   settings: AppSettings,
   employees: Employee[]
 ): Promise<string> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key is missing.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Direct use of process.env.API_KEY as per coding guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     Atue como um gerente operacional de restaurante.
@@ -34,8 +31,9 @@ export const generateScheduleSuggestion = async (
   `;
 
   try {
+    // Fix: Updated model to 'gemini-3-flash-preview' for basic text tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -56,6 +54,7 @@ export const generateScheduleSuggestion = async (
       }
     });
 
+    // Fix: Correct way to extract text output from GenerateContentResponse
     return response.text;
   } catch (error) {
     console.error("Gemini Error:", error);
