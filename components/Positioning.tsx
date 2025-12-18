@@ -5,7 +5,8 @@ import {
   Users, User, AlertCircle, X, 
   Bike, UtensilsCrossed, Coffee, Flame, Sun, Store, MoonStar, 
   Car, CupSoda, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise, Layout
+  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Filter, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise, Layout,
+  Beef, IceCream, Pizza, Info, MessageSquare, ClipboardList
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -156,64 +157,72 @@ interface VisualPrintZoneProps {
   selectedShift: ShiftType;
   employees: Employee[];
   color: string;
+  icon?: React.ReactNode;
 }
 
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, stations, schedule, selectedShift, employees, color
+  title, stations, schedule, selectedShift, employees, color, icon
 }) => {
-    // Determine grid columns dynamically: 
-    // Small areas stay in 1 column to maximize width for names
-    // Larger areas use 2 columns to fill space and prevent long vertical blocks
+    // Dynamic grid: if we have more than 2 stations, use 2 columns to save space
     const getGridCols = (count: number) => {
-        if (count <= 2) return 'grid-cols-1';
+        if (count <= 1) return 'grid-cols-1';
         return 'grid-cols-2'; 
     };
 
-    const headerColors: Record<string, string> = {
-        red: 'bg-red-700',
-        blue: 'bg-blue-700',
-        yellow: 'bg-amber-500',
-        purple: 'bg-purple-700',
-        green: 'bg-emerald-700',
-        slate: 'bg-slate-700'
+    const borderColorMap: Record<string, string> = {
+        red: 'border-red-400',
+        blue: 'border-blue-400',
+        yellow: 'border-yellow-400',
+        purple: 'border-purple-400',
+        green: 'border-green-400',
+        slate: 'border-slate-400',
+    };
+
+    const textColorMap: Record<string, string> = {
+        red: 'text-red-700',
+        blue: 'text-blue-700',
+        yellow: 'text-yellow-700',
+        purple: 'text-purple-700',
+        green: 'text-green-700',
+        slate: 'text-slate-700',
     };
 
     return (
-        <div className="break-inside-avoid mb-6 border-2 border-slate-900 rounded-xl overflow-hidden bg-white shadow-md flex flex-col">
-            <div className={`${headerColors[color] || 'bg-slate-800'} px-4 py-2 flex justify-between items-center shrink-0`}>
-                <span className="font-black text-[14px] text-white uppercase tracking-wider leading-none">{title}</span>
-                <span className="text-[12px] font-black text-slate-900 bg-yellow-400 px-2 rounded leading-none py-1">
-                    {stations.length}
-                </span>
+        <div className={`break-inside-avoid mb-6 border-2 ${borderColorMap[color] || 'border-slate-800'} rounded-lg overflow-hidden bg-white shadow-sm flex flex-col`}>
+            <div className={`px-3 py-2 border-b-2 ${borderColorMap[color] || 'border-slate-800'} flex items-center gap-2 shrink-0 bg-white`}>
+                {icon}
+                <span className={`font-black text-[14px] uppercase tracking-wider leading-none ${textColorMap[color] || 'text-slate-900'}`}>{title}</span>
             </div>
             
-            <div className={`p-3 grid gap-3 ${getGridCols(stations.length)}`}>
+            <div className={`p-2 grid gap-2 ${getGridCols(stations.length)}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-200 rounded-lg flex flex-col min-h-[60px] h-full">
-                             <div className="bg-slate-50 px-2 py-1 border-b border-slate-200 flex justify-between items-center">
-                                <span className="font-black text-[10px] text-slate-500 uppercase truncate">
+                        <div key={station.id} className="bg-white border-2 border-slate-300 rounded overflow-hidden flex flex-col min-h-[140px]">
+                             <div className="bg-slate-900 px-2 py-1.5 flex justify-between items-center h-8">
+                                <span className="font-black text-[10px] text-white uppercase truncate tracking-tighter">
                                     {station.label}
+                                </span>
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[10px] px-1.5 py-0.5 rounded-sm">
+                                    {station.defaultSlots}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 p-2 flex flex-col justify-center gap-1.5">
+                             <div className="flex-1 p-3 flex flex-col justify-center items-center gap-1 text-center">
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => (
-                                         <div key={id} className="text-[16px] font-black text-slate-950 uppercase leading-none tracking-tight">
+                                         <div key={id} className="text-[20px] font-black text-slate-950 uppercase leading-none tracking-tighter whitespace-nowrap">
                                              {employees.find(e => e.id === id)?.name}
                                          </div>
                                      ))
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-0.5 w-6 bg-slate-100 rounded-full mx-auto" />
+                                     <div className="h-0.5 w-8 bg-slate-100 rounded-full" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[11px] font-bold text-amber-600 flex items-center gap-1 italic border-t border-amber-50 mt-1 pt-1">
-                                         <GraduationCap size={12} className="shrink-0" />
+                                     <div key={id} className="text-[12px] font-black text-yellow-600 flex items-center gap-1 italic border-t border-yellow-100 mt-2 pt-1 w-full justify-center">
                                          <span className="truncate uppercase">{employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
@@ -374,7 +383,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     return allStations.filter(s => {
         if (!s.isActive) return false;
         
-        // Dynamic filtering based on active platforms in settings
+        // Dynamic area logic based on business platforms
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
@@ -395,7 +404,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Operational Priority Order: Drive -> Prod -> Fries -> Service -> Cell -> Delivery -> Lobby -> McCafe
+    // Target Order: McCafe at the very end
     const order = ['drive', 'kitchen', 'fries', 'service', 'beverage', 'delivery', 'lobby', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
@@ -467,14 +476,14 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const getAreaLabel = (key: string) => {
       const labels: Record<string, string> = {
-          kitchen: 'Cozinha / Produção',
-          service: 'Balcão / Serviço',
+          kitchen: 'Cozinha (Produção)',
+          service: 'Balcão (Serviço)',
           drive: 'Drive-Thru',
           delivery: 'Delivery',
-          beverage: 'Bebidas (Cell)',
+          beverage: 'Bebidas',
           mccafe: 'McCafé',
-          fries: 'Batatas (Fries)',
-          lobby: 'Sala (Lobby)'
+          fries: 'Batatas',
+          lobby: 'Sala'
       };
       return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
   };
@@ -484,6 +493,20 @@ export const Positioning: React.FC<PositioningProps> = ({
           kitchen: 'red', service: 'blue', drive: 'blue', delivery: 'green', beverage: 'purple', mccafe: 'yellow', fries: 'yellow', lobby: 'yellow'
       };
       return colors[key] || 'slate';
+  };
+
+  const getAreaIcon = (key: string) => {
+      switch(key) {
+          case 'kitchen': return <Flame size={18} className="text-red-600" />;
+          case 'service': return <Store size={18} className="text-blue-600" />;
+          case 'drive': return <Car size={18} className="text-blue-600" />;
+          case 'delivery': return <Bike size={18} className="text-green-600" />;
+          case 'beverage': return <IceCream size={18} className="text-purple-600" />;
+          case 'mccafe': return <Coffee size={18} className="text-yellow-600" />;
+          case 'fries': return <Beef size={18} className="text-yellow-600" />;
+          case 'lobby': return <Users size={18} className="text-yellow-600" />;
+          default: return <Info size={18} className="text-slate-600" />;
+      }
   };
 
   const shiftManagerName = useMemo(() => {
@@ -642,43 +665,52 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (AUTOMATIC ADAPTIVE LAYOUT) ================= */}
+    {/* ================= PRINT VIEW (FIDELITY LAYOUT) ================= */}
     <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-visible min-h-screen">
-        {/* Header Section */}
-        <div className="flex justify-between items-end mb-6 pb-2 border-b-4 border-slate-900">
-            <div className="flex flex-col">
-                <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">{settings.restaurantName}</h1>
-                <div className="text-[12px] font-bold text-slate-500 mt-2 uppercase tracking-widest">Mapa de Posicionamento Operacional</div>
-            </div>
-            <div className="text-right flex flex-col items-end">
-                <div className="text-[14px] font-black text-slate-800 bg-slate-100 px-3 py-1 rounded-full">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div className="inline-block bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xl font-black uppercase mt-2 leading-none">{getShiftLabel(selectedShift)}</div>
-            </div>
-        </div>
-
-        {/* Info Blocks */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-3">
-                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Responsável de Turno</span>
-                <div className="font-black text-[16px] text-slate-900 uppercase truncate">{shiftManagerName}</div>
-            </div>
-            <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-3">
-                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Previsão Vendas</span>
-                <div className="font-black text-[16px] text-slate-900">{activeSalesData.totalSales} € <span className="text-[11px] text-slate-400 font-bold ml-1">({manualPeakHour})</span></div>
-            </div>
-            <div className="col-span-2 bg-white rounded-xl border-2 border-slate-200 p-3 flex gap-4">
-                <div className="flex-1 overflow-hidden border-r border-slate-100 pr-2">
-                    <span className="text-[10px] font-black uppercase text-blue-600 block mb-1">Foco do Turno</span>
-                    <p className="text-[11px] font-bold leading-tight text-slate-700 italic">"{currentObjectives.turnObjective || 'Manter a excelência operacional.'}"</p>
-                </div>
-                <div className="flex-1 overflow-hidden pl-2">
-                    <span className="text-[10px] font-black uppercase text-orange-600 block mb-1">Objetivo Produção</span>
-                    <p className="text-[11px] font-bold leading-tight text-slate-700 italic">"{currentObjectives.productionObjective || 'Garantir a frescura e qualidade.'}"</p>
+        {/* Header (MCD VIA CATARINA Style) */}
+        <div className="flex justify-between items-center mb-6 pb-2 border-b-2 border-slate-900">
+            <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 leading-none">
+                {settings.restaurantName.toUpperCase()}
+            </h1>
+            <div className="flex items-center gap-4">
+                <span className="text-[12px] font-medium text-slate-800">
+                    {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <div className="bg-slate-950 text-white px-4 py-1 rounded text-[16px] font-black uppercase tracking-wider leading-none">
+                    {getShiftLabel(selectedShift)}
                 </div>
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Grid (CSS Columns for Masonry effect) */}
+        {/* Top Info Boxes (5 blocks) */}
+        <div className="grid grid-cols-5 gap-3 mb-8">
+            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
+                <div className="font-black text-[14px] text-slate-900 truncate">{shiftManagerName}</div>
+            </div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
+                <div className="font-black text-[14px] text-slate-900">{activeSalesData.totalSales} €</div>
+            </div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded shadow-sm">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
+                <div className="font-black text-[14px] text-slate-900">{currentAssignedCount}</div>
+            </div>
+            <div className="bg-white border-2 border-slate-100 p-2.5 rounded shadow-sm overflow-hidden">
+                <span className="text-[9px] font-black uppercase text-blue-600 block mb-0.5">Obj. Turno</span>
+                <div className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">
+                    {currentObjectives.turnObjective || '-'}
+                </div>
+            </div>
+            <div className="bg-white border-2 border-slate-100 p-2.5 rounded shadow-sm overflow-hidden">
+                <span className="text-[9px] font-black uppercase text-orange-600 block mb-0.5">Obj. Produção</span>
+                <div className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">
+                    {currentObjectives.productionObjective || '-'}
+                </div>
+            </div>
+        </div>
+
+        {/* Dynamic Multi-Column Grid for Areas */}
         <div className="columns-2 lg:columns-3 gap-6 h-auto">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
@@ -689,14 +721,15 @@ export const Positioning: React.FC<PositioningProps> = ({
                     selectedShift={selectedShift}
                     employees={employees}
                     color={getAreaColor(area)}
+                    icon={getAreaIcon(area)}
                 />
             ))}
         </div>
 
         {/* Print Footer */}
-        <div className="fixed bottom-4 left-6 right-6 flex justify-between text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] bg-white border-t border-slate-50 pt-2">
-            <span>TEAMPOS &bull; INTELIGÊNCIA OPERACIONAL</span>
-            <span>DATA DE IMPRESSÃO: {new Date().toLocaleString()}</span>
+        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[9px] font-bold text-slate-300 uppercase tracking-widest bg-white">
+            <span>TeamPos &bull; Documento de Gestão Interna</span>
+            <span className="mr-8">ID: {settings.restaurantId} &bull; {new Date().toLocaleTimeString()}</span>
         </div>
     </div>
     </>
