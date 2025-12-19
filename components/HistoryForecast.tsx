@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HistoryEntry, HourlyProjection } from '../types';
 import { TIME_SLOTS_KEYS } from '../constants';
-import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2 } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2, Database, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
@@ -26,6 +26,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dayFilter, setDayFilter] = useState<number | null>(5);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredHistory = useMemo(() => {
@@ -53,6 +54,13 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       const newSelected = new Set(selectedIds);
       newSelected.delete(id);
       setSelectedIds(newSelected);
+    }
+  };
+
+  const handleClearHistory = () => {
+    if (confirm('AVISO: Deseja eliminar TODO o histórico deste restaurante? Esta ação não pode ser revertida.')) {
+        setHistory([]);
+        setSelectedIds(new Set());
     }
   };
 
@@ -101,10 +109,14 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setIsSaving(true);
     const reader = new FileReader();
     reader.onload = (e) => {
         const data = e.target?.result;
-        if (data) parseExcel(data as ArrayBuffer);
+        if (data) {
+            parseExcel(data as ArrayBuffer);
+            setTimeout(() => setIsSaving(false), 800);
+        }
     };
     reader.readAsArrayBuffer(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -172,9 +184,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             entry.totalGC = Math.round(tg);
             if (entry.totalSales > 0) newEntries.push(entry);
         });
+
         if (newEntries.length > 0) {
             setHistory(prev => [...prev, ...newEntries]);
-            alert(`${newEntries.length} registos importados com sucesso!`);
         } else {
             alert("Erro: Não foram encontrados dados válidos. Certifique-se que as DATAS estão na Coluna A (dd/mm/yyyy).");
         }
@@ -192,9 +204,14 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-blue-600" /> Histórico & Previsão</h2>
-          <p className="text-sm text-gray-500">Importe e selecione dias similares para gerar a previsão.</p>
+          <p className="text-sm text-gray-500">Gestão da base de dados de vendas para cálculos de staffing.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+            {isSaving && (
+                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs animate-pulse bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                    <Database size={14} /> GRAVANDO DADOS...
+                </div>
+            )}
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
                 <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dia</span>
@@ -212,7 +229,10 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                <div className="flex gap-2 h-full">
                   <input type="file" ref={fileInputRef} accept=".xls,.xlsx" className="hidden" onChange={handleFileUpload} />
                   <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm text-sm font-medium h-full">
-                    <FileSpreadsheet size={18} /> <span className="hidden md:inline">Importar</span>
+                    <FileSpreadsheet size={18} /> <span className="hidden md:inline">Importar Excel</span>
+                  </button>
+                  <button onClick={handleClearHistory} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200 bg-white" title="Limpar Tudo">
+                    <Trash2 size={18} />
                   </button>
                </div>
                <div className="flex flex-col">

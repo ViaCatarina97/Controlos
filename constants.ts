@@ -28,7 +28,7 @@ export const STATIONS: StationConfig[] = [
   { id: 'bev_init', label: 'Bebidas - Iniciador', designation: 'BEB INI', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
   { id: 'bev_fin', label: 'Bebidas - Finalizador', designation: 'BEB FIN', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
 
-  // --- SALA (Anteriormente Sala & Serviço) ---
+  // --- SALA ---
   { id: 'svc_exp_1', label: 'Balcão - Expedidor', designation: 'EXP', icon: 'Monitor', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_run_1', label: 'Balcão - Runner', designation: 'RUN', icon: 'ShoppingBag', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_pres_1', label: 'Balcão - Apresentador', designation: 'APRES', icon: 'Smile', defaultSlots: 1, area: 'lobby', isActive: true },
