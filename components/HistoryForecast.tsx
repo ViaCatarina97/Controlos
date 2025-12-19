@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { HistoryEntry, HourlyProjection } from '../types';
 import { TIME_SLOTS_KEYS } from '../constants';
-import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2, Database, Save } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2, Database, Save, CloudCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
@@ -27,6 +28,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dayFilter, setDayFilter] = useState<number | null>(5);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredHistory = useMemo(() => {
@@ -54,6 +56,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       const newSelected = new Set(selectedIds);
       newSelected.delete(id);
       setSelectedIds(newSelected);
+      setLastSaved(new Date().toLocaleTimeString());
     }
   };
 
@@ -61,6 +64,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     if (confirm('AVISO: Deseja eliminar TODO o histórico deste restaurante? Esta ação não pode ser revertida.')) {
         setHistory([]);
         setSelectedIds(new Set());
+        setLastSaved(new Date().toLocaleTimeString());
     }
   };
 
@@ -115,7 +119,10 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         const data = e.target?.result;
         if (data) {
             parseExcel(data as ArrayBuffer);
-            setTimeout(() => setIsSaving(false), 800);
+            setTimeout(() => {
+                setIsSaving(false);
+                setLastSaved(new Date().toLocaleTimeString());
+            }, 1000);
         }
     };
     reader.readAsArrayBuffer(file);
@@ -202,16 +209,20 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   return (
     <div className="space-y-6 h-full flex flex-col animate-fade-in">
       <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-blue-600" /> Histórico & Previsão</h2>
-          <p className="text-sm text-gray-500">Gestão da base de dados de vendas para cálculos de staffing.</p>
+        <div className="flex flex-col">
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <TrendingUp className="text-blue-600" /> Histórico & Previsão
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+             <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${isSaving ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                {isSaving ? <Database size={12}/> : <CheckCircle size={12}/>}
+                {isSaving ? 'GRAVANDO NA BASE DE DADOS...' : 'BASE DE DADOS SINCRONIZADA'}
+             </span>
+             {lastSaved && <span className="text-[10px] text-gray-400 font-medium">Última gravação: {lastSaved}</span>}
+          </div>
         </div>
+        
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-            {isSaving && (
-                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs animate-pulse bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                    <Database size={14} /> GRAVANDO DADOS...
-                </div>
-            )}
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
                 <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dia</span>
@@ -242,6 +253,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             </div>
         </div>
       </div>
+
       <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-collapse">
            <thead className="text-xs font-bold text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -290,19 +302,32 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                  </tr>
                );
              })}
+             {filteredHistory.length === 0 && (
+                 <tr>
+                    <td colSpan={TIME_SLOTS_KEYS.length + 4} className="py-20 text-center text-gray-400">
+                        <Database size={48} className="mx-auto mb-4 opacity-10" />
+                        <p className="font-medium text-lg italic">Sem dados históricos importados para este filtro.</p>
+                        <p className="text-xs">Importe um ficheiro Excel para começar.</p>
+                    </td>
+                 </tr>
+             )}
            </tbody>
         </table>
       </div>
-      <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 animate-slide-up sticky bottom-2 z-30">
+
+      <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 animate-slide-up sticky bottom-2 z-30 border border-slate-700">
         <div className="flex items-center gap-4">
-             <div className="p-3 bg-slate-800 rounded-lg"><CheckCircle size={24} className={selectedIds.size > 0 ? "text-green-400" : "text-gray-600"} /></div>
+             <div className="p-3 bg-slate-800 rounded-lg"><CheckCircle size={24} className={selectedIds.size > 0 ? "text-emerald-400" : "text-gray-600"} /></div>
              <div>
-                <p className="text-xs text-slate-400 uppercase font-bold">Média da Seleção</p>
-                <div className="text-2xl font-bold flex items-baseline gap-2">{averageData ? formatCurrency(averageData.totalSales) : '---'}<span className="text-sm font-normal text-slate-400">Total Previsto</span></div>
+                <p className="text-xs text-slate-400 uppercase font-bold tracking-widest">Previsão Baseada na Média</p>
+                <div className="text-2xl font-bold flex items-baseline gap-2">
+                    {averageData ? formatCurrency(averageData.totalSales) : '---'}
+                    <span className="text-xs font-normal text-slate-400">({selectedIds.size} dias selecionados)</span>
+                </div>
              </div>
         </div>
-        <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>
-            Definir como Previsão <ArrowRight size={18} />
+        <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105 active:scale-95' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>
+            Definir como Previsão Ativa <ArrowRight size={18} />
         </button>
       </div>
     </div>

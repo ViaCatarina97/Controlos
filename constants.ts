@@ -1,3 +1,4 @@
+
 import { AppSettings, BusinessArea, Employee, HistoryEntry, RestaurantTypology, RoleType, ShiftType, StaffingTableEntry, StationConfig } from "./types";
 
 export const STATIONS: StationConfig[] = [
