@@ -18,8 +18,8 @@ export interface StationConfig {
   designation?: string; // Short code/name
   icon: string;
   defaultSlots: number;
-  area: 'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'; // Expanded areas
-  isActive: boolean; // New field to toggle in settings
+  area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'; // Consolidado: 'service' removido
+  isActive: boolean; 
 }
 
 export interface AppSettings {
@@ -33,10 +33,9 @@ export interface AppSettings {
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
   deliveryProviders: string[];
-  customStations: StationConfig[]; // New field for editable stations
+  customStations: StationConfig[]; 
 }
 
-// Replaces AllocationRule
 export interface StaffingTableEntry {
   id: string;
   minSales: number;
@@ -46,19 +45,19 @@ export interface StaffingTableEntry {
 }
 
 export interface SalesData {
-  date: string; // YYYY-MM-DD
+  date: string; 
   amount: number;
   isForecast: boolean;
 }
 
 export interface HourlyProjection {
-  hour: string; // "19h-20h"
+  hour: string; 
   totalSales: number;
   totalGC: number;
   channelGC: {
     counter: number;
-    sok: number; // Kiosk
-    drive: number; // A/C
+    sok: number; 
+    drive: number; 
     delivery: number;
   };
 }
@@ -80,7 +79,7 @@ export interface HistoryEntry {
 }
 
 export interface StationAssignment {
-  [stationId: string]: string[]; // Array of Employee IDs
+  [stationId: string]: string[]; 
 }
 
 export interface DailySchedule {
@@ -88,14 +87,12 @@ export interface DailySchedule {
   shifts: {
     [key in ShiftType]?: StationAssignment; 
   };
-  // New field for trainees (separate from main shifts to not count towards total)
   trainees?: {
     [key in ShiftType]?: StationAssignment;
   };
   shiftManagers?: {
     [key in ShiftType]?: string; 
   };
-  // New field for objectives
   shiftObjectives?: {
     [key in ShiftType]?: {
        turnObjective?: string;
@@ -103,7 +100,7 @@ export interface DailySchedule {
     };
   };
   notes?: string;
-  isLocked?: boolean; // New field to indicate finalized/read-only state
+  isLocked?: boolean; 
 }
 
 export interface AISuggestion {
