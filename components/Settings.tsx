@@ -28,12 +28,11 @@ const getStationCategory = (label: string) => {
     if (lower.includes('preparador') && !lower.includes('delivery')) return { key: 'prep', label: 'Preparador', icon: Utensils, color: 'bg-red-100 text-red-700' };
     if (lower.includes('finalizador')) return { key: 'fin', label: 'Finalizador', icon: Flag, color: 'bg-red-100 text-red-700' };
     if (lower.includes('bebida') || lower.includes('gelado')) return { key: 'bev', label: 'Bebidas & Sobremesas', icon: CupSoda, color: 'bg-pink-100 text-pink-700' };
-    if (lower.includes('expedidor')) return { key: 'exp', label: 'Expedidor', icon: Monitor, color: 'bg-blue-100 text-blue-700' };
-    if (lower.includes('runner')) return { key: 'run', label: 'Runner', icon: ShoppingBag, color: 'bg-blue-100 text-blue-700' };
-    if (lower.includes('apresentador')) return { key: 'pres', label: 'Apresentador', icon: Smile, color: 'bg-blue-100 text-blue-700' };
-    if (lower.includes('caixa')) return { key: 'cash', label: 'Caixa', icon: UserCircle, color: 'bg-blue-100 text-blue-700' };
+    
+    // Merge Balcão/Serviço into Sala (Lobby)
+    if (lower.includes('expedidor') || lower.includes('runner') || lower.includes('apresentador') || lower.includes('caixa') || lower.includes('sala') || lower.includes('lobby') || lower.includes('rp') || lower.includes('salão') || lower.includes('salao') || lower.includes('balcão') || lower.includes('balcao')) return { key: 'lobby', label: 'Sala', icon: Users, color: 'bg-blue-100 text-blue-700' };
+    
     if (lower.includes('delivery')) return { key: 'del', label: 'Delivery', icon: Package, color: 'bg-green-100 text-green-700' };
-    if (lower.includes('sala') || lower.includes('lobby') || lower.includes('rp') || lower.includes('salão') || lower.includes('salao')) return { key: 'lobby', label: 'Sala', icon: Users, color: 'bg-purple-100 text-purple-700' };
     
     return { key: 'other', label: 'Outros Postos', icon: Briefcase, color: 'bg-gray-100 text-gray-700' };
 };
@@ -54,7 +53,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   // Station Form Fields
   const [stationLabel, setStationLabel] = useState('');
   const [stationDesignation, setStationDesignation] = useState('');
-  const [stationArea, setStationArea] = useState<'kitchen' | 'service' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'>('service');
+  const [stationArea, setStationArea] = useState<'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'>('lobby');
   const [stationSlots, setStationSlots] = useState(1);
 
   // --- Settings State ---
@@ -72,12 +71,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         groups[category.key].stations.push(station);
     });
 
-    // Explicit sort order
+    // Explicit sort order (Removed service/balcão as standalone)
     const orderedKeys = [
         'drive', 'mccafe', 'fries', // Priority
         'batch_cooker', 'init', 'prep', 'fin', // Kitchen
-        'bev', 'exp', 'run', 'pres', 'cash', // Service
-        'del', 'lobby', 'other' // Support
+        'bev', 'lobby', // Sala (Includes Service)
+        'del', 'other' // Support
     ];
     return orderedKeys.map(key => groups[key]).filter(Boolean);
   }, [localSettings.customStations]);
@@ -145,13 +144,13 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         setEditingStationId(station.id);
         setStationLabel(station.label);
         setStationDesignation(station.designation || '');
-        setStationArea(station.area);
+        setStationArea(station.area === 'service' ? 'lobby' : station.area);
         setStationSlots(station.defaultSlots);
     } else {
         setEditingStationId(null);
         setStationLabel('');
         setStationDesignation('');
-        setStationArea('service');
+        setStationArea('lobby');
         setStationSlots(1);
     }
     setIsStationModalOpen(true);
@@ -545,13 +544,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                       onChange={(e) => setStationArea(e.target.value as any)}
                     >
                         <option value="kitchen">Produção (Cozinha)</option>
-                        <option value="service">Serviço (Balcão)</option>
                         <option value="drive">Drive</option>
                         <option value="fries">Batatas (Fries)</option>
                         <option value="mccafe">McCafé</option>
                         <option value="delivery">Delivery</option>
                         <option value="beverage">Bebidas (Cell)</option>
-                        <option value="lobby">Sala (Lobby)</option>
+                        <option value="lobby">Sala (Lobby / Balcão)</option>
                     </select>
                   </div>
               </div>

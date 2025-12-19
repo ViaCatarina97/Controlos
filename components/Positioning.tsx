@@ -250,7 +250,7 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const targetHourLabels = useMemo(() => {
     if (selectedShift === 'FECHO' || selectedShift === 'MADRUGADA') return ['19h-20h', '20h-21h'];
-    return ['12h-13h', '13h-14h'];
+    return ['12h-13h', '14h-15h'];
   }, [selectedShift]);
 
   const shiftPeakData = useMemo(() => {
@@ -375,7 +375,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[areaKey]) groups[areaKey] = [];
         groups[areaKey].push(s);
     });
-    const order = ['kitchen', 'service', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
+    // Removed 'service' from order as it's merged into 'lobby' (Sala)
+    const order = ['kitchen', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     return Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b)).reduce((acc, key) => { acc[key] = groups[key]; return acc; }, {} as Record<string, StationConfig[]>);
   }, [filteredStations]);
 
@@ -391,12 +392,13 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
   const getAreaLabel = (area: string) => {
-    const labels: Record<string, string> = { kitchen: 'Produção', service: 'Serviço', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
+    // "service" label is no longer used, "lobby" is now "Sala"
+    const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
     return labels[area] || area;
   };
 
   const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = { kitchen: 'red', service: 'blue', beverage: 'purple', fries: 'yellow', lobby: 'yellow', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
+    const colors: Record<string, string> = { kitchen: 'red', beverage: 'purple', fries: 'yellow', lobby: 'blue', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
     return colors[area] || 'slate';
   };
 

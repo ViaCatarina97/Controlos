@@ -34,21 +34,19 @@ export const STATIONS: StationConfig[] = [
   { id: 'bev_fin', label: 'Bebidas - Finalizador', designation: 'BEB FIN', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
   { id: 'bev_ice', label: 'Bebidas - Gelados', designation: 'GELADOS', icon: 'IceCream', defaultSlots: 1, area: 'beverage', isActive: true },
 
-  // --- SERVIÇO (BALCÃO) ---
-  { id: 'svc_exp_1', label: 'Balcão - Expedidor', designation: 'EXP', icon: 'Monitor', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_run_1', label: 'Balcão - Runner', designation: 'RUN', icon: 'ShoppingBag', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_pres_1', label: 'Balcão - Apresentador', designation: 'APRES', icon: 'Smile', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_cash_1', label: 'Balcão - Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
-  { id: 'svc_cash_2', label: 'Balcão - Caixa 2', designation: 'CX 2', icon: 'UserCircle', defaultSlots: 1, area: 'service', isActive: true },
+  // --- SALA (Inclui Balcão/Serviço) ---
+  { id: 'svc_exp_1', label: 'Balcão - Expedidor', designation: 'EXP', icon: 'Monitor', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'svc_run_1', label: 'Balcão - Runner', designation: 'RUN', icon: 'ShoppingBag', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'svc_pres_1', label: 'Balcão - Apresentador', designation: 'APRES', icon: 'Smile', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'svc_cash_1', label: 'Balcão - Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'svc_cash_2', label: 'Balcão - Caixa 2', designation: 'CX 2', icon: 'UserCircle', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_1', label: 'Salão 1', designation: 'SALA 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_2', label: 'Salão 2', designation: 'SALA 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'rp_1', label: 'RP / GEL', designation: 'RP', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
 
   // --- DELIVERY ---
   { id: 'del_prep', label: 'Delivery - Preparador', designation: 'DEL PREP', icon: 'ShoppingBag', defaultSlots: 1, area: 'delivery', isActive: true },
   { id: 'del_check', label: 'Delivery - Runner', designation: 'DEL RUN', icon: 'CheckCircle2', defaultSlots: 1, area: 'delivery', isActive: true },
-
-  // --- SALA ---
-  { id: 'lobby_1', label: 'Salão 1', designation: 'SALA 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'lobby_2', label: 'Salão 2', designation: 'SALA 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'rp_1', label: 'RP / GEL', designation: 'RP', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
 ];
 
 export const INITIAL_RESTAURANTS: AppSettings[] = [
@@ -268,8 +266,9 @@ export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
     { id: '14', minSales: 1201, maxSales: 1300, staffCount: 16, stationLabel: 'Finalizador 2' },
     { id: '15', minSales: 1301, maxSales: 1400, staffCount: 17, stationLabel: 'Apresentador 2' },
     { id: '16', minSales: 1401, maxSales: 1550, staffCount: 18, stationLabel: 'Preparador (Montagem) 1' },
+    // Fix: Removed duplicate staffCount property
     { id: '17', minSales: 1551, maxSales: 1750, staffCount: 19, stationLabel: 'Bebidas - Finalizador' },
-    { id: '18', minSales: 1751, maxSales: 1950, staffCount: 20, stationLabel: 'Sala 1' },
+    { id: '18', minSales: 1751, maxSales: 1950, staffCount: 20, stationLabel: 'Salão 1' },
     { id: '19', minSales: 1951, maxSales: 2100, staffCount: 21, stationLabel: 'Preparador (Montagem) 2' },
     { id: '20', minSales: 2101, maxSales: 2300, staffCount: 22, stationLabel: 'Runner 1' },
     { id: '21', minSales: 2301, maxSales: 2450, staffCount: 23, stationLabel: 'Batata 2' },
@@ -280,7 +279,7 @@ export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
     { id: '26', minSales: 3051, maxSales: 3200, staffCount: 28, stationLabel: 'Delivery - Verificador' },
     { id: '27', minSales: 3201, maxSales: 3350, staffCount: 29, stationLabel: 'Preparador (Montagem) 4' },
     { id: '28', minSales: 3351, maxSales: 3500, staffCount: 30, stationLabel: 'BC Fritadeiras 1' },
-    { id: '29', minSales: 3501, maxSales: 3650, staffCount: 31, stationLabel: 'Sala 2' },
+    { id: '29', minSales: 3501, maxSales: 3650, staffCount: 31, stationLabel: 'Salão 2' },
     { id: '30', minSales: 3651, maxSales: 3800, staffCount: 32, stationLabel: 'BC Fritadeiras 2' },
     { id: '31', minSales: 3801, maxSales: 3950, staffCount: 33, stationLabel: 'Caixa 3' },
     { id: '32', minSales: 3951, maxSales: 4100, staffCount: 34, stationLabel: 'Apresentador Externo 1' }
