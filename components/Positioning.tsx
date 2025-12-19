@@ -162,16 +162,16 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color, totalStationsCount
 }) => {
-    // Ultra-compact dynamic scaling to fit up to 42 stations on one page
+    // Dynamic scaling based on total stations to ensure single page fitting
     const isMaxLoaded = totalStationsCount > 35;
     const isCrowded = totalStationsCount > 25;
 
     const areaMarginClass = isMaxLoaded ? 'mb-1' : 'mb-2';
     const areaPaddingClass = isMaxLoaded ? 'p-0.5' : 'p-1';
-    const cardHeight = isMaxLoaded ? 'min-h-[50px]' : isCrowded ? 'min-h-[70px]' : 'min-h-[90px]';
+    const cardHeight = isMaxLoaded ? 'min-h-[55px]' : isCrowded ? 'min-h-[75px]' : 'min-h-[95px]';
     const headerHeightClass = isMaxLoaded ? 'h-5' : 'h-6';
-    const nameBaseSize = isMaxLoaded ? 'text-[14px]' : isCrowded ? 'text-[18px]' : 'text-[24px]';
-    const stationTitleSize = isMaxLoaded ? 'text-[7px]' : 'text-[9px]';
+    const nameBaseSize = isMaxLoaded ? 'text-[13px]' : isCrowded ? 'text-[16px]' : 'text-[22px]';
+    const stationTitleSize = isMaxLoaded ? 'text-[7px]' : 'text-[8px]';
 
     const borderColorMap: Record<string, string> = {
         red: 'border-red-400',
@@ -197,7 +197,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     return (
         <div className={`break-inside-avoid ${areaMarginClass} border ${borderClass} rounded-sm overflow-hidden bg-white flex flex-col ${areaPaddingClass}`}>
             <div className="px-1 py-0 flex items-center gap-1 mb-0.5">
-                <span className={`font-black text-[8px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
+                <span className={`font-black text-[9px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
             <div className={`grid gap-0.5 ${stations.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -206,10 +206,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border border-slate-100 rounded-sm overflow-hidden flex flex-col ${cardHeight}`}>
+                        <div key={station.id} className={`bg-white border border-slate-100 rounded-sm overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
                              <div className={`bg-slate-900 px-1 flex justify-between items-center ${headerHeightClass} shrink-0`}>
                                 <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
-                                    {station.label.toUpperCase()}
+                                    {station.area === 'kitchen' && station.designation 
+                                      ? `${station.label} - ${station.designation}`.toUpperCase() 
+                                      : station.label.toUpperCase()}
                                 </span>
                                 <span className="bg-yellow-400 text-slate-900 font-black text-[7px] px-1 rounded-sm leading-none py-0.5">
                                     {station.defaultSlots}
@@ -220,11 +222,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => {
                                          const name = employees.find(e => e.id === id)?.name || '';
-                                         const firstName = name.split(' ')[0];
+                                         const nameParts = name.split(' ');
+                                         const firstName = nameParts[0];
                                          
                                          return (
                                             <div key={id} className="flex flex-col items-center">
-                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase leading-[0.6] tracking-tighter`}>
+                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase leading-[0.7] tracking-tighter`}>
                                                     {firstName}
                                                 </div>
                                             </div>
@@ -314,7 +317,6 @@ export const Positioning: React.FC<PositioningProps> = ({
       return shiftPeakData.find(d => d.hour === manualPeakHour) || { totalSales: 0, hour: '' };
   }, [manualPeakHour, shiftPeakData]);
 
-  // Helper logic missing in original paste but needed for compilation
   const getRequiredStaff = (sales: number): { count: number; label: string } => {
     if (!staffingTable || staffingTable.length === 0) return { count: 0, label: 'N/A' };
     const match = staffingTable.find(row => sales >= row.minSales && sales <= row.maxSales);
@@ -405,13 +407,19 @@ export const Positioning: React.FC<PositioningProps> = ({
     const activeBusinessAreas = settings.businessAreas || [];
     return allStations.filter(s => {
         if (!s.isActive) return false;
+        
+        // Ensure specific logic for filtering based on active areas
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
+        
+        // "Show all" overrides assignment logic
         if (showAllStations) return true;
+        
         const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
         const assignedTrainees = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
         if (assigned || assignedTrainees) return true;
+        
         return recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
@@ -421,7 +429,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     if (schedule.isLocked) return;
     const currentShift = schedule.shifts[selectedShift] || {};
     const newShift = { ...currentShift };
-    Object.keys(newShift).forEach(k => { newShift[k] = newShift[k].filter(id => id !== employeeId); });
+    Object.keys(newShift).forEach(k => { newShift[k] = (newShift[k] || []).filter(id => id !== employeeId); });
     newShift[stationId] = [...(newShift[stationId] || []), employeeId];
     setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: newShift } });
   };
@@ -438,7 +446,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     const currentTrainees = schedule.trainees || {};
     const shiftTrainees = currentTrainees[selectedShift] || {};
     const newShiftTrainees = { ...shiftTrainees };
-    Object.keys(newShiftTrainees).forEach(k => { newShiftTrainees[k] = newShiftTrainees[k].filter(id => id !== employeeId); });
+    Object.keys(newShiftTrainees).forEach(k => { newShiftTrainees[k] = (newShiftTrainees[k] || []).filter(id => id !== employeeId); });
     newShiftTrainees[stationId] = [...(newShiftTrainees[stationId] || []), employeeId];
     setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
   };
@@ -451,15 +459,23 @@ export const Positioning: React.FC<PositioningProps> = ({
     setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
   };
 
+  // Grouping logic with specific priority order for printing
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    const order = ['beverage', 'kitchen', 'service', 'fries', 'lobby', 'drive', 'delivery', 'mccafe'];
+    
+    // Updated order as per user request: Produção, Balcão, Bebidas, Batata, Sala e Delivery...
+    const order = ['kitchen', 'service', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
+    
     return Object.keys(groups)
-        .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+        .sort((a, b) => {
+            const indexA = order.indexOf(a);
+            const indexB = order.indexOf(b);
+            return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+        })
         .reduce((acc, key) => {
             acc[key] = groups[key];
             return acc;
@@ -481,13 +497,13 @@ export const Positioning: React.FC<PositioningProps> = ({
   // Area helpers for colors/labels
   const getAreaLabel = (area: string) => {
     const labels: Record<string, string> = {
-      beverage: 'Bebidas (Cell)',
-      kitchen: 'Produção (Cozinha)',
-      service: 'Balcão (Serviço)',
-      fries: 'Batatas',
-      lobby: 'Sala (Lobby)',
-      drive: 'Drive-Thru',
+      kitchen: 'Produção',
+      service: 'Balcão',
+      beverage: 'Bebidas',
+      fries: 'Batata',
+      lobby: 'Sala',
       delivery: 'Delivery',
+      drive: 'Drive-Thru',
       mccafe: 'McCafé'
     };
     return labels[area] || area;
@@ -495,7 +511,14 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const getAreaColor = (area: string) => {
     const colors: Record<string, string> = {
-      beverage: 'yellow', kitchen: 'red', service: 'blue', fries: 'yellow', lobby: 'purple', drive: 'blue', delivery: 'green', mccafe: 'yellow'
+      kitchen: 'red',
+      service: 'blue',
+      beverage: 'purple',
+      fries: 'yellow',
+      lobby: 'purple',
+      delivery: 'green',
+      drive: 'slate',
+      mccafe: 'yellow'
     };
     return colors[area] || 'slate';
   };
