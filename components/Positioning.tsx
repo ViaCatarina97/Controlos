@@ -162,16 +162,16 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color, totalStationsCount
 }) => {
-    // Dynamic scaling based on total stations to ensure single page fitting
-    // If we have more than 28 stations, we need to be very aggressive
-    const isVeryCrowded = totalStationsCount > 28;
-    const isCrowded = totalStationsCount > 20;
+    // Ultra-compact dynamic scaling to fit up to 42 stations on one page
+    const isMaxLoaded = totalStationsCount > 35;
+    const isCrowded = totalStationsCount > 25;
 
-    const cardHeight = isVeryCrowded ? 'min-h-[85px]' : isCrowded ? 'min-h-[110px]' : 'min-h-[145px]';
-    const nameSizeClass = isVeryCrowded ? 'text-[18px]' : isCrowded ? 'text-[24px]' : 'text-[32px]';
-    const subNameSizeClass = isVeryCrowded ? 'text-[14px]' : isCrowded ? 'text-[18px]' : 'text-[24px]';
-    const headerHeightClass = isVeryCrowded ? 'h-6' : 'h-8';
-    const titleSizeClass = isVeryCrowded ? 'text-[9px]' : 'text-[11px]';
+    const areaMarginClass = isMaxLoaded ? 'mb-1' : 'mb-2';
+    const areaPaddingClass = isMaxLoaded ? 'p-0.5' : 'p-1';
+    const cardHeight = isMaxLoaded ? 'min-h-[50px]' : isCrowded ? 'min-h-[70px]' : 'min-h-[90px]';
+    const headerHeightClass = isMaxLoaded ? 'h-5' : 'h-6';
+    const nameBaseSize = isMaxLoaded ? 'text-[14px]' : isCrowded ? 'text-[18px]' : 'text-[24px]';
+    const stationTitleSize = isMaxLoaded ? 'text-[7px]' : 'text-[9px]';
 
     const borderColorMap: Record<string, string> = {
         red: 'border-red-400',
@@ -195,53 +195,48 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     const textClass = titleColorMap[color] || 'text-slate-800';
 
     return (
-        <div className={`break-inside-avoid mb-3 border-t-2 border-l border-r border-b ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-1.5`}>
-            <div className="px-1 py-0.5 flex items-center gap-2 mb-1.5">
-                <span className={`font-black text-[10px] uppercase tracking-wider leading-none ${textClass}`}>{title.toUpperCase()}</span>
+        <div className={`break-inside-avoid ${areaMarginClass} border ${borderClass} rounded-sm overflow-hidden bg-white flex flex-col ${areaPaddingClass}`}>
+            <div className="px-1 py-0 flex items-center gap-1 mb-0.5">
+                <span className={`font-black text-[8px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
-            <div className={`grid gap-1.5 ${stations.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-0.5 ${stations.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border-2 border-slate-100 rounded-md overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
-                             <div className={`bg-slate-900 px-2 flex justify-between items-center ${headerHeightClass} shrink-0`}>
-                                <span className={`font-black ${titleSizeClass} text-white uppercase truncate tracking-tight`}>
+                        <div key={station.id} className={`bg-white border border-slate-100 rounded-sm overflow-hidden flex flex-col ${cardHeight}`}>
+                             <div className={`bg-slate-900 px-1 flex justify-between items-center ${headerHeightClass} shrink-0`}>
+                                <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
                                     {station.label.toUpperCase()}
                                 </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[9px] px-1.5 rounded-sm leading-tight py-0.5">
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[7px] px-1 rounded-sm leading-none py-0.5">
                                     {station.defaultSlots}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 px-1 py-1.5 flex flex-col justify-center items-center gap-0.5 text-center">
+                             <div className="flex-1 p-0.5 flex flex-col justify-center items-center gap-0 text-center">
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => {
                                          const name = employees.find(e => e.id === id)?.name || '';
-                                         const nameParts = name.split(' ');
+                                         const firstName = name.split(' ')[0];
                                          
                                          return (
                                             <div key={id} className="flex flex-col items-center">
-                                                <div className={`${nameSizeClass} font-black text-slate-950 uppercase leading-[0.7] tracking-tighter`}>
-                                                    {nameParts[0]}
+                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase leading-[0.6] tracking-tighter`}>
+                                                    {firstName}
                                                 </div>
-                                                {nameParts.length > 1 && (
-                                                    <div className={`${subNameSizeClass} font-black text-slate-950 uppercase leading-[0.7] tracking-tighter mt-0.5`}>
-                                                        {nameParts[nameParts.length - 1]}
-                                                    </div>
-                                                )}
                                             </div>
                                          );
                                      })
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-[1px] w-8 bg-slate-50 rounded-full" />
+                                     <div className="h-[0.5px] w-4 bg-slate-50" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[9px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-1 pt-0.5 w-full">
-                                         <span className="truncate uppercase tracking-tighter">🎓 {employees.find(e => e.id === id)?.name}</span>
+                                     <div key={id} className="text-[7px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-0.5 pt-0.5 w-full">
+                                         <span className="truncate uppercase tracking-tighter leading-none">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
                                      </div>
                                  ))}
                              </div>
@@ -317,6 +312,7 @@ export const Positioning: React.FC<PositioningProps> = ({
       return shiftPeakData.find(d => d.hour === manualPeakHour) || { totalSales: 0, hour: '' };
   }, [manualPeakHour, shiftPeakData]);
 
+  // Helper logic missing in original paste but needed for compilation
   const getRequiredStaff = (sales: number): { count: number; label: string } => {
     if (!staffingTable || staffingTable.length === 0) return { count: 0, label: 'N/A' };
     const match = staffingTable.find(row => sales >= row.minSales && sales <= row.maxSales);
@@ -396,67 +392,26 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const allStations = settings.customStations || STATIONS;
 
-  // Filter logic for both Screen and Print
   const filteredStations = useMemo(() => {
     const activeBusinessAreas = settings.businessAreas || [];
     return allStations.filter(s => {
         if (!s.isActive) return false;
-        
-        // Business area check
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
-
-        // In Print Mode we prioritize showing all if needed to follow the screenshot guidelines
-        // On screen we toggle. For this prompt, let's assume if it's the print layout, we use the active filter
         if (showAllStations) return true;
-        
         const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
         const assignedTrainees = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
         if (assigned || assignedTrainees) return true;
-        
         return recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Area Label Helper
-  const getAreaLabel = (area: string) => {
-    const labels: Record<string, string> = {
-      beverage: 'Bebidas',
-      kitchen: 'Cozinha (Produção)',
-      service: 'Balcão (Serviço)',
-      fries: 'Batatas',
-      lobby: 'Sala',
-      drive: 'Drive-Thru',
-      delivery: 'Delivery',
-      mccafe: 'McCafé'
-    };
-    return labels[area] || area;
-  };
-
-  // Area Color Helper
-  const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = {
-      beverage: 'purple',
-      kitchen: 'red',
-      service: 'blue',
-      fries: 'yellow',
-      lobby: 'yellow',
-      drive: 'blue',
-      delivery: 'green',
-      mccafe: 'yellow'
-    };
-    return colors[area] || 'slate';
-  };
-
-  // Staff Assignment Handlers
+  // Handlers for assignments
   const handleAssign = (stationId: string, employeeId: string) => {
     if (schedule.isLocked) return;
     const currentShift = schedule.shifts[selectedShift] || {};
-    const currentAssigned = currentShift[stationId] || [];
-    if (currentAssigned.includes(employeeId)) return;
     const newShift = { ...currentShift };
-    // Remove from other stations in same shift
     Object.keys(newShift).forEach(k => { newShift[k] = newShift[k].filter(id => id !== employeeId); });
     newShift[stationId] = [...(newShift[stationId] || []), employeeId];
     setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: newShift } });
@@ -473,7 +428,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     if (schedule.isLocked) return;
     const currentTrainees = schedule.trainees || {};
     const shiftTrainees = currentTrainees[selectedShift] || {};
-    if ((shiftTrainees[stationId] || []).includes(employeeId)) return;
     const newShiftTrainees = { ...shiftTrainees };
     Object.keys(newShiftTrainees).forEach(k => { newShiftTrainees[k] = newShiftTrainees[k].filter(id => id !== employeeId); });
     newShiftTrainees[stationId] = [...(newShiftTrainees[stationId] || []), employeeId];
@@ -488,7 +442,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
   };
 
-  // Grouping logic
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
@@ -515,6 +468,28 @@ export const Positioning: React.FC<PositioningProps> = ({
     const shiftObjs = schedule.shiftObjectives || {};
     return shiftObjs[selectedShift] || {};
   }, [schedule.shiftObjectives, selectedShift]);
+
+  // Area helpers for colors/labels
+  const getAreaLabel = (area: string) => {
+    const labels: Record<string, string> = {
+      beverage: 'Bebidas (Cell)',
+      kitchen: 'Produção (Cozinha)',
+      service: 'Balcão (Serviço)',
+      fries: 'Batatas',
+      lobby: 'Sala (Lobby)',
+      drive: 'Drive-Thru',
+      delivery: 'Delivery',
+      mccafe: 'McCafé'
+    };
+    return labels[area] || area;
+  };
+
+  const getAreaColor = (area: string) => {
+    const colors: Record<string, string> = {
+      beverage: 'yellow', kitchen: 'red', service: 'blue', fries: 'yellow', lobby: 'purple', drive: 'blue', delivery: 'green', mccafe: 'yellow'
+    };
+    return colors[area] || 'slate';
+  };
 
   return (
     <>
@@ -615,19 +590,6 @@ export const Positioning: React.FC<PositioningProps> = ({
          </div>
       </div>
 
-      <div className="flex justify-between items-center pt-2 px-1">
-          <h3 className="font-bold text-gray-700 flex items-center gap-2"><Briefcase size={20} /> Postos de Trabalho <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span></h3>
-          <div className="flex items-center gap-3">
-              <div className="flex gap-2">
-                {!schedule.isLocked && <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"><Save size={16} /> Finalizar</button>}
-                {schedule.isLocked && <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Edit size={16} /> Editar</button>}
-                <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>
-              </div>
-              <div className="h-6 w-px bg-gray-300 mx-1"></div>
-              <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showAllStations ? 'bg-blue-600' : 'bg-gray-300'}`} title="Mostrar todos os postos"><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} /></button>
-          </div>
-      </div>
-
       <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
          {Object.entries(stationsByArea).map(([area, stations]) => (
              <div key={area} className="flex flex-col gap-4">
@@ -649,60 +611,43 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (ONE PAGE LANDSCAPE) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-hidden min-h-screen">
-        {/* Main Header (Fidelity to Screenshot) */}
-        <div className="flex justify-between items-end mb-4 border-b-2 border-slate-900 pb-2">
-            <h1 className="text-[26px] font-black uppercase tracking-tight text-slate-950 leading-none">
+    {/* ================= PRINT VIEW (ULTRA COMPACT SINGLE SHEET) ================= */}
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen">
+        {/* Main Header */}
+        <div className="flex justify-between items-end mb-1.5 border-b border-slate-900 pb-0.5">
+            <h1 className="text-[20px] font-black uppercase tracking-tighter text-slate-950 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
-            <div className="flex items-center gap-6">
-                <span className="text-[13px] font-bold text-slate-500 uppercase">
+            <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <div className="bg-slate-950 text-white px-4 py-1.5 rounded-sm text-[16px] font-black uppercase tracking-wider leading-none">
+                <div className="bg-slate-950 text-white px-2 py-1 rounded-sm text-[12px] font-black uppercase leading-none">
                     {getShiftLabel(selectedShift).toUpperCase()}
                 </div>
             </div>
         </div>
 
-        {/* 5 Blocks Metric Grid */}
-        <div className="grid grid-cols-5 gap-3 mb-4">
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
-                <div className="font-black text-[13px] text-slate-900 truncate uppercase tracking-tighter">
-                    {shiftManagerName}
+        {/* Metric Grid (Minified) */}
+        <div className="grid grid-cols-5 gap-1.5 mb-2">
+            {[
+                { l: 'Gerente', v: shiftManagerName, c: 'text-slate-900' },
+                { l: 'Previsão', v: `${activeSalesData.totalSales} €`, c: 'text-slate-900' },
+                { l: 'Staff', v: currentAssignedCount, c: 'text-slate-900' },
+                { l: 'Obj. Turno', v: currentObjectives.turnObjective || '-', c: 'text-blue-600' },
+                { l: 'Obj. Produção', v: currentObjectives.productionObjective || '-', c: 'text-orange-600' }
+            ].map((m, i) => (
+                <div key={i} className="bg-slate-50 border border-slate-100 p-1 rounded-sm flex flex-col justify-center min-h-[35px]">
+                    <span className="text-[6.5px] font-black uppercase text-slate-400 block leading-none mb-0.5">{m.l}</span>
+                    <div className={`font-black text-[10px] truncate uppercase tracking-tighter leading-none ${m.c}`}>
+                        {m.v}
+                    </div>
                 </div>
-            </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
-                <div className="font-black text-[18px] text-slate-900">
-                    {activeSalesData.totalSales} €
-                </div>
-            </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
-                <div className="font-black text-[18px] text-slate-900">
-                    {currentAssignedCount}
-                </div>
-            </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-blue-600 block mb-0.5 leading-none">Obj. Turno</span>
-                <div className="text-[10px] font-bold text-slate-800 leading-tight">
-                    {currentObjectives.turnObjective || '-'}
-                </div>
-            </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-orange-600 block mb-0.5 leading-none">Obj. Produção</span>
-                <div className="text-[10px] font-bold text-slate-800 leading-tight">
-                    {currentObjectives.productionObjective || '-'}
-                </div>
-            </div>
+            ))}
         </div>
 
-        {/* Dynamic Multi-Column Flow Grid for Area Blocks */}
-        {/* Adjusted column count based on total visible stations to fit one sheet */}
-        <div className={`columns-2 lg:${totalVisibleStations > 24 ? 'columns-5' : totalVisibleStations > 15 ? 'columns-4' : 'columns-3'} gap-3 h-auto max-h-[calc(100vh-180px)]`}>
+        {/* Multi-Column Layout for Stations (up to 5 columns for ultra-density) */}
+        <div className={`columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-2 h-auto max-h-[calc(100vh-100px)]`}>
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -718,8 +663,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Print Footer */}
-        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[8px] font-bold text-slate-200 uppercase tracking-widest bg-white">
-            <span>TeamPos &bull; Documento de Gestão Interna &bull; Impresso em {new Date().toLocaleString()}</span>
+        <div className="fixed bottom-1 left-2 w-full flex justify-between text-[6.5px] font-bold text-slate-200 uppercase tracking-widest">
+            <span>TeamPos &bull; Documento de Gestão Interna &bull; MCD VIA CATARINA &bull; {new Date().toLocaleString()}</span>
         </div>
     </div>
     </>
