@@ -162,7 +162,7 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color, totalStationsCount
 }) => {
-    // Dynamic scaling based on total stations to ensure single page fitting
+    // Dynamic scaling based on total stations
     const isMaxLoaded = totalStationsCount > 35;
     const isCrowded = totalStationsCount > 25;
 
@@ -222,8 +222,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => {
                                          const name = employees.find(e => e.id === id)?.name || '';
-                                         const nameParts = name.split(' ');
-                                         const firstName = nameParts[0];
+                                         const firstName = name.split(' ')[0];
                                          
                                          return (
                                             <div key={id} className="flex flex-col items-center">
@@ -408,12 +407,13 @@ export const Positioning: React.FC<PositioningProps> = ({
     return allStations.filter(s => {
         if (!s.isActive) return false;
         
-        // Ensure specific logic for filtering based on active areas
+        // Drive check
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
+        // McCafé check
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
+        // Delivery check
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         
-        // "Show all" overrides assignment logic
         if (showAllStations) return true;
         
         const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
@@ -467,7 +467,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         groups[s.area].push(s);
     });
     
-    // Updated order as per user request: Produção, Balcão, Bebidas, Batata, Sala e Delivery...
+    // Exact order requested by user: Produção, Balcão, Bebidas, Batata, Sala e Delivery... Drive and McCafe follow
     const order = ['kitchen', 'service', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     
     return Object.keys(groups)
