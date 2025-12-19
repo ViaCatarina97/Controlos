@@ -46,7 +46,8 @@ export const STATIONS: StationConfig[] = [
   { id: 'del_check', label: 'Delivery - Runner', designation: 'DEL RUN', icon: 'CheckCircle2', defaultSlots: 1, area: 'delivery', isActive: true },
 
   // --- SALA ---
-  { id: 'lobby_1', label: 'Sala 1', designation: 'SALA 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_1', label: 'Salão 1', designation: 'SALA 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_2', label: 'Salão 2', designation: 'SALA 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'rp_1', label: 'RP / GEL', designation: 'RP', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
 ];
 

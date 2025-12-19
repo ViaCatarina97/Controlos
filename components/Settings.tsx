@@ -18,7 +18,7 @@ interface SettingsProps {
 const getStationCategory = (label: string) => {
     const lower = label.toLowerCase();
     
-    // Explicit Areas (if label contains specific keywords for the new areas)
+    // Explicit Areas
     if (lower.includes('drive') || lower.includes('drv')) return { key: 'drive', label: 'Drive', icon: Car, color: 'bg-slate-200 text-slate-700' };
     if (lower.includes('mccafé') || lower.includes('mccafe') || lower.includes('barista')) return { key: 'mccafe', label: 'McCafé', icon: Coffee, color: 'bg-amber-100 text-amber-800' };
     if (lower.includes('batata') || lower.includes('fries') || lower.includes('frit')) return { key: 'fries', label: 'Batatas', icon: Utensils, color: 'bg-yellow-100 text-yellow-700' };
@@ -33,7 +33,7 @@ const getStationCategory = (label: string) => {
     if (lower.includes('apresentador')) return { key: 'pres', label: 'Apresentador', icon: Smile, color: 'bg-blue-100 text-blue-700' };
     if (lower.includes('caixa')) return { key: 'cash', label: 'Caixa', icon: UserCircle, color: 'bg-blue-100 text-blue-700' };
     if (lower.includes('delivery')) return { key: 'del', label: 'Delivery', icon: Package, color: 'bg-green-100 text-green-700' };
-    if (lower.includes('sala') || lower.includes('lobby') || lower.includes('rp')) return { key: 'lobby', label: 'Sala & Serviço', icon: Users, color: 'bg-purple-100 text-purple-700' };
+    if (lower.includes('sala') || lower.includes('lobby') || lower.includes('rp') || lower.includes('salão') || lower.includes('salao')) return { key: 'lobby', label: 'Sala', icon: Users, color: 'bg-purple-100 text-purple-700' };
     
     return { key: 'other', label: 'Outros Postos', icon: Briefcase, color: 'bg-gray-100 text-gray-700' };
 };
@@ -72,7 +72,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         groups[category.key].stations.push(station);
     });
 
-    // Explicit sort order: Drive/McCafe/Fries at the top of the list for better visibility as requested
+    // Explicit sort order
     const orderedKeys = [
         'drive', 'mccafe', 'fries', // Priority
         'batch_cooker', 'init', 'prep', 'fin', // Kitchen
