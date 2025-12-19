@@ -1,17 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { DailySchedule, ShiftType, Employee } from '../types';
 import { AVAILABLE_SHIFTS } from '../constants';
-import { Calendar, Search, ArrowRight, Lock, Unlock, User, Filter, Eye } from 'lucide-react';
+import { Calendar, Search, Lock, Unlock, User, Filter, Eye, Trash2, History } from 'lucide-react';
 
 interface ScheduleHistoryProps {
   schedules: DailySchedule[];
   onLoadSchedule: (date: string) => void;
+  onDeleteSchedule: (date: string) => void;
   employees: Employee[];
 }
 
-export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onLoadSchedule, employees }) => {
+export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onLoadSchedule, onDeleteSchedule, employees }) => {
   const [filterDate, setFilterDate] = useState('');
   const [filterShift, setFilterShift] = useState<ShiftType | 'ALL'>('ALL');
+
+  const today = new Date().toISOString().split('T')[0];
 
   // Helper to get manager name
   const getManagerName = (id?: string) => {
@@ -48,7 +51,7 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onL
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div>
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <Calendar className="text-blue-600" />
+              <History className="text-blue-600" />
               Histórico de Turnos
             </h2>
             <p className="text-sm text-gray-500">Consulte os posicionamentos finalizados anteriormente.</p>
@@ -99,57 +102,76 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onL
                   </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                  {filteredSchedules.map((schedule) => (
-                      <tr key={schedule.date} className="hover:bg-blue-50/50 transition-colors group">
-                          <td className="px-6 py-4 font-medium text-gray-900">
-                              {new Date(schedule.date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                          </td>
-                          <td className="px-6 py-4">
-                              {schedule.isLocked ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      <Lock size={12} /> Finalizado
-                                  </span>
-                              ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                      <Unlock size={12} /> Rascunho
-                                  </span>
-                              )}
-                          </td>
-                          <td className="px-6 py-4">
-                              <div className="flex flex-wrap gap-2">
-                                  {AVAILABLE_SHIFTS.map(shift => {
-                                      const staffCount = getStaffCount(schedule, shift.id);
-                                      if (staffCount === 0) return null; // Don't show empty shifts
-                                      
-                                      return (
-                                          <div key={shift.id} className="flex flex-col bg-gray-50 border border-gray-200 rounded p-2 min-w-[120px]">
-                                              <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{shift.label}</span>
-                                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
-                                                  <User size={12} className="text-blue-500"/>
-                                                  <span className="truncate max-w-[100px]">{getManagerName(schedule.shiftManagers?.[shift.id])}</span>
-                                              </div>
-                                              <div className="text-xs text-gray-500">
-                                                  {staffCount} pessoas
-                                              </div>
-                                          </div>
-                                      );
-                                  })}
-                                  {/* If no shifts have data */}
-                                  {Object.keys(schedule.shifts).length === 0 && (
-                                      <span className="text-gray-400 italic">Sem dados registados</span>
-                                  )}
-                              </div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                              <button 
-                                onClick={() => onLoadSchedule(schedule.date)}
-                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
-                              >
-                                  <Eye size={16} /> Ver Detalhes
-                              </button>
-                          </td>
-                      </tr>
-                  ))}
+                  {filteredSchedules.map((schedule) => {
+                      const isExpired = schedule.date < today;
+                      const isLocked = schedule.isLocked || isExpired;
+
+                      return (
+                        <tr key={schedule.date} className="hover:bg-blue-50/50 transition-colors group">
+                            <td className="px-6 py-4 font-medium text-gray-900">
+                                {new Date(schedule.date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            </td>
+                            <td className="px-6 py-4">
+                                {isExpired ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                        <Lock size={12} /> Expirado
+                                    </span>
+                                ) : schedule.isLocked ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <Lock size={12} /> Finalizado
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <Unlock size={12} /> Rascunho
+                                    </span>
+                                )}
+                            </td>
+                            <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-2">
+                                    {AVAILABLE_SHIFTS.map(shift => {
+                                        const staffCount = getStaffCount(schedule, shift.id);
+                                        if (staffCount === 0) return null; // Don't show empty shifts
+                                        
+                                        return (
+                                            <div key={shift.id} className="flex flex-col bg-gray-50 border border-gray-200 rounded p-2 min-w-[120px]">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400 mb-1">{shift.label}</span>
+                                                <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
+                                                    <User size={12} className="text-blue-500"/>
+                                                    <span className="truncate max-w-[100px]">{getManagerName(schedule.shiftManagers?.[shift.id])}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    {staffCount} pessoas
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {/* If no shifts have data */}
+                                    {Object.keys(schedule.shifts).length === 0 && (
+                                        <span className="text-gray-400 italic">Sem dados registados</span>
+                                    )}
+                                </div>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                                <div className="flex justify-end gap-2">
+                                    <button 
+                                        onClick={() => onLoadSchedule(schedule.date)}
+                                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                                        title="Ver Posicionamento"
+                                    >
+                                        <Eye size={16} /> {isExpired ? 'Consultar' : 'Ver/Editar'}
+                                    </button>
+                                    <button 
+                                        onClick={() => onDeleteSchedule(schedule.date)}
+                                        className="inline-flex items-center gap-2 text-gray-400 hover:text-red-600 font-medium hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                                        title="Eliminar Registo"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                      );
+                  })}
 
                   {filteredSchedules.length === 0 && (
                       <tr>

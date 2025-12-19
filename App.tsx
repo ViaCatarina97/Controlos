@@ -127,12 +127,22 @@ const App: React.FC = () => {
   useEffect(() => {
     // Check if we have a saved schedule for this date
     const existingSchedule = savedSchedules.find(s => s.date === targetDate);
+    const today = new Date().toISOString().split('T')[0];
+    const isPastDate = targetDate < today;
     
     if (existingSchedule) {
-        setCurrentSchedule(existingSchedule);
+        // If date is past, ensure it's locked regardless of its saved state
+        setCurrentSchedule({
+          ...existingSchedule,
+          isLocked: isPastDate ? true : existingSchedule.isLocked
+        });
     } else {
         // Create new blank one
-        setCurrentSchedule({ date: targetDate, shifts: {} });
+        setCurrentSchedule({ 
+          date: targetDate, 
+          shifts: {},
+          isLocked: isPastDate // If trying to create positioning for a past date, start locked
+        });
     }
 
     const known = currentSales.find(s => s.date === targetDate);
@@ -182,6 +192,16 @@ const App: React.FC = () => {
   const handleLoadFromHistory = (date: string) => {
     setTargetDate(date);
     setActiveTab('positioning');
+  };
+
+  const handleDeleteSchedule = (date: string) => {
+    if (confirm(`Tem a certeza que deseja eliminar o registo de ${date}?`)) {
+      setSavedSchedules(prev => prev.filter(s => s.date !== date));
+      if (targetDate === date) {
+        // Reset current schedule if we just deleted the one we are looking at
+        setCurrentSchedule({ date, shifts: {} });
+      }
+    }
   };
 
   // --- Render Flow ---
@@ -347,6 +367,7 @@ const App: React.FC = () => {
             <ScheduleHistory 
               schedules={savedSchedules} 
               onLoadSchedule={handleLoadFromHistory}
+              onDeleteSchedule={handleDeleteSchedule}
               employees={currentEmployees}
             />
           )}

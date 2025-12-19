@@ -277,6 +277,8 @@ export const Positioning: React.FC<PositioningProps> = ({
   const [showAllStations, setShowAllStations] = useState(false);
   
   const availableShifts = settings.activeShifts;
+  const today = new Date().toISOString().split('T')[0];
+  const isExpired = date < today;
 
   useEffect(() => {
     if (!availableShifts.includes(selectedShift) && availableShifts.length > 0) {
@@ -365,8 +367,15 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const handlePrint = () => window.print();
 
-  const handleSaveAndLock = () => onSaveSchedule({ ...schedule, isLocked: true });
-  const handleUnlock = () => onSaveSchedule({ ...schedule, isLocked: false });
+  const handleSaveAndLock = () => {
+    if (isExpired) return;
+    onSaveSchedule({ ...schedule, isLocked: true });
+  };
+  
+  const handleUnlock = () => {
+    if (isExpired) return;
+    onSaveSchedule({ ...schedule, isLocked: false });
+  };
 
   const handleClearAssignments = () => {
       if (schedule.isLocked) return;
@@ -531,6 +540,23 @@ export const Positioning: React.FC<PositioningProps> = ({
         ))}
       </div>
 
+      {schedule.isLocked && (
+          <div className={`px-4 py-3 rounded-xl flex items-center justify-between shadow-md ${isExpired ? 'bg-red-800 text-white' : 'bg-gray-800 text-white'}`}>
+              <div className="flex items-center gap-3">
+                  <Lock size={20} className={isExpired ? "text-white" : "text-yellow-400"} />
+                  <div>
+                      <h4 className="font-bold text-sm">{isExpired ? 'Registo Expirado (Leitura)' : 'Posicionamento Finalizado'}</h4>
+                      <p className="text-xs opacity-80">{isExpired ? 'Datas passadas não permitem edição.' : 'Modo de leitura ativo. Desbloqueie para editar.'}</p>
+                  </div>
+              </div>
+              {!isExpired && (
+                <button onClick={handleUnlock} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                  <Unlock size={14} /> Editar
+                </button>
+              )}
+          </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-5 border-r border-gray-100 pr-4">
@@ -590,6 +616,20 @@ export const Positioning: React.FC<PositioningProps> = ({
          </div>
       </div>
 
+      <div className="flex justify-between items-center pt-2 px-1">
+          <h3 className="font-bold text-gray-700 flex items-center gap-2"><Briefcase size={20} /> Postos de Trabalho <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span></h3>
+          <div className="flex items-center gap-3">
+              <div className="flex gap-2">
+                {!schedule.isLocked && !isExpired && <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"><Save size={16} /> Finalizar</button>}
+                {schedule.isLocked && !isExpired && <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Edit size={16} /> Editar</button>}
+                {!schedule.isLocked && <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={16} /> Limpar</button>}
+                <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>
+              </div>
+              <div className="h-6 w-px bg-gray-300 mx-1"></div>
+              <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showAllStations ? 'bg-blue-600' : 'bg-gray-300'}`} title="Mostrar todos os postos"><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+          </div>
+      </div>
+
       <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
          {Object.entries(stationsByArea).map(([area, stations]) => (
              <div key={area} className="flex flex-col gap-4">
@@ -611,43 +651,60 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (ULTRA COMPACT SINGLE SHEET) ================= */}
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen">
-        {/* Main Header */}
-        <div className="flex justify-between items-end mb-1.5 border-b border-slate-900 pb-0.5">
-            <h1 className="text-[20px] font-black uppercase tracking-tighter text-slate-950 leading-none">
+    {/* ================= PRINT VIEW (ONE PAGE LANDSCAPE) ================= */}
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-hidden min-h-screen">
+        {/* Main Header (Fidelity to Screenshot) */}
+        <div className="flex justify-between items-end mb-4 border-b-2 border-slate-900 pb-2">
+            <h1 className="text-[26px] font-black uppercase tracking-tight text-slate-950 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
-            <div className="flex items-center gap-3">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
+            <div className="flex items-center gap-6">
+                <span className="text-[13px] font-bold text-slate-500 uppercase">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <div className="bg-slate-950 text-white px-2 py-1 rounded-sm text-[12px] font-black uppercase leading-none">
+                <div className="bg-slate-950 text-white px-4 py-1.5 rounded-sm text-[16px] font-black uppercase tracking-wider leading-none">
                     {getShiftLabel(selectedShift).toUpperCase()}
                 </div>
             </div>
         </div>
 
-        {/* Metric Grid (Minified) */}
-        <div className="grid grid-cols-5 gap-1.5 mb-2">
-            {[
-                { l: 'Gerente', v: shiftManagerName, c: 'text-slate-900' },
-                { l: 'Previsão', v: `${activeSalesData.totalSales} €`, c: 'text-slate-900' },
-                { l: 'Staff', v: currentAssignedCount, c: 'text-slate-900' },
-                { l: 'Obj. Turno', v: currentObjectives.turnObjective || '-', c: 'text-blue-600' },
-                { l: 'Obj. Produção', v: currentObjectives.productionObjective || '-', c: 'text-orange-600' }
-            ].map((m, i) => (
-                <div key={i} className="bg-slate-50 border border-slate-100 p-1 rounded-sm flex flex-col justify-center min-h-[35px]">
-                    <span className="text-[6.5px] font-black uppercase text-slate-400 block leading-none mb-0.5">{m.l}</span>
-                    <div className={`font-black text-[10px] truncate uppercase tracking-tighter leading-none ${m.c}`}>
-                        {m.v}
-                    </div>
+        {/* 5 Blocks Metric Grid */}
+        <div className="grid grid-cols-5 gap-3 mb-4">
+            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
+                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
+                <div className="font-black text-[13px] text-slate-900 truncate uppercase tracking-tighter">
+                    {shiftManagerName}
                 </div>
-            ))}
+            </div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
+                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
+                <div className="font-black text-[18px] text-slate-900">
+                    {activeSalesData.totalSales} €
+                </div>
+            </div>
+            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
+                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
+                <div className="font-black text-[18px] text-slate-900">
+                    {currentAssignedCount}
+                </div>
+            </div>
+            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
+                <span className="text-[8px] font-black uppercase text-blue-600 block mb-0.5 leading-none">Obj. Turno</span>
+                <div className="text-[10px] font-bold text-slate-800 leading-tight">
+                    {currentObjectives.turnObjective || '-'}
+                </div>
+            </div>
+            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
+                <span className="text-[8px] font-black uppercase text-orange-600 block mb-0.5 leading-none">Obj. Produção</span>
+                <div className="text-[10px] font-bold text-slate-800 leading-tight">
+                    {currentObjectives.productionObjective || '-'}
+                </div>
+            </div>
         </div>
 
-        {/* Multi-Column Layout for Stations (up to 5 columns for ultra-density) */}
-        <div className={`columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-2 h-auto max-h-[calc(100vh-100px)]`}>
+        {/* Dynamic Multi-Column Flow Grid for Area Blocks */}
+        {/* Adjusted column count based on total visible stations to fit one sheet */}
+        <div className={`columns-2 lg:${totalVisibleStations > 24 ? 'columns-5' : totalVisibleStations > 15 ? 'columns-4' : 'columns-3'} gap-3 h-auto max-h-[calc(100vh-180px)]`}>
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -663,8 +720,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Print Footer */}
-        <div className="fixed bottom-1 left-2 w-full flex justify-between text-[6.5px] font-bold text-slate-200 uppercase tracking-widest">
-            <span>TeamPos &bull; Documento de Gestão Interna &bull; MCD VIA CATARINA &bull; {new Date().toLocaleString()}</span>
+        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[8px] font-bold text-slate-200 uppercase tracking-widest bg-white">
+            <span>TeamPos &bull; Documento de Gestão Interna &bull; Impresso em {new Date().toLocaleString()}</span>
         </div>
     </div>
     </>
