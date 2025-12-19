@@ -162,14 +162,14 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color, totalStationsCount
 }) => {
-    // Ultra-compact dynamic scaling to ensure everything fits on one landscape page
-    const isVeryCrowded = totalStationsCount > 28;
-    const isCrowded = totalStationsCount > 20;
+    // Dynamic scaling for print fitting
+    const isVeryCrowded = totalStationsCount > 32;
+    const isCrowded = totalStationsCount > 22;
 
-    const areaMarginClass = isVeryCrowded ? 'mb-2' : 'mb-4';
-    const cardHeight = isVeryCrowded ? 'min-h-[80px]' : isCrowded ? 'min-h-[100px]' : 'min-h-[130px]';
-    const nameBaseSize = isVeryCrowded ? 'text-[16px]' : isCrowded ? 'text-[20px]' : 'text-[26px]';
-    const stationTitleSize = isVeryCrowded ? 'text-[8px]' : 'text-[10px]';
+    const areaMarginClass = isVeryCrowded ? 'mb-2' : 'mb-5';
+    const cardHeight = isVeryCrowded ? 'min-h-[90px]' : isCrowded ? 'min-h-[120px]' : 'min-h-[160px]';
+    const nameBaseSize = isVeryCrowded ? 'text-[22px]' : isCrowded ? 'text-[28px]' : 'text-[36px]';
+    const stationTitleSize = isVeryCrowded ? 'text-[9px]' : 'text-[11px]';
 
     const borderColorMap: Record<string, string> = {
         red: 'border-red-400',
@@ -193,30 +193,30 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     const textClass = titleColorMap[color] || 'text-slate-800';
 
     return (
-        <div className={`break-inside-avoid ${areaMarginClass} border-t-2 border-l border-r border-b ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-1.5`}>
-            <div className="px-1 py-0.5 flex items-center gap-2 mb-1.5">
-                <span className={`font-black text-[10px] uppercase tracking-wider leading-none ${textClass}`}>{title.toUpperCase()}</span>
+        <div className={`break-inside-avoid ${areaMarginClass} border-2 ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-1.5 shadow-sm`}>
+            <div className="px-1 py-1 flex items-center gap-2 mb-2 border-b-2 border-slate-50">
+                <span className={`font-black text-[12px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
-            <div className={`grid gap-1.5 ${stations.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-2 ${stations.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border-2 border-slate-100 rounded-md overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
-                             <div className={`bg-slate-900 px-2 flex justify-between items-center h-6 shrink-0`}>
+                        <div key={station.id} className={`bg-white border-2 border-slate-200 rounded-lg overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
+                             <div className={`bg-slate-900 px-2 flex justify-between items-center h-8 shrink-0`}>
                                 <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
                                     {station.area === 'kitchen' && station.designation 
                                       ? `${station.label} - ${station.designation}`.toUpperCase() 
                                       : station.label.toUpperCase()}
                                 </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[9px] px-1.5 rounded-sm leading-tight py-0.5">
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[10px] px-2 rounded-sm leading-none py-1">
                                     {station.defaultSlots}
                                 </span>
                              </div>
                              
-                             <div className="flex-1 px-1 py-1 flex flex-col justify-center items-center gap-0.5 text-center">
+                             <div className="flex-1 p-2 flex flex-col justify-center items-center text-center">
                                  {assignedIds.length > 0 ? (
                                      assignedIds.map(id => {
                                          const name = employees.find(e => e.id === id)?.name || '';
@@ -225,12 +225,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                          const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
                                          
                                          return (
-                                            <div key={id} className="flex flex-col items-center">
-                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase leading-[0.7] tracking-tighter`}>
+                                            <div key={id} className="flex flex-col items-center leading-none">
+                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase tracking-tighter`}>
                                                     {firstName}
                                                 </div>
                                                 {lastName && (
-                                                    <div className={`${Math.max(12, parseInt(nameBaseSize.replace('px','')) * 0.7)}px font-black text-slate-950 uppercase leading-[0.7] tracking-tighter mt-0.5`}>
+                                                    <div className={`${Math.max(14, parseInt(nameBaseSize.replace('px','')) * 0.7)}px font-black text-slate-900 uppercase tracking-tighter mt-1`}>
                                                         {lastName}
                                                     </div>
                                                 )}
@@ -238,11 +238,11 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                          );
                                      })
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-[1px] w-6 bg-slate-50 rounded-full" />
+                                     <div className="h-[2px] w-12 bg-slate-100 rounded-full" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[9px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-1 pt-0.5 w-full">
+                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-2 pt-1 w-full">
                                          <span className="truncate uppercase tracking-tighter">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
                                      </div>
                                  ))}
@@ -412,12 +412,11 @@ export const Positioning: React.FC<PositioningProps> = ({
     return allStations.filter(s => {
         if (!s.isActive) return false;
         
-        // Filter based on active business areas from settings
+        // Filter areas based on restaurant config
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         
-        // Show all button overrides the assignment logic
         if (showAllStations) return true;
         
         const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
@@ -428,7 +427,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Handlers for assignments
+  // Handle Assignments
   const handleAssign = (stationId: string, employeeId: string) => {
     if (schedule.isLocked) return;
     const currentShift = schedule.shifts[selectedShift] || {};
@@ -463,7 +462,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
   };
 
-  // Explicit priority order for printing as requested by user
+  // Grouping logic for UI and Print (Order: Kitchen, Service, Beverage, Fries, Lobby, Delivery, Drive, McCafe)
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
@@ -471,8 +470,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         groups[s.area].push(s);
     });
     
-    // Exact requested order: Produção (kitchen), Balcão (service), Bebidas (beverage), Batata (fries), Sala (lobby), Delivery (delivery)
-    // Drive and McCafé follow at the end.
+    // Explicit requested order for the print sheet and UI
     const order = ['kitchen', 'service', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     
     return Object.keys(groups)
@@ -499,7 +497,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     return shiftObjs[selectedShift] || {};
   }, [schedule.shiftObjectives, selectedShift]);
 
-  // Area Label and Color Helpers
+  // Label and Color mapping
   const getAreaLabel = (area: string) => {
     const labels: Record<string, string> = {
       kitchen: 'Cozinha (Produção)',
@@ -681,13 +679,13 @@ export const Positioning: React.FC<PositioningProps> = ({
 
     {/* ================= PRINT VIEW (ONE PAGE LANDSCAPE) ================= */}
     <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-hidden min-h-screen">
-        {/* Main Header (Fidelity to Screenshot) */}
+        {/* Main Header */}
         <div className="flex justify-between items-end mb-4 border-b-2 border-slate-900 pb-2">
             <h1 className="text-[26px] font-black uppercase tracking-tight text-slate-950 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
             <div className="flex items-center gap-6">
-                <span className="text-[13px] font-bold text-slate-500 uppercase">
+                <span className="text-[14px] font-bold text-slate-600 uppercase">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
                 <div className="bg-slate-950 text-white px-4 py-1.5 rounded-sm text-[16px] font-black uppercase tracking-wider leading-none">
@@ -696,43 +694,42 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
         </div>
 
-        {/* 5 Blocks Metric Grid */}
-        <div className="grid grid-cols-5 gap-3 mb-4">
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
-                <div className="font-black text-[13px] text-slate-900 truncate uppercase tracking-tighter">
+        {/* Metric Grid (Screenshot Style) */}
+        <div className="grid grid-cols-5 gap-3 mb-6">
+            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Gerente</span>
+                <div className="font-black text-[14px] text-slate-900 truncate uppercase tracking-tighter">
                     {shiftManagerName}
                 </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
-                <div className="font-black text-[18px] text-slate-900">
+            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Previsão</span>
+                <div className="font-black text-[20px] text-slate-900">
                     {activeSalesData.totalSales} €
                 </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2 rounded flex flex-col justify-center min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
-                <div className="font-black text-[18px] text-slate-900">
+            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Staff</span>
+                <div className="font-black text-[20px] text-slate-900">
                     {currentAssignedCount}
                 </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-blue-600 block mb-0.5 leading-none">Obj. Turno</span>
-                <div className="text-[10px] font-bold text-slate-800 leading-tight">
+            <div className="bg-white border-2 border-slate-100 p-2 rounded-lg flex flex-col justify-center overflow-hidden">
+                <span className="text-[8px] font-black uppercase text-blue-600 block mb-1">Obj. Turno</span>
+                <div className="text-[11px] font-bold text-slate-800 leading-tight">
                     {currentObjectives.turnObjective || '-'}
                 </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded flex flex-col justify-center overflow-hidden min-h-[50px]">
-                <span className="text-[8px] font-black uppercase text-orange-600 block mb-0.5 leading-none">Obj. Produção</span>
-                <div className="text-[10px] font-bold text-slate-800 leading-tight">
+            <div className="bg-white border-2 border-slate-100 p-2 rounded-lg flex flex-col justify-center overflow-hidden">
+                <span className="text-[8px] font-black uppercase text-orange-600 block mb-1">Obj. Produção</span>
+                <div className="text-[11px] font-bold text-slate-800 leading-tight">
                     {currentObjectives.productionObjective || '-'}
                 </div>
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Flow Grid for Area Blocks */}
-        {/* Adjusted column count based on total visible stations to fit one sheet */}
-        <div className={`columns-2 lg:${totalVisibleStations > 24 ? 'columns-5' : totalVisibleStations > 15 ? 'columns-4' : 'columns-3'} gap-3 h-auto max-h-[calc(100vh-180px)]`}>
+        {/* Dynamic Multi-Column Area Grid */}
+        <div className={`columns-2 lg:columns-3 xl:columns-4 gap-4 h-auto max-h-[calc(100vh-180px)]`}>
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -748,8 +745,8 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Print Footer */}
-        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[8px] font-bold text-slate-200 uppercase tracking-widest bg-white">
-            <span>TeamPos &bull; Documento de Gestão Interna &bull; Impresso em {new Date().toLocaleString()}</span>
+        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-white">
+            <span>TeamPos &bull; Documento de Gestão Interna &bull; MCD OPS SYSTEM</span>
         </div>
     </div>
     </>
