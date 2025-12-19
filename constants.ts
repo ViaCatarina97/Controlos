@@ -266,7 +266,6 @@ export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
     { id: '14', minSales: 1201, maxSales: 1300, staffCount: 16, stationLabel: 'Finalizador 2' },
     { id: '15', minSales: 1301, maxSales: 1400, staffCount: 17, stationLabel: 'Apresentador 2' },
     { id: '16', minSales: 1401, maxSales: 1550, staffCount: 18, stationLabel: 'Preparador (Montagem) 1' },
-    // Fix: Removed duplicate staffCount property
     { id: '17', minSales: 1551, maxSales: 1750, staffCount: 19, stationLabel: 'Bebidas - Finalizador' },
     { id: '18', minSales: 1751, maxSales: 1950, staffCount: 20, stationLabel: 'Salão 1' },
     { id: '19', minSales: 1951, maxSales: 2100, staffCount: 21, stationLabel: 'Preparador (Montagem) 2' },
