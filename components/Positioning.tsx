@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
@@ -163,7 +162,7 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color
 }) => {
-    // Determine internal grid based on count
+    // Dynamic grid: 1 column for small groups, 2 for larger ones to save vertical space
     const getGridCols = (count: number) => {
         if (count <= 2) return 'grid-cols-1';
         return 'grid-cols-2'; 
@@ -191,13 +190,9 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     const textClass = titleColorMap[color] || 'text-slate-800';
 
     return (
-        <div className={`break-inside-avoid-page mb-6 border-t-2 border-l border-r border-b ${borderClass} rounded-lg overflow-hidden bg-slate-50/20 flex flex-col p-2 shadow-sm`}>
+        <div className={`break-inside-avoid-page mb-6 border-t-2 border-l border-r border-b ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-2 shadow-sm`}>
             <div className="px-1 py-1 flex items-center gap-2 mb-2">
-                {color === 'purple' && <CupSoda size={14} className="text-purple-600" />}
-                {color === 'red' && <Flame size={14} className="text-red-600" />}
-                {color === 'blue' && <Store size={14} className="text-blue-600" />}
-                {color === 'yellow' && <Users size={14} className="text-yellow-600" />}
-                <span className={`font-black text-[12px] uppercase tracking-[0.1em] leading-none ${textClass}`}>{title.toUpperCase()}</span>
+                <span className={`font-black text-[12px] uppercase tracking-widest leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
             <div className={`grid gap-2 ${getGridCols(stations.length)}`}>
@@ -206,12 +201,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className="bg-white border-2 border-slate-200 rounded-md overflow-hidden flex flex-col min-h-[140px] shadow-sm">
-                             <div className="bg-slate-900 px-3 py-1 flex justify-between items-center h-7 shrink-0">
-                                <span className="font-black text-[9px] text-white uppercase truncate tracking-tight">
+                        <div key={station.id} className="bg-white border-2 border-slate-200 rounded-lg overflow-hidden flex flex-col min-h-[140px] shadow-sm">
+                             <div className="bg-slate-900 px-3 py-1.5 flex justify-between items-center h-8">
+                                <span className="font-black text-[10px] text-white uppercase truncate tracking-tight">
                                     {station.label.toUpperCase()}
                                 </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[9px] px-1.5 rounded-sm leading-tight py-0.5">
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[10px] px-1.5 rounded-sm leading-tight py-0.5">
                                     {station.defaultSlots}
                                 </span>
                              </div>
@@ -221,17 +216,17 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                      assignedIds.map(id => {
                                          const name = employees.find(e => e.id === id)?.name || '';
                                          const nameParts = name.split(' ');
-                                         // Dynamic font size for names
-                                         const nameSize = name.length > 15 ? 'text-[18px]' : name.length > 10 ? 'text-[22px]' : 'text-[26px]';
-                                         const lastNameSize = name.length > 15 ? 'text-[14px]' : name.length > 10 ? 'text-[18px]' : 'text-[20px]';
+                                         // Dynamic scaling for names to match screenshot impact
+                                         const nameSize = name.length > 15 ? 'text-[20px]' : name.length > 10 ? 'text-[24px]' : 'text-[30px]';
+                                         const lastNameSize = name.length > 15 ? 'text-[16px]' : name.length > 10 ? 'text-[20px]' : 'text-[24px]';
 
                                          return (
                                             <div key={id} className="flex flex-col items-center">
-                                                <div className={`${nameSize} font-black text-slate-950 uppercase leading-[0.85] tracking-tighter`}>
+                                                <div className={`${nameSize} font-black text-slate-950 uppercase leading-[0.8] tracking-tighter`}>
                                                     {nameParts[0]}
                                                 </div>
                                                 {nameParts.length > 1 && (
-                                                    <div className={`${lastNameSize} font-black text-slate-950 uppercase leading-[0.85] tracking-tighter mt-1`}>
+                                                    <div className={`${lastNameSize} font-black text-slate-950 uppercase leading-[0.8] tracking-tighter mt-1`}>
                                                         {nameParts[nameParts.length - 1]}
                                                     </div>
                                                 )}
@@ -239,11 +234,11 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                          );
                                      })
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-[2px] w-10 bg-slate-100 rounded-full" />
+                                     <div className="h-[1px] w-12 bg-slate-100" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[10px] font-black text-yellow-600 flex flex-col items-center border-t border-yellow-100 mt-2 pt-1 w-full">
+                                     <div key={id} className="text-[11px] font-black text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-2 pt-1 w-full">
                                          <span className="truncate uppercase tracking-tighter">🎓 {employees.find(e => e.id === id)?.name}</span>
                                      </div>
                                  ))}
@@ -280,7 +275,7 @@ export const Positioning: React.FC<PositioningProps> = ({
   hourlyData,
   onSaveSchedule
 }) => {
-  const [selectedShift, setSelectedShift] = useState<ShiftType>('INTERMEDIO');
+  const [selectedShift, setSelectedShift] = useState<ShiftType>('ABERTURA');
   const [manualPeakHour, setManualPeakHour] = useState<string | null>(null);
   const [showAllStations, setShowAllStations] = useState(false);
   
@@ -400,23 +395,25 @@ export const Positioning: React.FC<PositioningProps> = ({
   const allStations = settings.customStations || STATIONS;
 
   const filteredStationsForPrint = useMemo(() => {
-      // In print view we ALWAYS check the showAllStations state but we also check if staff is assigned
-      const activeBusinessAreas = settings.businessAreas || [];
-      return allStations.filter(s => {
-          if (!s.isActive) return false;
-          
-          if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
-          if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
-          if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
+    const activeBusinessAreas = settings.businessAreas || [];
+    return allStations.filter(s => {
+        if (!s.isActive) return false;
+        
+        // Always respect business areas
+        if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
+        if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
+        if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
 
-          if (showAllStations) return true;
-
-          const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
-          const assignedTrainee = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
-          if (assigned || assignedTrainee) return true;
-
-          return recommendedStationLabels.has(s.label);
-      });
+        // If explicitly showing all, include all active for these areas
+        if (showAllStations) return true;
+        
+        // Otherwise, show if assigned or recommended
+        const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
+        const assignedTrainees = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
+        if (assigned || assignedTrainees) return true;
+        
+        return recommendedStationLabels.has(s.label);
+    });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
   // Group stations by Area
@@ -426,7 +423,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[s.area]) groups[s.area] = [];
         groups[s.area].push(s);
     });
-    // Order based on screenshot layout
+    // Visual ordering priority
     const order = ['beverage', 'kitchen', 'service', 'fries', 'lobby', 'drive', 'delivery', 'mccafe'];
     return Object.keys(groups)
         .sort((a, b) => {
@@ -519,11 +516,9 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const shiftManagerName = useMemo(() => {
       const id = schedule.shiftManagers?.[selectedShift];
-      return employees.find(e => e.id === id)?.name || 'Gilberto Soutelo'; // Mock default from screenshot
+      return employees.find(e => e.id === id)?.name || '-';
   }, [schedule.shiftManagers, selectedShift, employees]);
 
-  // Fix: Added missing currentObjectives memo to provide turn and production objectives for the selected shift.
-  // This resolves "Cannot find name 'currentObjectives'" errors on lines 628, 632, 705, and 709.
   const currentObjectives = useMemo(() => {
     const shiftObjs = schedule.shiftObjectives || {};
     return shiftObjs[selectedShift] || {};
@@ -678,47 +673,57 @@ export const Positioning: React.FC<PositioningProps> = ({
     </div>
 
     {/* ================= PRINT VIEW (FIDELITY TO SCREENSHOT) ================= */}
-    <div className="hidden print:block relative bg-white text-slate-900 p-2 min-h-screen">
-        {/* Main Header (Matching Screenshot) */}
-        <div className="flex justify-between items-end mb-4 pb-1 border-b-2 border-slate-900">
-            <h1 className="text-[28px] font-black uppercase tracking-tight text-slate-900 leading-none">
+    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-2 text-slate-900 overflow-visible min-h-screen">
+        {/* Main Header */}
+        <div className="flex justify-between items-end mb-4 border-b-2 border-slate-900 pb-2">
+            <h1 className="text-[28px] font-black uppercase tracking-tight text-slate-950 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
-            <div className="flex items-center gap-8">
-                <span className="text-[14px] font-bold text-slate-500">
+            <div className="flex items-center gap-6">
+                <span className="text-[14px] font-bold text-slate-600">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <div className="bg-slate-950 text-white px-5 py-1.5 rounded-sm text-[18px] font-black uppercase leading-none">
+                <div className="bg-slate-950 text-white px-4 py-1.5 rounded-sm text-[18px] font-black uppercase tracking-wider leading-none">
                     {getShiftLabel(selectedShift).toUpperCase()}
                 </div>
             </div>
         </div>
 
-        {/* Top Metric Grid (5 blocks) */}
+        {/* Info Blocks Grid (Matching Screenshot 5 boxes) */}
         <div className="grid grid-cols-5 gap-3 mb-6">
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded flex flex-col justify-center min-h-[60px]">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-lg flex flex-col justify-center min-h-[65px]">
                 <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
-                <div className="font-black text-[14px] text-slate-900 truncate uppercase">{shiftManagerName}</div>
+                <div className="font-black text-[16px] text-slate-900 truncate uppercase tracking-tighter">
+                    {shiftManagerName}
+                </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded flex flex-col justify-center min-h-[60px]">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-lg flex flex-col justify-center min-h-[65px]">
                 <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
-                <div className="font-black text-[18px] text-slate-900">{activeSalesData.totalSales} €</div>
+                <div className="font-black text-[20px] text-slate-900">
+                    {activeSalesData.totalSales} €
+                </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-100 p-2.5 rounded flex flex-col justify-center min-h-[60px]">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-lg flex flex-col justify-center min-h-[65px]">
                 <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
-                <div className="font-black text-[18px] text-slate-900">{currentAssignedCount}</div>
+                <div className="font-black text-[20px] text-slate-900">
+                    {currentAssignedCount}
+                </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2.5 rounded flex flex-col justify-center overflow-hidden min-h-[60px]">
+            <div className="bg-white border-2 border-slate-100 p-3 rounded-lg flex flex-col justify-center overflow-hidden min-h-[65px]">
                 <span className="text-[9px] font-black uppercase text-blue-600 block mb-0.5 leading-none">Obj. Turno</span>
-                <div className="text-[11px] font-bold text-slate-800 leading-tight mt-1">{currentObjectives.turnObjective || '-'}</div>
+                <div className="text-[11.5px] font-bold text-slate-800 leading-tight mt-1">
+                    {currentObjectives.turnObjective || '-'}
+                </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2.5 rounded flex flex-col justify-center overflow-hidden min-h-[60px]">
+            <div className="bg-white border-2 border-slate-100 p-3 rounded-lg flex flex-col justify-center overflow-hidden min-h-[65px]">
                 <span className="text-[9px] font-black uppercase text-orange-600 block mb-0.5 leading-none">Obj. Produção</span>
-                <div className="text-[11px] font-bold text-slate-800 leading-tight mt-1">{currentObjectives.productionObjective || '-'}</div>
+                <div className="text-[11.5px] font-bold text-slate-800 leading-tight mt-1">
+                    {currentObjectives.productionObjective || '-'}
+                </div>
             </div>
         </div>
 
-        {/* Dynamic Column Flow Grid for Area Blocks */}
+        {/* Dynamic Column Grid for Stations - Optimized for Page Fitting */}
         <div className="columns-2 lg:columns-3 gap-6 h-auto">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
@@ -734,7 +739,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Print Footer */}
-        <div className="mt-8 pt-4 border-t border-slate-100 flex justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+        <div className="fixed bottom-3 left-4 w-full flex justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-white">
             <span>TeamPos &bull; Documento de Gestão Interna</span>
         </div>
     </div>
