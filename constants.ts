@@ -34,15 +34,16 @@ export const STATIONS: StationConfig[] = [
   { id: 'bev_fin', label: 'Bebidas - Finalizador', designation: 'BEB FIN', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
   { id: 'bev_ice', label: 'Bebidas - Gelados', designation: 'GELADOS', icon: 'IceCream', defaultSlots: 1, area: 'beverage', isActive: true },
 
-  // --- SALA (Inclui Balcão/Serviço) ---
+  // --- SALA ---
   { id: 'svc_exp_1', label: 'Balcão - Expedidor', designation: 'EXP', icon: 'Monitor', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_run_1', label: 'Balcão - Runner', designation: 'RUN', icon: 'ShoppingBag', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_pres_1', label: 'Balcão - Apresentador', designation: 'APRES', icon: 'Smile', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_cash_1', label: 'Balcão - Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'lobby', isActive: true },
   { id: 'svc_cash_2', label: 'Balcão - Caixa 2', designation: 'CX 2', icon: 'UserCircle', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'lobby_1', label: 'Salão 1', designation: 'SALA 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'lobby_2', label: 'Salão 2', designation: 'SALA 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'rp_1', label: 'RP / GEL', designation: 'RP', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_1', label: 'Salão 1', designation: 'SALÃO 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lobby_2', label: 'Salão 2', designation: 'SALÃO 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'rp_1', label: 'RP / GEL 1', designation: 'RP 1', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'rp_2', label: 'RP / GEL 2', designation: 'RP 2', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
 
   // --- DELIVERY ---
   { id: 'del_prep', label: 'Delivery - Preparador', designation: 'DEL PREP', icon: 'ShoppingBag', defaultSlots: 1, area: 'delivery', isActive: true },
@@ -258,7 +259,7 @@ export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
     { id: '6', minSales: 531, maxSales: 580, staffCount: 8, stationLabel: 'Caixa 1' },
     { id: '7', minSales: 581, maxSales: 620, staffCount: 9, stationLabel: 'BC Grelhador 2' },
     { id: '8', minSales: 621, maxSales: 740, staffCount: 10, stationLabel: 'Batata 1' },
-    { id: '9', minSales: 741, maxSales: 830, staffCount: 11, stationLabel: 'RP / GEL 1' },
+    { id: '9', minSales: 741, maxSales: 830, staffCount: 11, stationLabel: 'RP 1' },
     { id: '10', minSales: 831, maxSales: 910, staffCount: 12, stationLabel: 'Apresentador 1' },
     { id: '11', minSales: 911, maxSales: 990, staffCount: 13, stationLabel: 'Finalizador 1' },
     { id: '12', minSales: 991, maxSales: 1100, staffCount: 14, stationLabel: 'Delivery - Preparador' },

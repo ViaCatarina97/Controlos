@@ -392,13 +392,14 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
   const getAreaLabel = (area: string) => {
-    // "service" label is no longer used, "lobby" is now "Sala"
-    const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
+    // Handling both legacy 'service' and new 'lobby' under the label "Sala"
+    const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', service: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
     return labels[area] || area;
   };
 
   const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = { kitchen: 'red', beverage: 'purple', fries: 'yellow', lobby: 'blue', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
+    // Handling both legacy 'service' and new 'lobby' under blue
+    const colors: Record<string, string> = { kitchen: 'red', beverage: 'purple', fries: 'yellow', lobby: 'blue', service: 'blue', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
     return colors[area] || 'slate';
   };
 

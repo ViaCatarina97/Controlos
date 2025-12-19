@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { AppSettings, BusinessArea, Employee, RestaurantTypology, RoleType, ShiftType, StationConfig } from '../types';
 import { AVAILABLE_AREAS, AVAILABLE_SHIFTS, AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS } from '../constants';
@@ -15,19 +14,22 @@ interface SettingsProps {
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
 }
 
+// Helper to categorize stations based on keywords in their label
 const getStationCategory = (label: string) => {
     const lower = label.toLowerCase();
     
+    // Explicit Areas
     if (lower.includes('drive') || lower.includes('drv')) return { key: 'drive', label: 'Drive', icon: Car, color: 'bg-slate-200 text-slate-700' };
     if (lower.includes('mccafé') || lower.includes('mccafe') || lower.includes('barista')) return { key: 'mccafe', label: 'McCafé', icon: Coffee, color: 'bg-amber-100 text-amber-800' };
     if (lower.includes('batata') || lower.includes('fries') || lower.includes('frit')) return { key: 'fries', label: 'Batatas', icon: Utensils, color: 'bg-yellow-100 text-yellow-700' };
+
     if (lower.includes('batch cooker') || lower.includes('bc ')) return { key: 'batch_cooker', label: 'Batch Cooker', icon: Flame, color: 'bg-orange-100 text-orange-700' };
     if (lower.includes('iniciador')) return { key: 'init', label: 'Iniciador', icon: Sandwich, color: 'bg-red-100 text-red-700' };
     if (lower.includes('preparador') && !lower.includes('delivery')) return { key: 'prep', label: 'Preparador', icon: Utensils, color: 'bg-red-100 text-red-700' };
     if (lower.includes('finalizador')) return { key: 'fin', label: 'Finalizador', icon: Flag, color: 'bg-red-100 text-red-700' };
     if (lower.includes('bebida') || lower.includes('gelado')) return { key: 'bev', label: 'Bebidas & Sobremesas', icon: CupSoda, color: 'bg-pink-100 text-pink-700' };
     
-    // Consolidado: "Sala" engloba tudo o que era serviço/balcão
+    // Unifying lobby and service under "Sala"
     if (lower.includes('expedidor') || lower.includes('runner') || lower.includes('apresentador') || lower.includes('caixa') || lower.includes('sala') || lower.includes('lobby') || lower.includes('rp') || lower.includes('salão') || lower.includes('salao') || lower.includes('balcão') || lower.includes('balcao')) return { key: 'lobby', label: 'Sala', icon: Users, color: 'bg-blue-100 text-blue-700' };
     
     if (lower.includes('delivery')) return { key: 'del', label: 'Delivery', icon: Package, color: 'bg-green-100 text-green-700' };
