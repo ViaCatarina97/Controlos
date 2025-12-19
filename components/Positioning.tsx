@@ -156,21 +156,11 @@ interface VisualPrintZoneProps {
   selectedShift: ShiftType;
   employees: Employee[];
   color: string;
-  totalStationsCount: number;
 }
 
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, stations, schedule, selectedShift, employees, color, totalStationsCount
+  title, stations, schedule, selectedShift, employees, color
 }) => {
-    // Escalonamento para caber em uma folha
-    const isVeryCrowded = totalStationsCount > 28;
-    const isCrowded = totalStationsCount > 20;
-
-    const areaMarginClass = isVeryCrowded ? 'mb-2' : 'mb-4';
-    const cardHeight = isVeryCrowded ? 'min-h-[85px]' : isCrowded ? 'min-h-[110px]' : 'min-h-[140px]';
-    const nameBaseSize = isVeryCrowded ? 'text-[18px]' : isCrowded ? 'text-[24px]' : 'text-[32px]';
-    const stationTitleSize = isVeryCrowded ? 'text-[9px]' : 'text-[10px]';
-
     const borderColorMap: Record<string, string> = {
         red: 'border-red-500',
         blue: 'border-blue-500',
@@ -189,27 +179,33 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
         slate: 'text-slate-700',
     };
 
-    const borderClass = borderColorMap[color] || 'border-slate-200';
+    const borderClass = borderColorMap[color] || 'border-slate-300';
     const textClass = titleColorMap[color] || 'text-slate-800';
 
+    // Se não houver postos atribuídos nesta área e não for uma área base, não imprime
+    const hasAssignments = stations.some(s => 
+      (schedule.shifts[selectedShift]?.[s.id] || []).length > 0 || 
+      (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0
+    );
+
+    if (!hasAssignments && !['kitchen', 'service'].includes(stations[0]?.area)) return null;
+
     return (
-        <div className={`break-inside-avoid ${areaMarginClass} border-2 ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-1.5 shadow-sm`}>
-            <div className="px-1 py-1 flex items-center gap-2 mb-2 border-b-2 border-slate-50">
-                <span className={`font-black text-[11px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
+        <div className={`break-inside-avoid mb-4 border-2 ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-2 shadow-sm h-full`}>
+            <div className="px-1 py-1 flex items-center gap-2 mb-2 border-b border-slate-100">
+                <span className={`font-black text-[12px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
-            <div className={`grid gap-1.5 ${stations.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-2 ${stations.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border-2 border-slate-100 rounded-lg overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
+                        <div key={station.id} className={`bg-white border border-slate-200 rounded-md overflow-hidden flex flex-col min-h-[110px]`}>
                              <div className={`bg-slate-900 px-2 flex justify-between items-center h-7 shrink-0`}>
-                                <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
-                                    {station.area === 'kitchen' && station.designation 
-                                      ? `${station.label} - ${station.designation}`.toUpperCase() 
-                                      : station.label.toUpperCase()}
+                                <span className={`font-black text-[10px] text-white uppercase truncate tracking-tight`}>
+                                    {station.label.toUpperCase()}
                                 </span>
                                 <span className="bg-yellow-400 text-slate-900 font-black text-[9px] px-1.5 rounded-sm leading-none py-1">
                                     {station.defaultSlots}
@@ -225,12 +221,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                          const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
                                          
                                          return (
-                                            <div key={id} className="flex flex-col items-center leading-none">
-                                                <div className={`${nameBaseSize} font-black text-slate-950 uppercase tracking-tighter`}>
+                                            <div key={id} className="flex flex-col items-center leading-none mb-1">
+                                                <div className="text-[22px] font-black text-slate-950 uppercase tracking-tighter">
                                                     {firstName}
                                                 </div>
                                                 {lastName && (
-                                                    <div className={`${Math.max(12, parseInt(nameBaseSize.replace('px','')) * 0.65)}px font-black text-slate-800 uppercase tracking-tighter mt-1`}>
+                                                    <div className="text-[16px] font-black text-slate-800 uppercase tracking-tighter">
                                                         {lastName}
                                                     </div>
                                                 )}
@@ -242,7 +238,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-2 pt-1 w-full">
+                                     <div key={id} className="text-[10px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-1 pt-1 w-full">
                                          <span className="truncate uppercase tracking-tighter leading-none">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
                                      </div>
                                  ))}
@@ -371,15 +367,12 @@ export const Positioning: React.FC<PositioningProps> = ({
       });
   };
 
-  // Handlers for assignments
   const handleAssign = (stationId: string, employeeId: string) => {
     if (schedule.isLocked) return;
     const currentShifts = schedule.shifts || {};
     const shiftData = currentShifts[selectedShift] || {};
     const stationAssignments = shiftData[stationId] || [];
-    
     if (stationAssignments.includes(employeeId)) return;
-
     setSchedule({
       ...schedule,
       shifts: {
@@ -397,7 +390,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     const currentShifts = schedule.shifts || {};
     const shiftData = currentShifts[selectedShift] || {};
     const stationAssignments = shiftData[stationId] || [];
-
     setSchedule({
       ...schedule,
       shifts: {
@@ -415,9 +407,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     const currentTrainees = schedule.trainees || {};
     const shiftTrainees = currentTrainees[selectedShift] || {};
     const stationTrainees = shiftTrainees[stationId] || [];
-
     if (stationTrainees.includes(employeeId)) return;
-
     setSchedule({
       ...schedule,
       trainees: {
@@ -435,7 +425,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     const currentTrainees = schedule.trainees || {};
     const shiftTrainees = currentTrainees[selectedShift] || {};
     const stationTrainees = shiftTrainees[stationId] || [];
-
     setSchedule({
       ...schedule,
       trainees: {
@@ -488,28 +477,25 @@ export const Positioning: React.FC<PositioningProps> = ({
     const activeBusinessAreas = settings.businessAreas || [];
     return allStations.filter(s => {
         if (!s.isActive) return false;
-        
-        // Filter areas based on restaurant config
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         
         if (showAllStations) return true;
-        
         const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
         const assignedTrainees = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
-        if (assigned || assignedTrainees) return true;
-        
-        return recommendedStationLabels.has(s.label);
+        return assigned || assignedTrainees || recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Grouping logic with strict priority order
+  // Grouping logic with strict priority order and STRICT area separation
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
-        if (!groups[s.area]) groups[s.area] = [];
-        groups[s.area].push(s);
+        // Garantir que postos de Batata tenham a sua própria área independente
+        const areaKey = s.label.toLowerCase().includes('batata') ? 'fries' : s.area;
+        if (!groups[areaKey]) groups[areaKey] = [];
+        groups[areaKey].push(s);
     });
     
     // Exact requested order: Produção, Balcão, Bebidas, Batata, Sala, Delivery, Drive, McCafé
@@ -539,7 +525,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     return shiftObjs[selectedShift] || {};
   }, [schedule.shiftObjectives, selectedShift]);
 
-  // Labels e Cores dos grupos
   const getAreaLabel = (area: string) => {
     const labels: Record<string, string> = {
       kitchen: 'Cozinha (Produção)',
@@ -720,7 +705,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Top Metric Bar */}
-        <div className="grid grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-5 gap-3 mb-4">
             <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-md flex flex-col justify-center min-h-[55px]">
                 <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
                 <div className="font-black text-[15px] text-slate-900 truncate uppercase tracking-tighter">
@@ -753,8 +738,8 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Grid */}
-        <div className={`columns-2 lg:columns-3 gap-4 h-auto max-h-[calc(100vh-160px)]`}>
+        {/* Dynamic Multi-Column Grid of CARDS (Mimicking original screenshot) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 h-full overflow-hidden items-start">
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -764,7 +749,6 @@ export const Positioning: React.FC<PositioningProps> = ({
                     selectedShift={selectedShift}
                     employees={employees}
                     color={getAreaColor(area)}
-                    totalStationsCount={totalVisibleStations}
                 />
             ))}
         </div>
