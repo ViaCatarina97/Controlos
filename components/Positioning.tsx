@@ -162,22 +162,22 @@ interface VisualPrintZoneProps {
 const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
   title, stations, schedule, selectedShift, employees, color, totalStationsCount
 }) => {
-    // Dynamic scaling for print fitting
-    const isVeryCrowded = totalStationsCount > 32;
-    const isCrowded = totalStationsCount > 22;
+    // Escalonamento para caber em uma folha
+    const isVeryCrowded = totalStationsCount > 28;
+    const isCrowded = totalStationsCount > 20;
 
-    const areaMarginClass = isVeryCrowded ? 'mb-2' : 'mb-5';
-    const cardHeight = isVeryCrowded ? 'min-h-[90px]' : isCrowded ? 'min-h-[120px]' : 'min-h-[160px]';
-    const nameBaseSize = isVeryCrowded ? 'text-[22px]' : isCrowded ? 'text-[28px]' : 'text-[36px]';
-    const stationTitleSize = isVeryCrowded ? 'text-[9px]' : 'text-[11px]';
+    const areaMarginClass = isVeryCrowded ? 'mb-2' : 'mb-4';
+    const cardHeight = isVeryCrowded ? 'min-h-[85px]' : isCrowded ? 'min-h-[110px]' : 'min-h-[140px]';
+    const nameBaseSize = isVeryCrowded ? 'text-[18px]' : isCrowded ? 'text-[24px]' : 'text-[32px]';
+    const stationTitleSize = isVeryCrowded ? 'text-[9px]' : 'text-[10px]';
 
     const borderColorMap: Record<string, string> = {
-        red: 'border-red-400',
-        blue: 'border-blue-400',
-        yellow: 'border-yellow-400',
-        purple: 'border-purple-400',
-        green: 'border-green-400',
-        slate: 'border-slate-400',
+        red: 'border-red-500',
+        blue: 'border-blue-500',
+        yellow: 'border-yellow-500',
+        purple: 'border-purple-500',
+        green: 'border-green-500',
+        slate: 'border-slate-500',
     };
 
     const titleColorMap: Record<string, string> = {
@@ -195,23 +195,23 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     return (
         <div className={`break-inside-avoid ${areaMarginClass} border-2 ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-1.5 shadow-sm`}>
             <div className="px-1 py-1 flex items-center gap-2 mb-2 border-b-2 border-slate-50">
-                <span className={`font-black text-[12px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
+                <span className={`font-black text-[11px] uppercase tracking-tighter leading-none ${textClass}`}>{title.toUpperCase()}</span>
             </div>
             
-            <div className={`grid gap-2 ${stations.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-1.5 ${stations.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {stations.map(station => {
                     const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
                     const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
                     
                     return (
-                        <div key={station.id} className={`bg-white border-2 border-slate-200 rounded-lg overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
-                             <div className={`bg-slate-900 px-2 flex justify-between items-center h-8 shrink-0`}>
+                        <div key={station.id} className={`bg-white border-2 border-slate-100 rounded-lg overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
+                             <div className={`bg-slate-900 px-2 flex justify-between items-center h-7 shrink-0`}>
                                 <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
                                     {station.area === 'kitchen' && station.designation 
                                       ? `${station.label} - ${station.designation}`.toUpperCase() 
                                       : station.label.toUpperCase()}
                                 </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[10px] px-2 rounded-sm leading-none py-1">
+                                <span className="bg-yellow-400 text-slate-900 font-black text-[9px] px-1.5 rounded-sm leading-none py-1">
                                     {station.defaultSlots}
                                 </span>
                              </div>
@@ -230,7 +230,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                                     {firstName}
                                                 </div>
                                                 {lastName && (
-                                                    <div className={`${Math.max(14, parseInt(nameBaseSize.replace('px','')) * 0.7)}px font-black text-slate-900 uppercase tracking-tighter mt-1`}>
+                                                    <div className={`${Math.max(12, parseInt(nameBaseSize.replace('px','')) * 0.65)}px font-black text-slate-800 uppercase tracking-tighter mt-1`}>
                                                         {lastName}
                                                     </div>
                                                 )}
@@ -238,12 +238,12 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                                          );
                                      })
                                  ) : assignedTraineeIds.length === 0 ? (
-                                     <div className="h-[2px] w-12 bg-slate-100 rounded-full" />
+                                     <div className="h-[2px] w-8 bg-slate-50 rounded-full" />
                                  ) : null}
 
                                  {assignedTraineeIds.map(id => (
                                      <div key={id} className="text-[10px] font-bold text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-2 pt-1 w-full">
-                                         <span className="truncate uppercase tracking-tighter">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
+                                         <span className="truncate uppercase tracking-tighter leading-none">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
                                      </div>
                                  ))}
                              </div>
@@ -371,6 +371,83 @@ export const Positioning: React.FC<PositioningProps> = ({
       });
   };
 
+  // Handlers for assignments
+  const handleAssign = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
+    const currentShifts = schedule.shifts || {};
+    const shiftData = currentShifts[selectedShift] || {};
+    const stationAssignments = shiftData[stationId] || [];
+    
+    if (stationAssignments.includes(employeeId)) return;
+
+    setSchedule({
+      ...schedule,
+      shifts: {
+        ...currentShifts,
+        [selectedShift]: {
+          ...shiftData,
+          [stationId]: [...stationAssignments, employeeId]
+        }
+      }
+    });
+  };
+
+  const handleRemove = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
+    const currentShifts = schedule.shifts || {};
+    const shiftData = currentShifts[selectedShift] || {};
+    const stationAssignments = shiftData[stationId] || [];
+
+    setSchedule({
+      ...schedule,
+      shifts: {
+        ...currentShifts,
+        [selectedShift]: {
+          ...shiftData,
+          [stationId]: stationAssignments.filter(id => id !== employeeId)
+        }
+      }
+    });
+  };
+
+  const handleAssignTrainee = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
+    const currentTrainees = schedule.trainees || {};
+    const shiftTrainees = currentTrainees[selectedShift] || {};
+    const stationTrainees = shiftTrainees[stationId] || [];
+
+    if (stationTrainees.includes(employeeId)) return;
+
+    setSchedule({
+      ...schedule,
+      trainees: {
+        ...currentTrainees,
+        [selectedShift]: {
+          ...shiftTrainees,
+          [stationId]: [...stationTrainees, employeeId]
+        }
+      }
+    });
+  };
+
+  const handleRemoveTrainee = (stationId: string, employeeId: string) => {
+    if (schedule.isLocked) return;
+    const currentTrainees = schedule.trainees || {};
+    const shiftTrainees = currentTrainees[selectedShift] || {};
+    const stationTrainees = shiftTrainees[stationId] || [];
+
+    setSchedule({
+      ...schedule,
+      trainees: {
+        ...currentTrainees,
+        [selectedShift]: {
+          ...shiftTrainees,
+          [stationId]: stationTrainees.filter(id => id !== employeeId)
+        }
+      }
+    });
+  };
+
   const handlePrint = () => window.print();
 
   const handleSaveAndLock = () => {
@@ -427,42 +504,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
 
-  // Handle Assignments
-  const handleAssign = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
-    const currentShift = schedule.shifts[selectedShift] || {};
-    const newShift = { ...currentShift };
-    Object.keys(newShift).forEach(k => { newShift[k] = (newShift[k] || []).filter(id => id !== employeeId); });
-    newShift[stationId] = [...(newShift[stationId] || []), employeeId];
-    setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: newShift } });
-  };
-
-  const handleRemove = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
-    const currentShift = schedule.shifts[selectedShift] || {};
-    const newShift = { ...currentShift, [stationId]: (currentShift[stationId] || []).filter(id => id !== employeeId) };
-    setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: newShift } });
-  };
-
-  const handleAssignTrainee = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
-    const currentTrainees = schedule.trainees || {};
-    const shiftTrainees = currentTrainees[selectedShift] || {};
-    const newShiftTrainees = { ...shiftTrainees };
-    Object.keys(newShiftTrainees).forEach(k => { newShiftTrainees[k] = (newShiftTrainees[k] || []).filter(id => id !== employeeId); });
-    newShiftTrainees[stationId] = [...(newShiftTrainees[stationId] || []), employeeId];
-    setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
-  };
-
-  const handleRemoveTrainee = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
-    const currentTrainees = schedule.trainees || {};
-    const shiftTrainees = currentTrainees[selectedShift] || {};
-    const newShiftTrainees = { ...shiftTrainees, [stationId]: (shiftTrainees[stationId] || []).filter(id => id !== employeeId) };
-    setSchedule({ ...schedule, trainees: { ...currentTrainees, [selectedShift]: newShiftTrainees } });
-  };
-
-  // Grouping logic for UI and Print (Order: Kitchen, Service, Beverage, Fries, Lobby, Delivery, Drive, McCafe)
+  // Grouping logic with strict priority order
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
@@ -470,7 +512,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         groups[s.area].push(s);
     });
     
-    // Explicit requested order for the print sheet and UI
+    // Exact requested order: Produção, Balcão, Bebidas, Batata, Sala, Delivery, Drive, McCafé
     const order = ['kitchen', 'service', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     
     return Object.keys(groups)
@@ -497,7 +539,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     return shiftObjs[selectedShift] || {};
   }, [schedule.shiftObjectives, selectedShift]);
 
-  // Label and Color mapping
+  // Labels e Cores dos grupos
   const getAreaLabel = (area: string) => {
     const labels: Record<string, string> = {
       kitchen: 'Cozinha (Produção)',
@@ -565,23 +607,6 @@ export const Positioning: React.FC<PositioningProps> = ({
           </button>
         ))}
       </div>
-
-      {schedule.isLocked && (
-          <div className={`px-4 py-3 rounded-xl flex items-center justify-between shadow-md ${isExpired ? 'bg-red-800 text-white' : 'bg-gray-800 text-white'}`}>
-              <div className="flex items-center gap-3">
-                  <Lock size={20} className={isExpired ? "text-white" : "text-yellow-400"} />
-                  <div>
-                      <h4 className="font-bold text-sm">{isExpired ? 'Registo Expirado (Leitura)' : 'Posicionamento Finalizado'}</h4>
-                      <p className="text-xs opacity-80">{isExpired ? 'Datas passadas não permitem edição.' : 'Modo de leitura ativo. Desbloqueie para editar.'}</p>
-                  </div>
-              </div>
-              {!isExpired && (
-                <button onClick={handleUnlock} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                  <Unlock size={14} /> Editar
-                </button>
-              )}
-          </div>
-      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
@@ -677,59 +702,59 @@ export const Positioning: React.FC<PositioningProps> = ({
       </div>
     </div>
 
-    {/* ================= PRINT VIEW (ONE PAGE LANDSCAPE) ================= */}
+    {/* ================= PRINT VIEW (FIDELITY TO SCREENSHOT) ================= */}
     <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-slate-900 overflow-hidden min-h-screen">
         {/* Main Header */}
         <div className="flex justify-between items-end mb-4 border-b-2 border-slate-900 pb-2">
-            <h1 className="text-[26px] font-black uppercase tracking-tight text-slate-950 leading-none">
+            <h1 className="text-[28px] font-black uppercase tracking-tight text-slate-950 leading-none">
                 {settings.restaurantName.toUpperCase()}
             </h1>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-8">
                 <span className="text-[14px] font-bold text-slate-600 uppercase">
                     {new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
-                <div className="bg-slate-950 text-white px-4 py-1.5 rounded-sm text-[16px] font-black uppercase tracking-wider leading-none">
+                <div className="bg-slate-950 text-white px-5 py-2 rounded-sm text-[18px] font-black uppercase tracking-wider leading-none">
                     {getShiftLabel(selectedShift).toUpperCase()}
                 </div>
             </div>
         </div>
 
-        {/* Metric Grid (Screenshot Style) */}
+        {/* Top Metric Bar */}
         <div className="grid grid-cols-5 gap-3 mb-6">
-            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Gerente</span>
-                <div className="font-black text-[14px] text-slate-900 truncate uppercase tracking-tighter">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-md flex flex-col justify-center min-h-[55px]">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Gerente</span>
+                <div className="font-black text-[15px] text-slate-900 truncate uppercase tracking-tighter">
                     {shiftManagerName}
                 </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Previsão</span>
-                <div className="font-black text-[20px] text-slate-900">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-md flex flex-col justify-center min-h-[55px]">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Previsão</span>
+                <div className="font-black text-[22px] text-slate-900 leading-none">
                     {activeSalesData.totalSales} €
                 </div>
             </div>
-            <div className="bg-slate-50 border-2 border-slate-200 p-3 rounded-lg flex flex-col justify-center">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Staff</span>
-                <div className="font-black text-[20px] text-slate-900">
+            <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-md flex flex-col justify-center min-h-[55px]">
+                <span className="text-[9px] font-black uppercase text-slate-400 block mb-0.5">Staff</span>
+                <div className="font-black text-[22px] text-slate-900 leading-none">
                     {currentAssignedCount}
                 </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded-lg flex flex-col justify-center overflow-hidden">
-                <span className="text-[8px] font-black uppercase text-blue-600 block mb-1">Obj. Turno</span>
+            <div className="bg-white border-2 border-slate-100 p-2 rounded-md flex flex-col justify-center overflow-hidden min-h-[55px]">
+                <span className="text-[8px] font-black uppercase text-blue-600 block mb-0.5">Obj. Turno</span>
                 <div className="text-[11px] font-bold text-slate-800 leading-tight">
                     {currentObjectives.turnObjective || '-'}
                 </div>
             </div>
-            <div className="bg-white border-2 border-slate-100 p-2 rounded-lg flex flex-col justify-center overflow-hidden">
-                <span className="text-[8px] font-black uppercase text-orange-600 block mb-1">Obj. Produção</span>
+            <div className="bg-white border-2 border-slate-100 p-2 rounded-md flex flex-col justify-center overflow-hidden min-h-[55px]">
+                <span className="text-[8px] font-black uppercase text-orange-600 block mb-0.5">Obj. Produção</span>
                 <div className="text-[11px] font-bold text-slate-800 leading-tight">
                     {currentObjectives.productionObjective || '-'}
                 </div>
             </div>
         </div>
 
-        {/* Dynamic Multi-Column Area Grid */}
-        <div className={`columns-2 lg:columns-3 xl:columns-4 gap-4 h-auto max-h-[calc(100vh-180px)]`}>
+        {/* Dynamic Multi-Column Grid */}
+        <div className={`columns-2 lg:columns-3 gap-4 h-auto max-h-[calc(100vh-160px)]`}>
             {Object.entries(stationsByArea).map(([area, stations]) => (
                 <VisualPrintZone 
                     key={area}
@@ -744,8 +769,8 @@ export const Positioning: React.FC<PositioningProps> = ({
             ))}
         </div>
 
-        {/* Print Footer */}
-        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest bg-white">
+        {/* Footer */}
+        <div className="fixed bottom-2 left-4 w-full flex justify-between text-[10px] font-bold text-slate-200 uppercase tracking-widest bg-white">
             <span>TeamPos &bull; Documento de Gestão Interna &bull; MCD OPS SYSTEM</span>
         </div>
     </div>
