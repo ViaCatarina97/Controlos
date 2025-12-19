@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { HistoryEntry, SalesData, HourlyProjection } from '../types';
-import { MOCK_HISTORY, TIME_SLOTS_KEYS } from '../constants';
+import { HistoryEntry, HourlyProjection } from '../types';
+import { TIME_SLOTS_KEYS } from '../constants';
 import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
-  salesData: SalesData[];
-  setSalesData: React.Dispatch<React.SetStateAction<SalesData[]>>;
+  history: HistoryEntry[];
+  setHistory: React.Dispatch<React.SetStateAction<HistoryEntry[]>>;
   targetDate: string;
   setTargetDate: (date: string) => void;
   targetSales: number;
@@ -16,14 +16,14 @@ interface HistoryForecastProps {
 }
 
 export const HistoryForecast: React.FC<HistoryForecastProps> = ({ 
+  history,
+  setHistory,
   targetDate,
   setTargetDate,
-  targetSales,
   setTargetSales,
   setHourlyData,
   onNavigateToPositioning
 }) => {
-  const [history, setHistory] = useState<HistoryEntry[]>(MOCK_HISTORY);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dayFilter, setDayFilter] = useState<number | null>(5);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,22 +119,12 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
         const parseDate = (val: any) => {
             if (val === undefined || val === null || val === '') return null;
-            
-            // Caso 1: Objeto Date nativo
-            if (val instanceof Date) {
-              return val.toISOString().split('T')[0];
-            }
-
-            // Caso 2: Serial do Excel
+            if (val instanceof Date) return val.toISOString().split('T')[0];
             if (typeof val === 'number') {
                 const date = new Date(Math.round((val - 25569) * 86400 * 1000));
                 if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
             }
-
             const str = String(val).trim();
-            if (!str || /^[a-zA-Záàãâéêíóôõú]/.test(str)) return null;
-
-            // Caso 3: dd/mm/yyyy
             const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
             if (dmyMatch) {
                 const d = dmyMatch[1].padStart(2, '0');
@@ -143,7 +133,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 if (y.length === 2) y = '20' + y;
                 return `${y}-${m}-${d}`;
             }
-
             return null;
         };
 
@@ -157,7 +146,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         rows.forEach((row) => {
             const dateStr = parseDate(row[0]);
             if (!dateStr) return; 
-
             const entry: HistoryEntry = {
                 id: crypto.randomUUID(),
                 date: dateStr,
@@ -166,19 +154,12 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 totalGC: 0,
                 slots: {}
             };
-
             const mappings = [
-                { key: "12:00-13:00", s: 4, g: 5 }, 
-                { key: "13:00-14:00", s: 6, g: 7 }, 
-                { key: "14:00-15:00", s: 8, g: 9 }, 
-                { key: "19:00-20:00", s: 10, g: 11 },
-                { key: "20:00-21:00", s: 12, g: 13 },
-                { key: "21:00-22:00", s: 14, g: 15 },
+                { key: "12:00-13:00", s: 4, g: 5 }, { key: "13:00-14:00", s: 6, g: 7 }, { key: "14:00-15:00", s: 8, g: 9 }, 
+                { key: "19:00-20:00", s: 10, g: 11 }, { key: "20:00-21:00", s: 12, g: 13 }, { key: "21:00-22:00", s: 14, g: 15 },
             ];
-
             let ts = 0, tg = 0;
             let hasHourlyData = false;
-
             mappings.forEach(m => {
                 const s = parseNum(row[m.s]);
                 const g = parseNum(row[m.g]);
@@ -186,18 +167,11 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 entry.slots[m.key] = { sales: s, gc: g };
                 ts += s; tg += g;
             });
-
-            if (!hasHourlyData) {
-                ts = parseNum(row[2]); 
-                tg = parseNum(row[3]); 
-            }
-
+            if (!hasHourlyData) { ts = parseNum(row[2]); tg = parseNum(row[3]); }
             entry.totalSales = Math.round(ts);
             entry.totalGC = Math.round(tg);
-            
             if (entry.totalSales > 0) newEntries.push(entry);
         });
-
         if (newEntries.length > 0) {
             setHistory(prev => [...prev, ...newEntries]);
             alert(`${newEntries.length} registos importados com sucesso!`);
@@ -248,7 +222,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             </div>
         </div>
       </div>
-
       <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-collapse">
            <thead className="text-xs font-bold text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -268,34 +241,20 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                ))}
                <th className="p-3 bg-gray-50 text-gray-400 w-16">Ações</th>
              </tr>
-             <tr className="text-[10px] text-gray-500 bg-gray-100 border-b border-gray-200">
-               <th className="sticky left-0 bg-gray-100 border-r border-gray-200"></th>
-               <th className="border-r border-gray-200"></th>
-               <th className="border-r border-gray-200"></th>
-               {TIME_SLOTS_KEYS.map(slot => (
-                 <th key={slot + 'sub'} className="border-r border-gray-200 p-1">
-                    <div className="grid grid-cols-2 gap-1"><span>Vendas</span><span>GC</span></div>
-                 </th>
-               ))}
-               <th></th>
-             </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
              {filteredHistory.map((entry) => {
                const isSelected = selectedIds.has(entry.id);
-               // Format date explicitly as dd/mm/yyyy for display
                const [y, m, d] = entry.date.split('-');
-               const displayDate = `${d}/${m}/${y}`;
-               
                return (
                  <tr key={entry.id} className={`hover:bg-blue-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
                    <td className="p-3 sticky left-0 bg-white border-r border-gray-100 text-left font-medium text-gray-900 z-10">
                       <div className="flex items-center gap-3">
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelection(entry.id)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
-                        {displayDate}
+                        {`${d}/${m}/${y}`}
                       </div>
                    </td>
-                   <td className="p-2 border-r border-gray-100 text-gray-500">{entry.dayOfWeek}</td>
+                   <td className="p-2 border-r border-gray-100 text-gray-500">{getDayName(entry.dayOfWeek)}</td>
                    <td className="p-2 border-r border-gray-100 font-bold bg-yellow-50 text-gray-800">{formatCurrency(entry.totalSales)}</td>
                    {TIME_SLOTS_KEYS.map(slot => (
                      <td key={slot} className="p-2 border-r border-gray-100">
@@ -306,31 +265,14 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                      </td>
                    ))}
                    <td className="p-2 flex justify-center items-center">
-                      <button 
-                        onClick={() => handleDeleteEntry(entry.id)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                        title="Apagar Registo"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <button onClick={() => handleDeleteEntry(entry.id)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                    </td>
                  </tr>
                );
              })}
-             {filteredHistory.length === 0 && (
-                <tr>
-                    <td colSpan={11} className="p-12 text-center text-gray-400">
-                       <div className="flex flex-col items-center gap-2">
-                         <Search size={32} className="opacity-20" />
-                         <p>Nenhum histórico encontrado para o filtro selecionado.</p>
-                       </div>
-                    </td>
-                </tr>
-             )}
            </tbody>
         </table>
       </div>
-
       <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 animate-slide-up sticky bottom-2 z-30">
         <div className="flex items-center gap-4">
              <div className="p-3 bg-slate-800 rounded-lg"><CheckCircle size={24} className={selectedIds.size > 0 ? "text-green-400" : "text-gray-600"} /></div>
@@ -339,17 +281,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 <div className="text-2xl font-bold flex items-baseline gap-2">{averageData ? formatCurrency(averageData.totalSales) : '---'}<span className="text-sm font-normal text-slate-400">Total Previsto</span></div>
              </div>
         </div>
-        {averageData && (
-            <div className="hidden xl:flex gap-4 overflow-x-auto pb-1 max-w-3xl custom-scrollbar">
-                {TIME_SLOTS_KEYS.map(slot => (
-                    <div key={slot} className="flex flex-col items-center min-w-[80px] px-2 border-l border-slate-700">
-                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{slot}</span>
-                        <span className="font-bold text-yellow-400">{averageData.slots[slot].sales}€</span>
-                        <span className="text-[10px] text-slate-500">{averageData.slots[slot].gc} GC</span>
-                    </div>
-                ))}
-            </div>
-        )}
         <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>
             Definir como Previsão <ArrowRight size={18} />
         </button>
