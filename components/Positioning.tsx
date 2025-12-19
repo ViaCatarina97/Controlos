@@ -375,7 +375,6 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[areaKey]) groups[areaKey] = [];
         groups[areaKey].push(s);
     });
-    // Removed 'service' from order as it's merged into 'lobby' (Sala)
     const order = ['kitchen', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     return Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b)).reduce((acc, key) => { acc[key] = groups[key]; return acc; }, {} as Record<string, StationConfig[]>);
   }, [filteredStations]);
@@ -392,13 +391,12 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
   const getAreaLabel = (area: string) => {
-    // Handling both legacy 'service' and new 'lobby' under the label "Sala"
+    // Consolidated label: only "Sala"
     const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', service: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
     return labels[area] || area;
   };
 
   const getAreaColor = (area: string) => {
-    // Handling both legacy 'service' and new 'lobby' under blue
     const colors: Record<string, string> = { kitchen: 'red', beverage: 'purple', fries: 'yellow', lobby: 'blue', service: 'blue', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
     return colors[area] || 'slate';
   };
