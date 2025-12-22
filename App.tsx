@@ -19,7 +19,7 @@ interface NavButtonProps {
   label: string;
   expanded: boolean;
 }
-
+ 
 const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, expanded }) => (
   <button 
     onClick={onClick}
