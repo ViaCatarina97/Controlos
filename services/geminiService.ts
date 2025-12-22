@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { StaffingTableEntry, AppSettings, Employee, SalesData } from "../types";
 
 export const generateScheduleSuggestion = async (
@@ -8,8 +7,9 @@ export const generateScheduleSuggestion = async (
   settings: AppSettings,
   employees: Employee[]
 ): Promise<string> => {
-  // Fix: Direct use of process.env.API_KEY as per coding guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Configuração com a biblioteca oficial
+  // Nota: No Vercel, usamos import.meta.env para Vite ou process.env
+  const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
   const prompt = `
     Atue como um gerente operacional de restaurante.
@@ -27,35 +27,36 @@ export const generateScheduleSuggestion = async (
     Tarefa:
     Sugira a alocação ideal para os 3 turnos (Abertura, Intermédio, Fecho).
     Foque na eficiência baseada nas vendas projetadas.
-    Responda em JSON.
+    Responda estritamente em JSON.
   `;
 
   try {
-    // Fix: Updated model to 'gemini-3-flash-preview' for basic text tasks
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
+    // Usamos o modelo 'gemini-1.5-flash' que é o mais rápido e estável
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
+          type: SchemaType.OBJECT,
           properties: {
-            rationale: { type: Type.STRING },
+            rationale: { type: SchemaType.STRING },
             shiftDistribution: {
-              type: Type.OBJECT,
+              type: SchemaType.OBJECT,
               properties: {
-                abertura: { type: Type.STRING },
-                intermedio: { type: Type.STRING },
-                fecho: { type: Type.STRING }
+                abertura: { type: SchemaType.STRING },
+                intermedio: { type: SchemaType.STRING },
+                fecho: { type: SchemaType.STRING }
               }
             }
           }
-        }
-      }
+        },
+      },
     });
 
-    // Fix: Correct way to extract text output from GenerateContentResponse
-    return response.text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+    
   } catch (error) {
     console.error("Gemini Error:", error);
     throw error;
