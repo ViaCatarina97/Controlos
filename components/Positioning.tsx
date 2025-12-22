@@ -416,6 +416,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                 </div>
             </div>
         </div>
+        
         <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto">
           {availableShifts.map(shift => (
             <button key={shift} onClick={() => setSelectedShift(shift)} className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap ${selectedShift === shift ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
@@ -423,6 +424,7 @@ export const Positioning: React.FC<PositioningProps> = ({
             </button>
           ))}
         </div>
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 <div className="lg:col-span-5 border-r border-gray-100 pr-4">
@@ -463,10 +465,18 @@ export const Positioning: React.FC<PositioningProps> = ({
                 </div>
             </div>
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div><textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" /></div>
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div><textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" /></div>
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div>
+              <textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" />
+           </div>
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div>
+              <textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" />
+           </div>
         </div>
+
         <div className="flex justify-between items-center pt-2 px-1">
           <h3 className="font-bold text-gray-700 flex items-center gap-2">
             <Briefcase size={20} /> Postos de Trabalho 
@@ -485,6 +495,7 @@ export const Positioning: React.FC<PositioningProps> = ({
             </button>
           </div>
         </div>
+
         <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
           {Object.entries(stationsByArea).map(([area, stations]) => (
             <div key={area} className="flex flex-col gap-4">
