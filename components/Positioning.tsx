@@ -391,7 +391,6 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
   const getAreaLabel = (area: string) => {
-    // Consolidated label: only "Sala"
     const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', service: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
     return labels[area] || area;
   };
@@ -403,57 +402,118 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   return (
     <>
-    <div className="flex flex-col h-full space-y-4 animate-fade-in print:hidden">
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="flex flex-col h-full space-y-4 animate-fade-in print:hidden">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
+                <div><p className="text-xs text-gray-500 font-bold uppercase">Data</p><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-lg font-bold text-gray-800 bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none pb-0.5" /></div>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><UserCircle size={20} /></div>
+                <div className="flex-1">
+                    <p className="text-xs text-gray-500 font-bold uppercase">Gerente de Turno</p>
+                    <select value={schedule.shiftManagers?.[selectedShift] || ''} onChange={(e) => handleManagerChange(e.target.value)} disabled={schedule.isLocked} className={`w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none ${schedule.isLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}><option value="">Selecione o Gerente...</option>{employees.filter(e => e.role === 'GERENTE').map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select>
+                </div>
+            </div>
+        </div>
+        <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto">
+          {availableShifts.map(shift => (
+            <button key={shift} onClick={() => setSelectedShift(shift)} className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap ${selectedShift === shift ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
+              {getShiftIcon(shift)} {getShiftLabel(shift)}
+            </button>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <div className="lg:col-span-5 border-r border-gray-100 pr-4">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} /> Previsão de Vendas</h3>
+                    {shiftPeakData.length > 0 ? (
+                      <div className="space-y-3">
+                        {shiftPeakData.map((data, idx) => { 
+                          const isActive = manualPeakHour === data.hour; 
+                          return (
+                            <button key={idx} onClick={() => setManualPeakHour(data.hour)} className={`w-full flex justify-between items-center p-3 rounded-lg border transition-all cursor-pointer relative overflow-hidden ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}>
+                              {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
+                              <div className="flex items-center gap-3">
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isActive ? 'border-blue-500' : 'border-gray-300'}`}>
+                                  {isActive && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}
+                                </div>
+                                <span className={`font-bold ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>{data.hour}</span>
+                              </div>
+                              <div className="flex gap-6">
+                                <div className="flex flex-col items-end">
+                                  <span className="text-xs text-gray-400">Vendas</span>
+                                  <span className={`font-bold ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{data.totalSales} €</span>
+                                </div>
+                              </div>
+                            </button>
+                          ); 
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center bg-yellow-50 text-yellow-700 rounded-lg text-sm flex items-center gap-2 justify-center"><AlertCircle size={16} /> Sem dados de previsão.</div>
+                    )}
+                </div>
+                <div className="lg:col-span-7 pl-2">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-blue-400 uppercase mb-1">Necessários</span><div className="flex items-center gap-2"><Calculator className="text-blue-500" size={20} /><span className="text-3xl font-extrabold text-blue-700">{requirement.count}</span></div></div>
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-gray-400 uppercase mb-1">Posicionados</span><div className="flex items-center gap-2"><Users className="text-gray-500" size={20} /><span className="text-3xl font-extrabold text-gray-700">{currentAssignedCount}</span></div></div>
+                        <div className={`rounded-xl p-4 border flex flex-col items-center justify-center text-center ${gap > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}><span className={`text-xs font-bold uppercase mb-1 ${gap > 0 ? 'text-red-400' : 'text-emerald-400'}`}>Diferença</span><div className="flex items-center gap-2">{gap > 0 ? <AlertTriangle className="text-red-500" size={20} /> : <CheckCircle2 className="text-emerald-500" size={20} />}<span className={`text-3xl font-extrabold ${gap > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{gap > 0 ? `-${gap}` : 'OK'}</span></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div><textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" /></div>
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div><textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" /></div>
+        </div>
+        <div className="flex justify-between items-center pt-2 px-1">
+          <h3 className="font-bold text-gray-700 flex items-center gap-2">
+            <Briefcase size={20} /> Postos de Trabalho 
+            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span>
+          </h3>
           <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
-              <div><p className="text-xs text-gray-500 font-bold uppercase">Data</p><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-lg font-bold text-gray-800 bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none pb-0.5" /></div>
+            <div className="flex gap-2">
+              {!schedule.isLocked && !isExpired && <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"><Save size={16} /> Finalizar</button>}
+              {schedule.isLocked && !isExpired && <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Edit size={16} /> Editar</button>}
+              {!schedule.isLocked && <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={16} /> Limpar</button>}
+              <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>
+            </div>
+            <div className="h-6 w-px bg-gray-300 mx-1"></div>
+            <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showAllStations ? 'bg-blue-600' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><UserCircle size={20} /></div>
-              <div className="flex-1">
-                  <p className="text-xs text-gray-500 font-bold uppercase">Gerente de Turno</p>
-                  <select value={schedule.shiftManagers?.[selectedShift] || ''} onChange={(e) => handleManagerChange(e.target.value)} disabled={schedule.isLocked} className={`w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none ${schedule.isLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}><option value="">Selecione o Gerente...</option>{employees.filter(e => e.role === 'GERENTE').map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select>
-              </div>
-          </div>
-      </div>
-      <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto">{availableShifts.map(shift => (<button key={shift} onClick={() => setSelectedShift(shift)} className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap ${selectedShift === shift ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>{getShiftIcon(shift)} {getShiftLabel(shift)}</button>))}</div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-5 border-r border-gray-100 pr-4">
-                  <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} /> Previsão de Vendas</h3>
-                  {shiftPeakData.length > 0 ? (<div className="space-y-3">{shiftPeakData.map((data, idx) => { const isActive = manualPeakHour === data.hour; return (<button key={idx} onClick={() => setManualPeakHour(data.hour)} className={`w-full flex justify-between items-center p-3 rounded-lg border transition-all cursor-pointer relative overflow-hidden ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}>{isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}<div className="flex items-center gap-3"><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isActive ? 'border-blue-500' : 'border-gray-300'}`}>{isActive && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}</div><span className={`font-bold ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>{data.hour}</span></div><div className="flex gap-6"><div className="flex flex-col items-end"><span className="text-xs text-gray-400">Vendas</span><span className={`font-bold ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{data.totalSales} €</span></div></div></button>); })}</div>) : (<div className="p-4 text-center bg-yellow-50 text-yellow-700 rounded-lg text-sm flex items-center gap-2 justify-center"><AlertCircle size={16} /> Sem dados de previsão.</div>)}
-              </div>
-              <div className="lg:col-span-7 pl-2">
-                  <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-blue-400 uppercase mb-1">Necessários</span><div className="flex items-center gap-2"><Calculator className="text-blue-500" size={20} /><span className="text-3xl font-extrabold text-blue-700">{requirement.count}</span></div></div>
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-gray-400 uppercase mb-1">Posicionados</span><div className="flex items-center gap-2"><Users className="text-gray-500" size={20} /><span className="text-3xl font-extrabold text-gray-700">{currentAssignedCount}</span></div></div>
-                      <div className={`rounded-xl p-4 border flex flex-col items-center justify-center text-center ${gap > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}><span className={`text-xs font-bold uppercase mb-1 ${gap > 0 ? 'text-red-400' : 'text-emerald-400'}`}>Diferença</span><div className="flex items-center gap-2">{gap > 0 ? <AlertTriangle className="text-red-500" size={20} /> : <CheckCircle2 className="text-emerald-500" size={20} />}<span className={`text-3xl font-extrabold ${gap > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{gap > 0 ? `-${gap}` : 'OK'}</span></div></div>
-                  </div>
-              </div>
-          </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div><textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" /></div>
-         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div><textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" /></div>
-      </div>
-      <div className="flex justify-between items-center pt-2 px-1"><h3 className="font-bold text-gray-700 flex items-center gap-2"><Briefcase size={20} /> Postos de Trabalho <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span></h3><div className="flex items-center gap-3"><div className="flex gap-2">{!schedule.isLocked && !isExpired && <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"><Save size={16} /> Finalizar</button>}{schedule.isLocked && !isExpired && <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Edit size={16} /> Editar</button>}{!schedule.isLocked && <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={16} /> Limpar</button>}<button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>}<div className="h-6 w-px bg-gray-300 mx-1"></div><button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showAllStations ? 'bg-blue-600' : 'bg-gray-300'}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} /></button></div></div>
-      <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">{Object.entries(stationsByArea).map(([area, stations]) => (<div key={area} className="flex flex-col gap-4"><StationGroup title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color={getAreaColor(area)} isLocked={schedule.isLocked} /></div>))}</div>
-    </div>
-    <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen">
-        <div className="flex justify-between items-end mb-1 border-b border-slate-900 pb-0.5"><h1 className="text-[18px] font-black uppercase tracking-tight text-slate-950 leading-none">{settings.restaurantName.toUpperCase()}</h1><div className="flex items-center gap-4"><span className="text-[9px] font-bold text-slate-600 uppercase">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span><div className="bg-slate-950 text-white px-3 py-1 rounded-sm text-[13px] font-black uppercase tracking-wider leading-none">{getShiftLabel(selectedShift).toUpperCase()}</div></div></div>
-        <div className="grid grid-cols-5 gap-1 mb-2">
-            <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftManagerName}</div></div>
-            <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
-            <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Staff</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
-            <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-blue-600 block">Obj. Turno</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.turnObjective || '-'}</div></div>
-            <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-orange-600 block">Obj. Produção</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.productionObjective || '-'}</div></div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 items-start overflow-hidden">
-            {Object.entries(stationsByArea).map(([area, stations]) => (<VisualPrintZone key={area} title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} color={getAreaColor(area)} totalStationsCount={totalVisibleStations} />))}
+        <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
+          {Object.entries(stationsByArea).map(([area, stations]) => (
+            <div key={area} className="flex flex-col gap-4">
+              <StationGroup title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color={getAreaColor(area)} isLocked={schedule.isLocked} />
+            </div>
+          ))}
         </div>
-        <div className="fixed bottom-1 left-2 w-full flex justify-between text-[6px] font-bold text-slate-200 uppercase tracking-widest bg-white"><span>TeamPos &bull; MCD OPS SYSTEM</span></div>
-    </div>
+      </div>
+
+      <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen">
+          <div className="flex justify-between items-end mb-1 border-b border-slate-900 pb-0.5">
+            <h1 className="text-[18px] font-black uppercase tracking-tight text-slate-950 leading-none">{settings.restaurantName.toUpperCase()}</h1>
+            <div className="flex items-center gap-4">
+              <span className="text-[9px] font-bold text-slate-600 uppercase">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <div className="bg-slate-950 text-white px-3 py-1 rounded-sm text-[13px] font-black uppercase tracking-wider leading-none">{getShiftLabel(selectedShift).toUpperCase()}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-5 gap-1 mb-2">
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftManagerName}</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Staff</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
+              <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-blue-600 block">Obj. Turno</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.turnObjective || '-'}</div></div>
+              <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-orange-600 block">Obj. Produção</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.productionObjective || '-'}</div></div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 items-start overflow-hidden">
+              {Object.entries(stationsByArea).map(([area, stations]) => (<VisualPrintZone key={area} title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} color={getAreaColor(area)} totalStationsCount={totalVisibleStations} />))}
+          </div>
+          <div className="fixed bottom-1 left-2 w-full flex justify-between text-[6px] font-bold text-slate-200 uppercase tracking-widest bg-white"><span>TeamPos &bull; MCD OPS SYSTEM</span></div>
+      </div>
     </>
   );
 };
