@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
@@ -243,6 +244,9 @@ export const Positioning: React.FC<PositioningProps> = ({
   const availableShifts = settings.activeShifts;
   const today = new Date().toISOString().split('T')[0];
   const isExpired = date < today;
+  const isShiftLocked = useMemo(() => {
+    return isExpired || (schedule.lockedShifts || []).includes(selectedShift);
+  }, [schedule.lockedShifts, selectedShift, isExpired]);
 
   useEffect(() => {
     if (!availableShifts.includes(selectedShift) && availableShifts.length > 0) setSelectedShift(availableShifts[0]);
@@ -250,7 +254,6 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const targetHourLabels = useMemo(() => {
     if (selectedShift === 'FECHO' || selectedShift === 'MADRUGADA') return ['19h-20h', '20h-21h'];
-    // Substituindo 14h-15h por 13h-14h conforme pedido
     return ['12h-13h', '13h-14h'];
   }, [selectedShift]);
 
@@ -300,19 +303,19 @@ export const Positioning: React.FC<PositioningProps> = ({
   }, [staffingTable, requirement.count]);
 
   const handleManagerChange = (empId: string) => {
-      if (schedule.isLocked) return;
+      if (isShiftLocked) return;
       setSchedule({ ...schedule, shiftManagers: { ...schedule.shiftManagers, [selectedShift]: empId } });
   };
 
   const handleObjectiveChange = (field: 'turnObjective' | 'productionObjective', value: string) => {
-      if (schedule.isLocked) return;
+      if (isShiftLocked) return;
       const currentObjs = schedule.shiftObjectives || {};
       const shiftObjs = currentObjs[selectedShift] || {};
       setSchedule({ ...schedule, shiftObjectives: { ...currentObjs, [selectedShift]: { ...shiftObjs, [field]: value } } });
   };
 
   const handleAssign = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
+    if (isShiftLocked) return;
     const shiftData = schedule.shifts[selectedShift] || {};
     const stationAssignments = shiftData[stationId] || [];
     if (stationAssignments.includes(employeeId)) return;
@@ -320,14 +323,14 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   const handleRemove = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
+    if (isShiftLocked) return;
     const shiftData = schedule.shifts[selectedShift] || {};
     const stationAssignments = shiftData[stationId] || [];
     setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: { ...shiftData, [stationId]: stationAssignments.filter(id => id !== employeeId) } } });
   };
 
   const handleAssignTrainee = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
+    if (isShiftLocked) return;
     const shiftTrainees = schedule.trainees?.[selectedShift] || {};
     const stationTrainees = shiftTrainees[stationId] || [];
     if (stationTrainees.includes(employeeId)) return;
@@ -335,16 +338,47 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   const handleRemoveTrainee = (stationId: string, employeeId: string) => {
-    if (schedule.isLocked) return;
+    if (isShiftLocked) return;
     const shiftTrainees = schedule.trainees?.[selectedShift] || {};
     const stationTrainees = shiftTrainees[stationId] || [];
     setSchedule({ ...schedule, trainees: { ...schedule.trainees, [selectedShift]: { ...shiftTrainees, [stationId]: stationTrainees.filter(id => id !== employeeId) } } });
   };
 
   const handlePrint = () => window.print();
-  const handleSaveAndLock = () => { if (!isExpired) onSaveSchedule({ ...schedule, isLocked: true }); };
-  const handleUnlock = () => { if (!isExpired) onSaveSchedule({ ...schedule, isLocked: false }); };
-  const handleClearAssignments = () => { if (!schedule.isLocked && confirm('Limpar todos os posicionamentos deste turno?')) setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: {} }, trainees: { ...schedule.trainees, [selectedShift]: {} } }); };
+
+  const handleSaveAndLock = () => { 
+    if (!isExpired) {
+        const currentLocked = schedule.lockedShifts || [];
+        if (!currentLocked.includes(selectedShift)) {
+            const updatedSchedule = { 
+                ...schedule, 
+                lockedShifts: [...currentLocked, selectedShift] 
+            };
+            onSaveSchedule(updatedSchedule);
+        }
+    } 
+  };
+
+  const handleUnlock = () => { 
+    if (!isExpired) {
+        const currentLocked = schedule.lockedShifts || [];
+        const updatedSchedule = { 
+            ...schedule, 
+            lockedShifts: currentLocked.filter(s => s !== selectedShift) 
+        };
+        onSaveSchedule(updatedSchedule);
+    } 
+  };
+
+  const handleClearAssignments = () => { 
+    if (!isShiftLocked && confirm('Limpar todos os posicionamentos deste turno?')) {
+        setSchedule({ 
+            ...schedule, 
+            shifts: { ...schedule.shifts, [selectedShift]: {} }, 
+            trainees: { ...schedule.trainees, [selectedShift]: {} } 
+        });
+    }
+  };
 
   const getShiftIcon = (id: ShiftType) => {
     switch(id) {
@@ -432,14 +466,22 @@ export const Positioning: React.FC<PositioningProps> = ({
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><UserCircle size={20} /></div>
                 <div className="flex-1">
                     <p className="text-xs text-gray-500 font-bold uppercase">Gerente de Turno</p>
-                    <select value={schedule.shiftManagers?.[selectedShift] || ''} onChange={(e) => handleManagerChange(e.target.value)} disabled={schedule.isLocked} className={`w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none ${schedule.isLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}><option value="">Selecione o Gerente...</option>{employees.filter(e => e.role === 'GERENTE').map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select>
+                    <select value={schedule.shiftManagers?.[selectedShift] || ''} onChange={(e) => handleManagerChange(e.target.value)} disabled={isShiftLocked} className={`w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}><option value="">Selecione o Gerente...</option>{employees.filter(e => e.role === 'GERENTE').map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select>
                 </div>
             </div>
         </div>
         <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto">
           {availableShifts.map(shift => (
             <button key={shift} onClick={() => setSelectedShift(shift)} className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap ${selectedShift === shift ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
-              {getShiftIcon(shift)} {getShiftLabel(shift)}
+              <div className="relative">
+                {getShiftIcon(shift)}
+                {(schedule.lockedShifts || []).includes(shift) && (
+                   <div className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-0.5 border border-white shadow-sm">
+                      <Lock size={8} />
+                   </div>
+                )}
+              </div>
+              {getShiftLabel(shift)}
             </button>
           ))}
         </div>
@@ -486,11 +528,11 @@ export const Positioning: React.FC<PositioningProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div>
-              <textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" />
+              <textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={isShiftLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" />
            </div>
            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div>
-              <textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={schedule.isLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" />
+              <textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={isShiftLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" />
            </div>
         </div>
         <div className="flex justify-between items-center pt-2 px-1">
@@ -500,9 +542,21 @@ export const Positioning: React.FC<PositioningProps> = ({
           </h3>
           <div className="flex items-center gap-3">
             <div className="flex gap-2">
-              {!schedule.isLocked && !isExpired && <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"><Save size={16} /> Finalizar</button>}
-              {schedule.isLocked && !isExpired && <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Edit size={16} /> Editar</button>}
-              {!schedule.isLocked && <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={16} /> Limpar</button>}
+              {!isShiftLocked && !isExpired && (
+                <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm">
+                  <Save size={16} /> Finalizar {getShiftLabel(selectedShift)}
+                </button>
+              )}
+              {isShiftLocked && !isExpired && (
+                <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm">
+                  <Edit size={16} /> Editar {getShiftLabel(selectedShift)}
+                </button>
+              )}
+              {!isShiftLocked && (
+                <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm">
+                  <Trash2 size={16} /> Limpar
+                </button>
+              )}
               <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>
             </div>
             <div className="h-6 w-px bg-gray-300 mx-1"></div>
@@ -514,7 +568,19 @@ export const Positioning: React.FC<PositioningProps> = ({
         <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
           {Object.entries(stationsByArea).map(([area, stations]) => (
             <div key={area} className="flex flex-col gap-4">
-              <StationGroup title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} onAssign={handleAssign} onRemove={handleRemove} onAssignTrainee={handleAssignTrainee} onRemoveTrainee={handleRemoveTrainee} color={getAreaColor(area)} isLocked={schedule.isLocked} />
+              <StationGroup 
+                title={getAreaLabel(area)} 
+                stations={stations} 
+                schedule={schedule} 
+                selectedShift={selectedShift} 
+                employees={employees} 
+                onAssign={handleAssign} 
+                onRemove={handleRemove} 
+                onAssignTrainee={handleAssignTrainee} 
+                onRemoveTrainee={handleRemoveTrainee} 
+                color={getAreaColor(area)} 
+                isLocked={isShiftLocked} 
+              />
             </div>
           ))}
         </div>

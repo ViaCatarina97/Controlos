@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import { DailySchedule, ShiftType, Employee } from '../types';
 import { AVAILABLE_SHIFTS } from '../constants';
-import { Calendar, Search, Lock, Unlock, User, Filter, Eye, Trash2, History } from 'lucide-react';
+import { Calendar, Search, Lock, Unlock, User, Filter, Eye, Trash2, History, CheckCircle2 } from 'lucide-react';
 
 interface ScheduleHistoryProps {
   schedules: DailySchedule[];
@@ -96,7 +97,7 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onL
               <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs sticky top-0 z-10 shadow-sm">
                   <tr>
                       <th className="px-6 py-4">Data</th>
-                      <th className="px-6 py-4">Estado</th>
+                      <th className="px-6 py-4">Turnos Finalizados</th>
                       <th className="px-6 py-4">Resumo de Turnos (Gerente / Staff)</th>
                       <th className="px-6 py-4 text-right">Ações</th>
                   </tr>
@@ -104,7 +105,7 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onL
               <tbody className="divide-y divide-gray-100">
                   {filteredSchedules.map((schedule) => {
                       const isExpired = schedule.date < today;
-                      const isLocked = schedule.isLocked || isExpired;
+                      const lockedShifts = schedule.lockedShifts || [];
 
                       return (
                         <tr key={schedule.date} className="hover:bg-blue-50/50 transition-colors group">
@@ -112,19 +113,21 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({ schedules, onL
                                 {new Date(schedule.date).toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                             </td>
                             <td className="px-6 py-4">
-                                {isExpired ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                                        <Lock size={12} /> Expirado
-                                    </span>
-                                ) : schedule.isLocked ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <Lock size={12} /> Finalizado
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                        <Unlock size={12} /> Rascunho
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap gap-1">
+                                    {isExpired ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                            <Lock size={12} /> Dia Expirado
+                                        </span>
+                                    ) : lockedShifts.length > 0 ? (
+                                        lockedShifts.map(ls => (
+                                            <span key={ls} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                <CheckCircle2 size={10} /> {ls}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-gray-400 italic text-xs">Sem turnos finalizados</span>
+                                    )}
+                                </div>
                             </td>
                             <td className="px-6 py-4">
                                 <div className="flex flex-wrap gap-2">

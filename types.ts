@@ -100,7 +100,7 @@ export interface DailySchedule {
     };
   };
   notes?: string;
-  isLocked?: boolean; 
+  lockedShifts?: ShiftType[]; 
 }
 
 export interface AISuggestion {
