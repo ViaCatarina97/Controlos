@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
@@ -19,7 +19,7 @@ interface NavButtonProps {
   label: string;
   expanded: boolean;
 }
- 
+
 const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, expanded }) => (
   <button 
     onClick={onClick}
@@ -40,6 +40,7 @@ const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
   const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings'>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
   
   const SETTINGS_KEY = 'app_all_restaurants';
   const EMPLOYEES_KEY = (id: string) => `app_employees_${id}`;
@@ -67,12 +68,12 @@ const App: React.FC = () => {
     shifts: {}
   });
 
+  // Load effect
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(allRestaurants));
-  }, [allRestaurants]);
-
-  useEffect(() => {
-    if (!authenticatedRestaurantId) return;
+    if (!authenticatedRestaurantId) {
+      setIsLoaded(false);
+      return;
+    }
 
     const empSaved = localStorage.getItem(EMPLOYEES_KEY(authenticatedRestaurantId));
     setCurrentEmployees(empSaved ? JSON.parse(empSaved) : MOCK_EMPLOYEES);
@@ -85,15 +86,25 @@ const App: React.FC = () => {
 
     const schedSaved = localStorage.getItem(SCHEDULES_KEY(authenticatedRestaurantId));
     setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+
+    // Mark as loaded so save effects don't overwrite with empty initial states
+    setTimeout(() => setIsLoaded(true), 100);
   }, [authenticatedRestaurantId]);
 
+  // Global settings save
   useEffect(() => {
-    if (!authenticatedRestaurantId) return;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(allRestaurants));
+  }, [allRestaurants]);
+
+  // Specific data save
+  useEffect(() => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+    
     localStorage.setItem(EMPLOYEES_KEY(authenticatedRestaurantId), JSON.stringify(currentEmployees));
     localStorage.setItem(STAFFING_TABLE_KEY(authenticatedRestaurantId), JSON.stringify(currentStaffingTable));
     localStorage.setItem(HISTORY_KEY(authenticatedRestaurantId), JSON.stringify(historyEntries));
     localStorage.setItem(SCHEDULES_KEY(authenticatedRestaurantId), JSON.stringify(savedSchedules));
-  }, [authenticatedRestaurantId, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
+  }, [isLoaded, authenticatedRestaurantId, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
   useEffect(() => {
     const existingSchedule = savedSchedules.find(s => s.date === targetDate);
@@ -133,6 +144,7 @@ const App: React.FC = () => {
     setAuthenticatedRestaurantId(null);
     setActiveModule(null);
     setActiveTab('positioning');
+    setIsLoaded(false);
   };
 
   const handleUpdateSettings = (updated: AppSettings) => {
@@ -222,34 +234,43 @@ const App: React.FC = () => {
           </h2>
         </header>
         <div className="p-6 flex-1">
-          {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleUpdateSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
-          {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
-          {activeTab === 'sales_history' && (
-            <HistoryForecast 
-              history={historyEntries}
-              setHistory={setHistoryEntries}
-              targetDate={targetDate}
-              setTargetDate={setTargetDate}
-              targetSales={targetSales}
-              setTargetSales={setTargetSales}
-              setHourlyData={setHourlyData}
-              onNavigateToPositioning={() => setActiveTab('positioning')}
-            />
-          )}
-          {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={handleLoadFromHistory} onDeleteSchedule={handleDeleteSchedule} employees={currentEmployees} />}
-          {activeTab === 'positioning' && (
-            <Positioning 
-              date={targetDate}
-              setDate={setTargetDate}
-              projectedSales={targetSales}
-              employees={currentEmployees.filter(e => e.isActive)}
-              staffingTable={currentStaffingTable}
-              schedule={currentSchedule}
-              setSchedule={setCurrentSchedule}
-              settings={activeRestaurant}
-              hourlyData={hourlyData}
-              onSaveSchedule={handleSaveSchedule}
-            />
+          {!isLoaded ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-pulse">
+                <Building2 size={48} className="mb-4" />
+                <p className="font-medium">A carregar base de dados...</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleUpdateSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
+              {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
+              {activeTab === 'sales_history' && (
+                <HistoryForecast 
+                  history={historyEntries}
+                  setHistory={setHistoryEntries}
+                  targetDate={targetDate}
+                  setTargetDate={setTargetDate}
+                  targetSales={targetSales}
+                  setTargetSales={setTargetSales}
+                  setHourlyData={setHourlyData}
+                  onNavigateToPositioning={() => setActiveTab('positioning')}
+                />
+              )}
+              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={handleLoadFromHistory} onDeleteSchedule={handleDeleteSchedule} employees={currentEmployees} />}
+              {activeTab === 'positioning' && (
+                <Positioning 
+                  date={targetDate}
+                  setDate={setTargetDate}
+                  projectedSales={targetSales}
+                  employees={currentEmployees.filter(e => e.isActive)}
+                  staffingTable={currentStaffingTable}
+                  schedule={currentSchedule}
+                  setSchedule={setCurrentSchedule}
+                  settings={activeRestaurant}
+                  hourlyData={hourlyData}
+                  onSaveSchedule={handleSaveSchedule}
+                />
+              )}
+            </>
           )}
         </div>
       </main>
