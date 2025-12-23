@@ -9,7 +9,7 @@ import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
 import { STATIONS, INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, CloudCheck } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, Cloud } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
 
@@ -111,7 +111,6 @@ const App: React.FC = () => {
     }
   }, [authenticatedRestaurantId, isLoaded, allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
-  // Auto-save para mudanças gerais (Vendas, Staff, Definições)
   useEffect(() => {
     if (!isLoaded) return;
     const timer = setTimeout(() => syncToCloud(), 3000);
@@ -126,8 +125,6 @@ const App: React.FC = () => {
     setSavedSchedules(prev => {
       const others = prev.filter(s => s.date !== scheduleToSave.date);
       const updated = [...others, scheduleToSave];
-      
-      // Forçamos a sincronização imediata dos turnos ao guardar
       syncToCloud(updated); 
       return updated;
     });
@@ -189,7 +186,7 @@ const App: React.FC = () => {
             <div className="overflow-hidden">
               <h1 className="font-bold text-sm truncate">{activeRestaurant.restaurantName}</h1>
               <div className="flex items-center gap-1">
-                <CloudCheck size={12} className={isSyncing ? "text-blue-400 animate-pulse" : "text-emerald-400"} />
+                <Cloud size={12} className={isSyncing ? "text-blue-400 animate-pulse" : "text-emerald-400"} />
                 <p className="text-[10px] uppercase tracking-wider font-bold">
                   {isSyncing ? "A Gravar..." : "Sincronizado"}
                 </p>
