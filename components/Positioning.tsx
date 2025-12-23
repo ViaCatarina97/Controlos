@@ -250,7 +250,8 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const targetHourLabels = useMemo(() => {
     if (selectedShift === 'FECHO' || selectedShift === 'MADRUGADA') return ['19h-20h', '20h-21h'];
-    return ['12h-13h', '14h-15h'];
+    // Substituindo 14h-15h por 13h-14h conforme pedido
+    return ['12h-13h', '13h-14h'];
   }, [selectedShift]);
 
   const shiftPeakData = useMemo(() => {
