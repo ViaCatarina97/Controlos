@@ -51,7 +51,7 @@ const App: React.FC = () => {
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  // --- LÓGICA DE SINCRONIZAÇÃO NUVEM (SUPABASE) ---
+  // --- LÓGICA DE SINCRONIZAÇÃO COMPLETA (SUPABASE) ---
 
   const loadDataFromCloud = async (restaurantId: string) => {
     setIsLoaded(false);
@@ -63,29 +63,30 @@ const App: React.FC = () => {
         .single();
 
       if (data) {
-        // Carrega dados operacionais
+        // 1. Dados Operacionais
         setCurrentEmployees(data.employees || MOCK_EMPLOYEES);
         setCurrentStaffingTable(data.staffing_table || DEFAULT_STAFFING_TABLE);
         setHistoryEntries(data.history || MOCK_HISTORY);
         setSavedSchedules(data.schedules || []);
         
-        // Sincroniza Definições de Postos (Estações)
-        if (data.custom_stations && data.custom_stations.length > 0) {
-          setAllRestaurants(prev => prev.map(r => 
-            r.restaurantId === restaurantId 
-              ? { ...r, customStations: data.custom_stations } 
-              : r
-          ));
-        }
+        // 2. Definições do Restaurante (Turnos, Plataformas, Postos)
+        const cloudSettings = data.settings || {};
+        const cloudStations = data.custom_stations || [];
+
+        setAllRestaurants(prev => prev.map(r => 
+          r.restaurantId === restaurantId 
+            ? { ...r, ...cloudSettings, customStations: cloudStations.length > 0 ? cloudStations : r.customStations } 
+            : r
+        ));
       } else {
-        // Restaurante novo: usa mocks iniciais
+        // Restaurante novo
         setCurrentEmployees(MOCK_EMPLOYEES);
         setCurrentStaffingTable(DEFAULT_STAFFING_TABLE);
         setHistoryEntries(MOCK_HISTORY);
         setSavedSchedules([]);
       }
     } catch (err) {
-      console.error("Erro ao carregar da nuvem:", err);
+      console.error("Erro ao carregar configurações da nuvem:", err);
     } finally {
       setTimeout(() => setIsLoaded(true), 600);
     }
@@ -95,6 +96,10 @@ const App: React.FC = () => {
     if (!authenticatedRestaurantId || !isLoaded) return;
 
     const currentRest = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
+    if (!currentRest) return;
+
+    // Extraímos apenas as configurações (sem o ID que é a chave primária)
+    const { restaurantId, customStations, ...otherSettings } = currentRest;
 
     await supabase
       .from('restaurant_data')
@@ -104,7 +109,8 @@ const App: React.FC = () => {
         staffing_table: currentStaffingTable,
         history: historyEntries,
         schedules: savedSchedules,
-        custom_stations: currentRest?.customStations || [], // Grava as estações
+        settings: otherSettings, // Grava Turnos, Plataformas, etc.
+        custom_stations: customStations || [], // Grava nomes dos postos
         updated_at: new Date().toISOString()
       });
   };
@@ -124,8 +130,7 @@ const App: React.FC = () => {
   // --- HANDLERS ---
 
   const handleRegister = (newRest: AppSettings) => {
-    const restWithStations = { ...newRest, customStations: STATIONS };
-    setAllRestaurants(prev => [...prev, restWithStations]);
+    setAllRestaurants(prev => [...prev, { ...newRest, customStations: STATIONS }]);
     setAuthenticatedRestaurantId(newRest.restaurantId);
     setActiveModule(null); 
   };
@@ -150,7 +155,7 @@ const App: React.FC = () => {
       const others = prev.filter(s => s.date !== scheduleToSave.date);
       return [...others, scheduleToSave];
     });
-    if(scheduleToSave.isLocked) alert("Posicionamento guardado na Nuvem!");
+    if(scheduleToSave.isLocked) alert("Configurações e Posicionamento guardados!");
   };
 
   useEffect(() => {
@@ -183,7 +188,7 @@ const App: React.FC = () => {
         <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-md border">
           <Construction size={48} className="mx-auto text-blue-500 mb-4" />
           <h2 className="text-2xl font-bold mb-2">Em Desenvolvimento</h2>
-          <p className="text-gray-500 mb-6">Módulo disponível em breve.</p>
+          <p className="text-gray-500 mb-6">Módulo em breve.</p>
           <button onClick={() => setActiveModule(null)} className="flex items-center gap-2 mx-auto text-blue-600 font-medium">
             <ArrowLeft size={18} /> Voltar ao Menu
           </button>
@@ -200,7 +205,7 @@ const App: React.FC = () => {
           {sidebarOpen && (
             <div className="overflow-hidden">
               <h1 className="font-bold text-sm truncate">{activeRestaurant.restaurantName}</h1>
-              <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-bold">Cloud Synced</p>
+              <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-bold">Cloud Sync Full</p>
             </div>
           )}
         </div>
@@ -236,7 +241,7 @@ const App: React.FC = () => {
           {!isLoaded ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-500 animate-pulse">
               <Building2 size={48} className="mb-4 text-blue-500" />
-              <p className="font-medium text-lg">Sincronizando Postos e Dados...</p>
+              <p className="font-medium text-lg">Sincronizando todas as definições...</p>
             </div>
           ) : (
             <>
