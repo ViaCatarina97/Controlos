@@ -18,7 +18,7 @@ export interface StationConfig {
   designation?: string; // Short code/name
   icon: string;
   defaultSlots: number;
-  area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries'; // Consolidado: 'service' removido
+  area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries' | 'counter'; 
   isActive: boolean; 
 }
 

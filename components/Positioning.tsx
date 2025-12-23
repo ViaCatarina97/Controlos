@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
@@ -371,11 +372,12 @@ export const Positioning: React.FC<PositioningProps> = ({
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
     filteredStations.forEach(s => {
-        const areaKey = s.label.toLowerCase().includes('batata') ? 'fries' : s.area;
+        const areaKey = s.area;
         if (!groups[areaKey]) groups[areaKey] = [];
         groups[areaKey].push(s);
     });
-    const order = ['kitchen', 'beverage', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
+    // Ordem do PDF: Bebidas, Cozinha, Balcão, Batatas, Sala
+    const order = ['beverage', 'kitchen', 'counter', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     return Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b)).reduce((acc, key) => { acc[key] = groups[key]; return acc; }, {} as Record<string, StationConfig[]>);
   }, [filteredStations]);
 
@@ -391,12 +393,30 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
   const getAreaLabel = (area: string) => {
-    const labels: Record<string, string> = { kitchen: 'Produção', beverage: 'Bebidas', fries: 'Batatas', lobby: 'Sala', service: 'Sala', delivery: 'Delivery', drive: 'Drive-Thru', mccafe: 'McCafé' };
+    const labels: Record<string, string> = { 
+      kitchen: 'Cozinha (Produção)', 
+      beverage: 'Bebidas', 
+      fries: 'Batatas', 
+      lobby: 'Sala', 
+      counter: 'Balcão (Serviço)', 
+      delivery: 'Delivery', 
+      drive: 'Drive-Thru', 
+      mccafe: 'McCafé' 
+    };
     return labels[area] || area;
   };
 
   const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = { kitchen: 'red', beverage: 'purple', fries: 'yellow', lobby: 'blue', service: 'blue', delivery: 'green', drive: 'blue', mccafe: 'yellow' };
+    const colors: Record<string, string> = { 
+      kitchen: 'red', 
+      beverage: 'purple', 
+      fries: 'yellow', 
+      lobby: 'yellow', 
+      counter: 'blue', 
+      delivery: 'green', 
+      drive: 'blue', 
+      mccafe: 'yellow' 
+    };
     return colors[area] || 'slate';
   };
 

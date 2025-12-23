@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from 'react';
-// Importa o cliente do Supabase (garante que criaste o ficheiro supabaseClient.ts na raiz)
-import { supabase } from './supabaseClient'; 
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
@@ -44,8 +42,11 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Chaves para configurações locais (apenas para a lista de restaurantes)
   const SETTINGS_KEY = 'app_all_restaurants';
+  const EMPLOYEES_KEY = (id: string) => `app_employees_${id}`;
+  const STAFFING_TABLE_KEY = (id: string) => `app_staffing_table_${id}`; 
+  const HISTORY_KEY = (id: string) => `app_history_detailed_${id}`;
+  const SCHEDULES_KEY = (id: string) => `app_schedules_${id}`;
 
   const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(() => {
     const saved = localStorage.getItem(SETTINGS_KEY);
@@ -67,74 +68,43 @@ const App: React.FC = () => {
     shifts: {}
   });
 
-  // --- LÓGICA SUPABASE ---
-
-  // 1. Carregar dados da Nuvem
-  const loadFromCloud = async (restaurantId: string) => {
-    try {
-      setIsLoaded(false);
-      const { data, error } = await supabase
-        .from('restaurant_data')
-        .select('*')
-        .eq('restaurant_id', restaurantId)
-        .single();
-
-      if (data) {
-        setCurrentEmployees(data.employees || MOCK_EMPLOYEES);
-        setCurrentStaffingTable(data.staffing_table || DEFAULT_STAFFING_TABLE);
-        setHistoryEntries(data.history || MOCK_HISTORY);
-        setSavedSchedules(data.schedules || []);
-      } else {
-        // Se não houver dados, usa os Mocks iniciais
-        setCurrentEmployees(MOCK_EMPLOYEES);
-        setCurrentStaffingTable(DEFAULT_STAFFING_TABLE);
-        setHistoryEntries(MOCK_HISTORY);
-        setSavedSchedules([]);
-      }
-    } catch (err) {
-      console.error("Erro ao sincronizar com Supabase:", err);
-    } finally {
-      setIsLoaded(true);
-    }
-  };
-
-  // 2. Enviar dados para a Nuvem (Upsert)
-  const syncToCloud = async () => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
-
-    await supabase
-      .from('restaurant_data')
-      .upsert({
-        restaurant_id: authenticatedRestaurantId,
-        employees: currentEmployees,
-        staffing_table: currentStaffingTable,
-        history: historyEntries,
-        schedules: savedSchedules,
-        updated_at: new Date().toISOString()
-      });
-  };
-
-  // Efeito para carregar ao entrar
+  // Load effect
   useEffect(() => {
-    if (authenticatedRestaurantId) {
-      loadFromCloud(authenticatedRestaurantId);
+    if (!authenticatedRestaurantId) {
+      setIsLoaded(false);
+      return;
     }
+
+    const empSaved = localStorage.getItem(EMPLOYEES_KEY(authenticatedRestaurantId));
+    setCurrentEmployees(empSaved ? JSON.parse(empSaved) : MOCK_EMPLOYEES);
+
+    const staffingSaved = localStorage.getItem(STAFFING_TABLE_KEY(authenticatedRestaurantId));
+    setCurrentStaffingTable(staffingSaved ? JSON.parse(staffingSaved) : DEFAULT_STAFFING_TABLE);
+
+    const historySaved = localStorage.getItem(HISTORY_KEY(authenticatedRestaurantId));
+    setHistoryEntries(historySaved ? JSON.parse(historySaved) : MOCK_HISTORY);
+
+    const schedSaved = localStorage.getItem(SCHEDULES_KEY(authenticatedRestaurantId));
+    setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+
+    // Mark as loaded so save effects don't overwrite with empty initial states
+    setTimeout(() => setIsLoaded(true), 100);
   }, [authenticatedRestaurantId]);
 
-  // Efeito para salvar automaticamente (com debounce de 2 segundos)
-  useEffect(() => {
-    if (!isLoaded) return;
-    const handler = setTimeout(() => {
-      syncToCloud();
-    }, 2000);
-    return () => clearTimeout(handler);
-  }, [currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
-
-  // --- FIM LÓGICA SUPABASE ---
-
+  // Global settings save
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(allRestaurants));
   }, [allRestaurants]);
+
+  // Specific data save
+  useEffect(() => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+    
+    localStorage.setItem(EMPLOYEES_KEY(authenticatedRestaurantId), JSON.stringify(currentEmployees));
+    localStorage.setItem(STAFFING_TABLE_KEY(authenticatedRestaurantId), JSON.stringify(currentStaffingTable));
+    localStorage.setItem(HISTORY_KEY(authenticatedRestaurantId), JSON.stringify(historyEntries));
+    localStorage.setItem(SCHEDULES_KEY(authenticatedRestaurantId), JSON.stringify(savedSchedules));
+  }, [isLoaded, authenticatedRestaurantId, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
   useEffect(() => {
     const existingSchedule = savedSchedules.find(s => s.date === targetDate);
@@ -187,7 +157,7 @@ const App: React.FC = () => {
         const others = prev.filter(s => s.date !== scheduleToSave.date);
         return [...others, scheduleToSave];
     });
-    if(scheduleToSave.isLocked) alert("Posicionamento finalizado e guardado na nuvem!");
+    if(scheduleToSave.isLocked) alert("Posicionamento finalizado e guardado com sucesso!");
   };
 
   const handleLoadFromHistory = (date: string) => {
@@ -233,7 +203,7 @@ const App: React.FC = () => {
           {sidebarOpen && (
               <div className="overflow-hidden">
                   <h1 className="font-bold text-sm tracking-tight truncate">{activeRestaurant.restaurantName}</h1>
-                  <p className="text-xs text-slate-400 truncate">Operações Sincronizadas</p>
+                  <p className="text-xs text-slate-400 truncate">Operações</p>
               </div>
           )}
         </div>
@@ -267,8 +237,7 @@ const App: React.FC = () => {
           {!isLoaded ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-pulse">
                 <Building2 size={48} className="mb-4" />
-                <p className="font-medium text-lg text-slate-600">A sincronizar com a nuvem...</p>
-                <p className="text-sm">Os dados estão a ser carregados para o dispositivo.</p>
+                <p className="font-medium">A carregar base de dados...</p>
             </div>
           ) : (
             <>

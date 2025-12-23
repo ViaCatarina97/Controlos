@@ -2,60 +2,50 @@
 import { AppSettings, BusinessArea, Employee, HistoryEntry, RestaurantTypology, RoleType, ShiftType, StaffingTableEntry, StationConfig } from "./types";
 
 export const STATIONS: StationConfig[] = [
-  // --- DRIVE ---
-  { id: 'drv_w1', label: 'Drive - Janela 1', designation: 'JAN 1', icon: 'UserCircle', defaultSlots: 1, area: 'drive', isActive: true },
-  { id: 'drv_w2', label: 'Drive - Janela 2', designation: 'JAN 2', icon: 'UserCircle', defaultSlots: 1, area: 'drive', isActive: true },
-  { id: 'drv_del', label: 'Drive - Entregas', designation: 'ENTREGAS', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
-  { id: 'drv_runner', label: 'Drive - Runner', designation: 'RUN DRV', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+  // --- BEBIDAS (PURPLE) ---
+  { id: 'bev_1', label: 'Bebidas 1', designation: 'BEB 1', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
+  { id: 'bev_2', label: 'Bebidas 2', designation: 'BEB 2', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
+  { id: 'bev_3', label: 'Bebidas 3', designation: 'BEB 3', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
 
-  // --- PRODUÇÃO ---
-  { id: 'k_grill_1', label: 'BC Grelhador 1', designation: 'GRELH 1', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_grill_2', label: 'BC Grelhador 2', designation: 'GRELH 2', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_init_1', label: 'Iniciador 1', designation: 'INI 1', icon: 'Sandwich', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_init_2', label: 'Iniciador 2', designation: 'INI 2', icon: 'Sandwich', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_prep_1', label: 'Preparador 1', designation: 'PREP 1', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
-  { id: 'k_prep_2', label: 'Preparador 2', designation: 'PREP 2', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
+  // --- COZINHA PRODUÇÃO (RED) ---
+  { id: 'k_bc_1', label: 'Batch Cooker 1', designation: 'BC 1', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
+  { id: 'k_bc_2', label: 'Batch Cooker 2', designation: 'BC 2', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
+  { id: 'k_bc_3', label: 'Batch Cooker 3', designation: 'BC 3', icon: 'Flame', defaultSlots: 1, area: 'kitchen', isActive: true },
+  { id: 'k_ini_1', label: 'Iniciador 1', designation: 'INI 1', icon: 'Sandwich', defaultSlots: 1, area: 'kitchen', isActive: true },
+  { id: 'k_ini_2', label: 'Iniciador 2', designation: 'INI 2', icon: 'Sandwich', defaultSlots: 1, area: 'kitchen', isActive: true },
   { id: 'k_fin_1', label: 'Finalizador 1', designation: 'FIN 1', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
   { id: 'k_fin_2', label: 'Finalizador 2', designation: 'FIN 2', icon: 'Utensils', defaultSlots: 1, area: 'kitchen', isActive: true },
-  
-  // --- BATATAS ---
-  { id: 'fries_1', label: 'Batata - Posto 1', designation: 'BAT 1', icon: 'UtensilsCrossed', defaultSlots: 1, area: 'fries', isActive: true },
 
-  // --- McCAFÉ ---
-  { id: 'mc_cash', label: 'McCafé - Caixa', designation: 'MC CAIXA', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
-  { id: 'mc_prep', label: 'McCafé - Preparação', designation: 'MC PREP', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
+  // --- BALCÃO SERVIÇO (BLUE) ---
+  { id: 'svc_exp_1', label: 'Expedidor 1', designation: 'EXP 1', icon: 'Monitor', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_exp_2', label: 'Expedidor 2', designation: 'EXP 2', icon: 'Monitor', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_run_1', label: 'Runner 1', designation: 'RUN 1', icon: 'ShoppingBag', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_run_2', label: 'Runner 2', designation: 'RUN 2', icon: 'ShoppingBag', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_apr_1', label: 'Apresentador 1', designation: 'APR 1', icon: 'Smile', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_apr_2', label: 'Apresentador 2', designation: 'APR 2', icon: 'Smile', defaultSlots: 1, area: 'counter', isActive: true },
+  { id: 'svc_cax_1', label: 'Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'counter', isActive: true },
 
-  // --- BEBIDAS ---
-  { id: 'bev_init', label: 'Bebidas - Iniciador', designation: 'BEB INI', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
-  { id: 'bev_fin', label: 'Bebidas - Finalizador', designation: 'BEB FIN', icon: 'CupSoda', defaultSlots: 1, area: 'beverage', isActive: true },
+  // --- BATATAS (YELLOW) ---
+  { id: 'fr_1', label: 'Batata 1', designation: 'BAT 1', icon: 'Utensils', defaultSlots: 1, area: 'fries', isActive: true },
 
-  // --- SALA ---
-  { id: 'svc_exp_1', label: 'Balcão - Expedidor', designation: 'EXP', icon: 'Monitor', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'svc_run_1', label: 'Balcão - Runner', designation: 'RUN', icon: 'ShoppingBag', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'svc_pres_1', label: 'Balcão - Apresentador', designation: 'APRES', icon: 'Smile', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'svc_cash_1', label: 'Balcão - Caixa 1', designation: 'CX 1', icon: 'UserCircle', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'lobby_1', label: 'Salão 1', designation: 'SALÃO 1', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'lobby_2', label: 'Salão 2', designation: 'SALÃO 2', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'rp_1', label: 'RP / GEL 1', designation: 'RP 1', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
-  { id: 'rp_2', label: 'RP / GEL 2', designation: 'RP 2', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
+  // --- SALA (YELLOW/BLUE) ---
+  { id: 'lb_rp_1', label: 'RP 1', designation: 'RP 1', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lb_rp_2', label: 'RP 2', designation: 'RP 2', icon: 'HeartHandshake', defaultSlots: 1, area: 'lobby', isActive: true },
+  { id: 'lb_sal_1', label: 'Salão', designation: 'SALÃO', icon: 'Users', defaultSlots: 1, area: 'lobby', isActive: true },
 
-  // --- DELIVERY ---
-  { id: 'del_prep', label: 'Delivery - Preparador', designation: 'DEL PREP', icon: 'ShoppingBag', defaultSlots: 1, area: 'delivery', isActive: true },
-  { id: 'del_check', label: 'Delivery - Runner', designation: 'DEL RUN', icon: 'CheckCircle2', defaultSlots: 1, area: 'delivery', isActive: true },
+  // --- DRIVE (IF ACTIVE) ---
+  { id: 'dr_jan_1', label: 'Drive Janela 1', designation: 'DRV JAN 1', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+  { id: 'dr_jan_2', label: 'Drive Janela 2', designation: 'DRV JAN 2', icon: 'Car', defaultSlots: 1, area: 'drive', isActive: true },
+
+  // --- McCAFÉ (IF ACTIVE) ---
+  { id: 'mc_cax', label: 'McCafé Caixa', designation: 'MC CX', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
+  { id: 'mc_pre', label: 'McCafé Prep', designation: 'MC PREP', icon: 'Coffee', defaultSlots: 1, area: 'mccafe', isActive: true },
+
+  // --- DELIVERY (IF ACTIVE) ---
+  { id: 'dl_pre', label: 'Delivery Prep', designation: 'DEL PREP', icon: 'Package', defaultSlots: 1, area: 'delivery', isActive: true },
 ];
 
 export const INITIAL_RESTAURANTS: AppSettings[] = [
-  {
-    restaurantId: "imp_1",
-    restaurantName: "Imperial",
-    restaurantType: "Loja de Rua",
-    username: "Imperial",
-    password: "Imperial96",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
   {
     restaurantId: "via_1",
     restaurantName: "Via Catarina",
@@ -68,77 +58,11 @@ export const INITIAL_RESTAURANTS: AppSettings[] = [
     customStations: STATIONS
   },
   {
-    restaurantId: "ant_1",
-    restaurantName: "Antas",
+    restaurantId: "imp_1",
+    restaurantName: "Imperial",
     restaurantType: "Loja de Rua",
-    username: "Antas",
-    password: "Antas99",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "cam_1",
-    restaurantName: "Campus São João",
-    restaurantType: "Loja de Rua",
-    username: "Campus São João",
-    password: "Campus10",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "par_1",
-    restaurantName: "Parque Nascente",
-    restaurantType: "Shopping",
-    username: "Parque Nascente",
-    password: "Nascente13",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "rio_1",
-    restaurantName: "Rio Tinto",
-    restaurantType: "Drive",
-    username: "Rio Tinto",
-    password: "Rio11",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
-    businessAreas: ['Loja', 'Drive', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "ala_1",
-    restaurantName: "Alameda",
-    restaurantType: "Shopping",
-    username: "Alameda",
-    password: "Alameda18",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "gon_1",
-    restaurantName: "Gondomar",
-    restaurantType: "Drive",
-    username: "Gondomar",
-    password: "Gondomar20",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO', 'MADRUGADA'],
-    businessAreas: ['Loja', 'Drive', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "rib_1",
-    restaurantName: "Ribeira",
-    restaurantType: "Loja de Rua",
-    username: "Ribeira",
-    password: "Ribeira21",
+    username: "Imperial",
+    password: "Imperial96",
     activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
     businessAreas: ['Loja', 'Delivery', 'McCafé'],
     deliveryProviders: ["Uber Eats", "Glovo"],
@@ -201,18 +125,17 @@ export const MOCK_HISTORY: HistoryEntry[] = [
 ];
 
 export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
-    { id: '1', minSales: 0, maxSales: 99, staffCount: 3, stationLabel: 'BC Grelhador 1' },
+    { id: '1', minSales: 0, maxSales: 99, staffCount: 3, stationLabel: 'Batch Cooker 1' },
     { id: '2', minSales: 100, maxSales: 290, staffCount: 4, stationLabel: 'Expedidor 1' },
     { id: '3', minSales: 291, maxSales: 370, staffCount: 5, stationLabel: 'Iniciador 1' },
-    { id: '4', minSales: 371, maxSales: 450, staffCount: 6, stationLabel: 'Bebidas - Iniciador' },
+    { id: '4', minSales: 371, maxSales: 450, staffCount: 6, stationLabel: 'Bebidas 1' },
     { id: '5', minSales: 451, maxSales: 530, staffCount: 7, stationLabel: 'Iniciador 2' },
     { id: '6', minSales: 531, maxSales: 580, staffCount: 8, stationLabel: 'Caixa 1' },
-    { id: '7', minSales: 581, maxSales: 620, staffCount: 9, stationLabel: 'BC Grelhador 2' },
+    { id: '7', minSales: 581, maxSales: 620, staffCount: 9, stationLabel: 'Batch Cooker 2' },
     { id: '8', minSales: 621, maxSales: 740, staffCount: 10, stationLabel: 'Batata 1' },
     { id: '9', minSales: 741, maxSales: 830, staffCount: 11, stationLabel: 'RP 1' },
     { id: '10', minSales: 831, maxSales: 910, staffCount: 12, stationLabel: 'Apresentador 1' },
     { id: '11', minSales: 911, maxSales: 990, staffCount: 13, stationLabel: 'Finalizador 1' },
-    { id: '12', minSales: 991, maxSales: 1100, staffCount: 14, stationLabel: 'Delivery - Preparador' },
 ];
 
 export const MOCK_EMPLOYEES: Employee[] = [
@@ -220,8 +143,4 @@ export const MOCK_EMPLOYEES: Employee[] = [
   { id: '2', name: 'Carlos Sousa', role: 'TREINADOR', isActive: true },
   { id: '3', name: 'Beatriz Costa', role: 'RP', isActive: true },
   { id: '4', name: 'David Lima', role: 'TREINADOR', isActive: true },
-  { id: '5', name: 'Eduardo Reis', role: 'TREINADOR', isActive: true },
-  { id: '6', name: 'Sofia Martins', role: 'RP', isActive: true },
-  { id: '7', name: 'João Santos', role: 'TREINADOR', isActive: true },
-  { id: '8', name: 'Maria Dias', role: 'RP', isActive: true },
 ];
