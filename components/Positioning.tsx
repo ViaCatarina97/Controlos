@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
@@ -376,7 +375,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (!groups[areaKey]) groups[areaKey] = [];
         groups[areaKey].push(s);
     });
-    // Ordem do PDF: Bebidas, Cozinha, Balcão, Batatas, Sala
+    // Ordem: Bebidas, Cozinha, Balcão, Batatas, Sala
     const order = ['beverage', 'kitchen', 'counter', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
     return Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b)).reduce((acc, key) => { acc[key] = groups[key]; return acc; }, {} as Record<string, StationConfig[]>);
   }, [filteredStations]);

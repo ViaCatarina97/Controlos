@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { AppSettings, BusinessArea, Employee, RestaurantTypology, RoleType, ShiftType, StationConfig } from '../types';
 import { AVAILABLE_AREAS, AVAILABLE_SHIFTS, AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS } from '../constants';
@@ -23,8 +22,8 @@ const getStationCategory = (label: string) => {
     if (lower.includes('batata') || lower.includes('fries') || lower.includes('frit')) return { key: 'fries', label: 'Batatas', icon: Utensils, color: 'bg-yellow-100 text-yellow-700' };
     if (lower.includes('bebida')) return { key: 'beverage', label: 'Bebidas', icon: CupSoda, color: 'bg-pink-100 text-pink-700' };
     if (lower.includes('batch cooker') || lower.includes('bc ')) return { key: 'kitchen', label: 'Batch Cooker', icon: Flame, color: 'bg-orange-100 text-orange-700' };
-    if (lower.includes('iniciador') || lower.includes('prep') || lower.includes('finalizador')) return { key: 'kitchen', label: 'Cozinha', icon: Sandwich, color: 'bg-red-100 text-red-700' };
-    if (lower.includes('expedidor') || lower.includes('runner') || lower.includes('apresentador') || lower.includes('caixa')) return { key: 'counter', label: 'Balcão', icon: Monitor, color: 'bg-blue-100 text-blue-700' };
+    if (lower.includes('iniciador') || lower.includes('prep') || lower.includes('finalizador')) return { key: 'kitchen', label: 'Produção', icon: Sandwich, color: 'bg-red-100 text-red-700' };
+    if (lower.includes('expedidor') || lower.includes('runner') || lower.includes('apresentador') || lower.includes('caixa')) return { key: 'counter', label: 'Serviço', icon: Monitor, color: 'bg-blue-100 text-blue-700' };
     if (lower.includes('sala') || lower.includes('lobby') || lower.includes('rp') || lower.includes('salão')) return { key: 'lobby', label: 'Sala', icon: Users, color: 'bg-blue-100 text-blue-700' };
     if (lower.includes('delivery')) return { key: 'delivery', label: 'Delivery', icon: Package, color: 'bg-green-100 text-green-700' };
     
@@ -54,7 +53,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
             groups[key] = { 
                 meta: { 
                     key, 
-                    label: key.charAt(0).toUpperCase() + key.slice(1), 
+                    label: key === 'kitchen' ? 'Produção' : 
+                           key === 'counter' ? 'Serviço' :
+                           key === 'beverage' ? 'Bebidas' :
+                           key === 'fries' ? 'Batatas' :
+                           key === 'lobby' ? 'Sala' :
+                           key.charAt(0).toUpperCase() + key.slice(1), 
                     icon: category.icon, 
                     color: category.color 
                 }, 
@@ -352,7 +356,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                         <option value="mccafe">McCafé</option>
                         <option value="delivery">Delivery</option>
                         <option value="beverage">Bebidas (Cell)</option>
-                        <option value="counter">Balcão</option>
+                        <option value="counter">Serviço (Balcão)</option>
                         <option value="lobby">Sala</option>
                     </select>
                   </div>
