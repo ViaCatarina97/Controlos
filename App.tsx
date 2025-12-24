@@ -9,7 +9,7 @@ import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
 import { STATIONS, INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, Cloud, FileText, Loader2 } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Cloud, FileText, Loader2, Receipt } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE INTEGRADA ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -41,7 +41,7 @@ const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, exp
 const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
-  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings' | 'invoices'>('positioning');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -58,13 +58,13 @@ const App: React.FC = () => {
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  // --- LÓGICA DE FATURAS HAVI ---
+  // --- LÓGICA DE PROCESSAMENTO HAVI ---
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
     const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
     if (!GEMINI_KEY) {
-      alert("Erro: VITE_GEMINI_API_KEY não configurada no Vercel.");
+      alert("Erro: Configure VITE_GEMINI_API_KEY no Vercel.");
       setIsProcessingInvoice(false);
       return;
     }
@@ -76,7 +76,6 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      // Prompt otimizado para a fatura HAVI enviada
       const prompt = `Analise esta fatura da HAVI Logistics. 
       Extraia o 'Nº DOCUMENTO' e 'DATA DOCUMENTO'.
       Na tabela 'TOTAL POR GRUPO PRODUTO', extraia cada GRUPO e o respetivo VALOR TOTAL.
@@ -116,16 +115,14 @@ const App: React.FC = () => {
       });
 
       if (supabaseError) throw supabaseError;
-      alert("Fatura HAVI processada e gravada com sucesso!");
+      alert("Fatura HAVI gravada com sucesso!");
     } catch (error: any) {
-      console.error("Erro no processamento:", error);
-      alert("Erro ao processar fatura: " + error.message);
+      alert("Erro no processamento: " + error.message);
     } finally {
       setIsProcessingInvoice(false);
     }
   };
 
-  // --- SINCRONIZAÇÃO NUVEM ---
   const loadDataFromCloud = async (restaurantId: string) => {
     setIsLoaded(false);
     try {
@@ -135,8 +132,6 @@ const App: React.FC = () => {
         setCurrentStaffingTable(data.staffing_table || DEFAULT_STAFFING_TABLE);
         setHistoryEntries(data.history || MOCK_HISTORY);
         setSavedSchedules(data.schedules || []);
-        const cloudSettings = data.settings || {};
-        setAllRestaurants(prev => prev.map(r => r.restaurantId === restaurantId ? { ...r, ...cloudSettings } : r));
       }
     } catch (err) { console.error(err); } finally { setTimeout(() => setIsLoaded(true), 600); }
   };
@@ -144,9 +139,6 @@ const App: React.FC = () => {
   const syncToCloud = useCallback(async (manualSchedules?: DailySchedule[]) => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     setIsSyncing(true);
-    const currentRest = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
-    if (!currentRest) return;
-    const { restaurantId, customStations, ...otherSettings } = currentRest;
     try {
       await supabase.from('restaurant_data').upsert({
         restaurant_id: authenticatedRestaurantId,
@@ -154,17 +146,16 @@ const App: React.FC = () => {
         staffing_table: currentStaffingTable,
         history: historyEntries,
         schedules: manualSchedules || savedSchedules,
-        settings: otherSettings,
         updated_at: new Date().toISOString()
       });
     } finally { setTimeout(() => setIsSyncing(false), 500); }
-  }, [authenticatedRestaurantId, isLoaded, allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
+  }, [authenticatedRestaurantId, isLoaded, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
   useEffect(() => {
     if (!isLoaded) return;
     const timer = setTimeout(() => syncToCloud(), 3000);
     return () => clearTimeout(timer);
-  }, [currentEmployees, currentStaffingTable, historyEntries, allRestaurants, syncToCloud]);
+  }, [currentEmployees, currentStaffingTable, historyEntries, syncToCloud]);
 
   useEffect(() => {
     if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
@@ -177,7 +168,7 @@ const App: React.FC = () => {
   }
 
   if (!activeModule) {
-    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={setActiveModule} onLogout={() => setAuthenticatedRestaurantId(null)} />;
+    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={(m) => { setActiveModule(m); setActiveTab(m === 'billing' ? 'havi_invoices' : 'positioning'); }} onLogout={() => setAuthenticatedRestaurantId(null)} />;
   }
 
   return (
@@ -185,26 +176,28 @@ const App: React.FC = () => {
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
         <div className="p-4 flex items-center gap-3 border-b border-slate-700 h-16">
           <div className="p-1.5 bg-blue-600 rounded-lg shrink-0"><Building2 size={20} /></div>
-          {sidebarOpen && (
-            <div className="overflow-hidden">
-              <h1 className="font-bold text-sm truncate">{activeRestaurant.restaurantName}</h1>
-              <div className="flex items-center gap-1">
-                <Cloud size={12} className={isSyncing ? "text-blue-400 animate-pulse" : "text-emerald-400"} />
-                <p className="text-[10px] uppercase tracking-wider font-bold">{isSyncing ? "A Gravar..." : "Sincronizado"}</p>
-              </div>
-            </div>
-          )}
+          {sidebarOpen && <h1 className="font-bold text-sm truncate">{activeRestaurant.restaurantName}</h1>}
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 mb-4 border border-slate-700/30 transition-all">
             <ArrowLeft size={20} /> {sidebarOpen && <span>Menu Principal</span>}
           </button>
-          <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'invoices'} onClick={() => setActiveTab('invoices')} icon={<FileText size={20} />} label="Faturas HAVI" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Vendas" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Turnos" expanded={sidebarOpen} />
+
+          {activeModule === 'positioning' ? (
+            <>
+              <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Vendas" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Turnos" expanded={sidebarOpen} />
+            </>
+          ) : activeModule === 'billing' ? (
+            <>
+              <NavButton active={activeTab === 'havi_invoices'} onClick={() => setActiveTab('havi_invoices')} icon={<FileText size={20} />} label="Faturas HAVI" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'billing_history'} onClick={() => setActiveTab('billing_history')} icon={<Receipt size={20} />} label="Histórico" expanded={sidebarOpen} />
+            </>
+          ) : null}
+
           <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Definições" expanded={sidebarOpen} />
         </nav>
 
@@ -215,40 +208,25 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm p-6 sticky top-0 z-10 flex justify-between items-center h-16">
+        <header className="bg-white shadow-sm p-6 h-16 flex items-center justify-between sticky top-0 z-10">
           <h2 className="text-xl font-bold text-gray-800 capitalize">{activeTab.replace('_', ' ')}</h2>
+          {isSyncing && <div className="text-blue-600 text-xs flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> Sincronizando...</div>}
         </header>
 
         <div className="p-6 flex-1">
           {!isLoaded ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500"><Loader2 className="animate-spin text-blue-500 mb-2" size={32} /><p>A sincronizar...</p></div>
+            <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
           ) : (
             <>
-              {activeTab === 'invoices' && (
-                <div className="max-w-4xl mx-auto">
-                  <div className="bg-white p-12 rounded-2xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
-                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                      <FileText size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold mb-2">Importar Fatura HAVI</h3>
-                    <p className="text-gray-500 mb-8 max-w-sm text-center">Carregue o PDF da fatura para extrair os valores por grupo.</p>
-                    
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file && authenticatedRestaurantId) processarFaturaHavi(file, authenticatedRestaurantId);
-                      }}
-                      disabled={isProcessingInvoice}
-                      className="hidden"
-                      id="invoice-upload"
-                    />
-                    <label
-                      htmlFor="invoice-upload"
-                      className={`cursor-pointer inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 ${isProcessingInvoice ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {isProcessingInvoice ? <><Loader2 className="animate-spin" size={20} /> Processando...</> : 'Selecionar Fatura PDF'}
+              {activeTab === 'havi_invoices' && (
+                <div className="max-w-4xl mx-auto py-10">
+                  <div className="bg-white p-12 rounded-2xl shadow-sm border-2 border-dashed border-gray-200 text-center">
+                    <FileText className="mx-auto text-blue-500 mb-4" size={56} />
+                    <h3 className="text-2xl font-bold mb-2">Controlo de Faturação HAVI</h3>
+                    <p className="text-gray-500 mb-8 max-w-sm mx-auto">Carregue a fatura para extrair o Nº do Documento  e Totais por Grupo.</p>
+                    <input type="file" accept="application/pdf,image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f && authenticatedRestaurantId) processarFaturaHavi(f, authenticatedRestaurantId); }} disabled={isProcessingInvoice} className="hidden" id="invoice-up" />
+                    <label htmlFor="invoice-up" className={`cursor-pointer inline-flex items-center gap-3 px-10 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg ${isProcessingInvoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      {isProcessingInvoice ? <Loader2 className="animate-spin" size={20} /> : 'Selecionar Fatura'}
                     </label>
                   </div>
                 </div>
