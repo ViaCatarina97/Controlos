@@ -9,7 +9,7 @@ import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Cloud, FileText, Loader2 } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Cloud, FileText, Loader2, Receipt } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -79,11 +79,22 @@ const App: React.FC = () => {
     } finally { setIsLoaded(true); }
   };
 
-  // --- PROCESSAMENTO FATURA HAVI ---
+  // --- HANDLERS ---
+  const handleSaveSettings = (updatedSettings: AppSettings) => {
+    setAllRestaurants(prev => prev.map(r => r.restaurantId === updatedSettings.restaurantId ? updatedSettings : r));
+    forceSync({ settings: updatedSettings });
+  };
+
+  const handleSaveSchedule = async (scheduleToSave: DailySchedule) => {
+    setCurrentSchedule(scheduleToSave);
+    const updated = [...savedSchedules.filter(s => s.date !== scheduleToSave.date), scheduleToSave];
+    setSavedSchedules(updated);
+    await forceSync({ schedules: updated });
+  };
+
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
     const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    
     try {
       const base64Data = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -91,8 +102,7 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      // Extração baseada nos campos fornecidos [cite: 29, 30, 58, 60]
-      const prompt = "Analise esta fatura da HAVI Logistics. Extraia o Nº DOCUMENTO , a DATA DOCUMENTO  e os totais da tabela TOTAL POR GRUPO PRODUTO. Devolva em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number }";
+      const prompt = "Analise esta fatura da HAVI Logistics. Extraia o Nº DOCUMENTO, a DATA DOCUMENTO e a tabela TOTAL POR GRUPO PRODUTO. Devolva em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number}";
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: 'POST',
@@ -106,22 +116,23 @@ const App: React.FC = () => {
 
       await supabase.from('faturas_havi').insert({
         restaurant_id: restaurantId,
-        num_documento: f.documento,
-        data_documento: f.data,
-        dados_grupos: f.grupos,
-        valor_total_liquido: f.total_liquido
+        num_documento: f.documento, // 
+        data_documento: f.data, // 
+        dados_grupos: f.grupos, // 
+        valor_total_liquido: f.total_liquido // [cite: 58, 60]
       });
-      alert("Fatura HAVI processada e gravada com sucesso!");
-    } catch (e) {
-      alert("Erro ao ler fatura. Verifique a chave API.");
-    } finally {
-      setIsProcessingInvoice(false);
-    }
+      alert("Fatura Gravada!");
+    } catch (e) { alert("Erro ao processar"); } finally { setIsProcessingInvoice(false); }
   };
 
   useEffect(() => {
     if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
   }, [authenticatedRestaurantId]);
+
+  useEffect(() => {
+    const existing = savedSchedules.find(s => s.date === targetDate);
+    setCurrentSchedule(existing || { date: targetDate, shifts: {} });
+  }, [targetDate, savedSchedules]);
 
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
 
@@ -134,43 +145,43 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden text-slate-900 font-sans">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20`}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden text-slate-900">
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
         <div className="p-4 border-b border-slate-700 h-16 flex items-center gap-3">
           <Building2 size={20} className="text-blue-500" />
           {sidebarOpen && <span className="font-bold truncate text-sm">{activeRestaurant.restaurantName}</span>}
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 mb-4 border border-slate-700/30">
+          <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 mb-4 border border-slate-700/30 transition-all">
             <ArrowLeft size={20} /> {sidebarOpen && <span>Menu Principal</span>}
           </button>
           {activeModule === 'positioning' ? (
             <>
-              <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
-              <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
-              <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Vendas" expanded={sidebarOpen} />
-              <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Turnos" expanded={sidebarOpen} />
+              <button onClick={() => setActiveTab('positioning')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'positioning' ? 'bg-blue-600' : ''}`}><LayoutDashboard size={20} />{sidebarOpen && <span>Posicionamento</span>}</button>
+              <button onClick={() => setActiveTab('staffing')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'staffing' ? 'bg-blue-600' : ''}`}><Sliders size={20} />{sidebarOpen && <span>Staffing</span>}</button>
+              <button onClick={() => setActiveTab('sales_history')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'sales_history' ? 'bg-blue-600' : ''}`}><TrendingUp size={20} />{sidebarOpen && <span>Vendas</span>}</button>
+              <button onClick={() => setActiveTab('schedule_history')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'schedule_history' ? 'bg-blue-600' : ''}`}><History size={20} />{sidebarOpen && <span>Turnos</span>}</button>
             </>
           ) : (
-            <NavButton active={activeTab === 'havi_invoices'} onClick={() => setActiveTab('havi_invoices')} icon={<FileText size={20} />} label="Faturas HAVI" expanded={sidebarOpen} />
+            <button onClick={() => setActiveTab('havi_invoices')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'havi_invoices' ? 'bg-blue-600' : ''}`}><FileText size={20} />{sidebarOpen && <span>Faturas HAVI</span>}</button>
           )}
-          <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Definições" expanded={sidebarOpen} />
+          <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'settings' ? 'bg-blue-600' : ''}`}><SettingsIcon size={20} />{sidebarOpen && <span>Definições</span>}</button>
         </nav>
       </aside>
 
       <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10 px-8">
-          <h2 className="font-bold uppercase text-xs tracking-widest">{activeTab.replace('_', ' ')}</h2>
-          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> SYNCING...</div>}
+        <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10 px-8 font-bold text-xs tracking-widest uppercase">
+          {activeTab}
+          {isSyncing && <div className="text-blue-600 flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> GRAVANDO...</div>}
         </header>
         <div className="p-8">
           {!isLoaded ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500" size={40} /></div> : (
             <>
-              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={(s) => {setCurrentSchedule(s); setSavedSchedules(prev => [...prev.filter(x => x.date !== s.date), s]); forceSync({ schedules: [...savedSchedules.filter(x => x.date !== s.date), s] }); }} />}
+              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} />}
               {activeTab === 'havi_invoices' && (
                 <div className="max-w-xl mx-auto bg-white p-12 rounded-3xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
                   <FileText size={48} className="text-blue-500 mb-4" />
-                  <h3 className="font-bold mb-2">Controlo Faturação HAVI</h3>
+                  <h3 className="text-xl font-bold mb-2">Controlo Faturação HAVI</h3>
                   <input type="file" accept="application/pdf,image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f && authenticatedRestaurantId) processarFaturaHavi(f, authenticatedRestaurantId); }} className="hidden" id="inv-up" />
                   <label htmlFor="inv-up" className="mt-4 px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold cursor-pointer">{isProcessingInvoice ? 'Processando...' : 'Carregar Fatura'}</label>
                 </div>
