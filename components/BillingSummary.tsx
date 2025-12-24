@@ -1,24 +1,95 @@
 
-import React, { useMemo, useState } from 'react';
-import { DeliveryRecord } from '../types';
-import { Printer, Filter, Calendar, ChevronDown } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { DeliveryRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
+import { Printer, Calendar, Plus, Trash2 } from 'lucide-react';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
+  employees: Employee[];
 }
 
-export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) => {
+const DEFAULT_MONTHLY_DATA: Omit<MonthlyOperationalData, 'month'> = {
+  vendasMes: 0,
+  comprasComida: 0,
+  comprasPapel: 0,
+  comprasTotalOps: 0,
+  consumoComida: 0,
+  consumoPapel: 0,
+  consumoOps: 0,
+  invInicialComida: 0,
+  invInicialOps: 0,
+  perdasComida: 0,
+  refeicoesComida: 0,
+  promoComida: 0,
+  invFinalComida: 0,
+  invFinalPapel: 0,
+  invFinalOps: 0,
+  comprasOpsHavi: 0,
+  invInicialPapel: 0,
+  perdasPapel: 0,
+  refeicoesPapel: 0,
+  promoPapel: 0,
+  comprasOpsMaiaPapper: 0,
+  otherSuppliers: []
+};
+
+export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, employees }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
+  const [monthlyData, setMonthlyData] = useState<MonthlyOperationalData>({
+    month: selectedMonth,
+    ...DEFAULT_MONTHLY_DATA
+  });
+
+  const STORAGE_KEY = `monthly_ops_data_${selectedMonth}`;
+
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      setMonthlyData(JSON.parse(saved));
+    } else {
+      setMonthlyData({ month: selectedMonth, ...DEFAULT_MONTHLY_DATA });
+    }
+  }, [selectedMonth]);
+
+  const saveToStore = (updated: MonthlyOperationalData) => {
+    setMonthlyData(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const handleUpdateMonthlyField = (field: keyof Omit<MonthlyOperationalData, 'month' | 'otherSuppliers'>, value: number) => {
+    saveToStore({ ...monthlyData, [field]: value });
+  };
+
+  const handleAddOtherSupplier = () => {
+    const newEntry: OtherSupplierEntry = {
+        id: crypto.randomUUID(),
+        supplier: 'Air Liquide',
+        date: '',
+        quantity: 0,
+        invoiceValue: 0,
+        myStoreValue: 0,
+        managerId: ''
+    };
+    saveToStore({ ...monthlyData, otherSuppliers: [...monthlyData.otherSuppliers, newEntry] });
+  };
+
+  const handleUpdateOtherSupplier = (id: string, field: keyof OtherSupplierEntry, value: any) => {
+    const updatedSuppliers = monthlyData.otherSuppliers.map(s => s.id === id ? { ...s, [field]: value } : s);
+    saveToStore({ ...monthlyData, otherSuppliers: updatedSuppliers });
+  };
+
+  const handleDeleteOtherSupplier = (id: string) => {
+    saveToStore({ ...monthlyData, otherSuppliers: monthlyData.otherSuppliers.filter(s => s.id !== id) });
+  };
+
   const filteredRecords = useMemo(() => {
     return deliveries.filter(d => d.date.startsWith(selectedMonth));
   }, [deliveries, selectedMonth]);
 
-  // Aggregations
-  // Explicitly type the groups record to avoid 'unknown' inference and fixed the property access
   const aggregatedHavi = useMemo<Record<string, { desc: string, total: number }>>(() => {
     const groups: Record<string, { desc: string, total: number }> = {};
     filteredRecords.forEach(rec => {
@@ -26,7 +97,6 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) =>
         if (!groups[g.group]) {
           groups[g.group] = { desc: g.description, total: 0 };
         }
-        // Use non-null assertion or local variable to ensure type safety
         const group = groups[g.group]!;
         group.total += g.total;
       });
@@ -36,7 +106,6 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) =>
 
   const totalPontoVerde = useMemo(() => filteredRecords.reduce((s, r) => s + r.pontoVerde, 0), [filteredRecords]);
   
-  // Cast Object.values to specific type to fix 'unknown' arithmetic error
   const grandTotalHavi = useMemo(() => 
     (Object.values(aggregatedHavi) as { desc: string, total: number }[]).reduce((s, g) => s + g.total, 0) + totalPontoVerde, 
     [aggregatedHavi, totalPontoVerde]
@@ -52,41 +121,18 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) =>
     return sms;
   }, [filteredRecords]);
 
-  // Cast Object.values to number[] to ensure grandTotalSms is a number
   const grandTotalSms = useMemo(() => 
     (Object.values(aggregatedSms) as number[]).reduce((s, a) => s + a, 0), 
     [aggregatedSms]
   );
-
-  const priceDiffsComida = useMemo(() => {
-    return filteredRecords.reduce((s, r) => s + r.priceDifferences
-      .filter(d => ['Comida', 'H.M.'].includes(d.category))
-      .reduce((curr, d) => curr + (d.priceHavi - d.priceSms), 0), 0);
-  }, [filteredRecords]);
-
-  const priceDiffsPapel = useMemo(() => {
-    return filteredRecords.reduce((s, r) => s + r.priceDifferences
-      .filter(d => d.category === 'Papel')
-      .reduce((curr, d) => curr + (d.priceHavi - d.priceSms), 0), 0);
-  }, [filteredRecords]);
-
-  const missingComida = useMemo(() => {
-    return filteredRecords.reduce((s, r) => s + r.missingProducts
-      .filter(p => ['Comida', 'Happy Meal'].includes(p.group))
-      .reduce((curr, p) => curr + p.priceHavi, 0), 0);
-  }, [filteredRecords]);
-
-  const missingPapel = useMemo(() => {
-    return filteredRecords.reduce((s, r) => s + r.missingProducts
-      .filter(p => p.group === 'Papel')
-      .reduce((curr, p) => curr + p.priceHavi, 0), 0);
-  }, [filteredRecords]);
 
   const formatMonthHeader = (monthStr: string) => {
     const [y, m] = monthStr.split('-');
     const months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
     return `${months[parseInt(m) - 1]}/${y.slice(2)}`;
   };
+
+  const gerentes = employees.filter(e => e.role === 'GERENTE');
 
   return (
     <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar">
@@ -105,19 +151,12 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) =>
               />
             </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase text-gray-400 mb-1">Registos Encontrados</span>
-            <div className="py-2 px-3 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-700">
-              {filteredRecords.length} faturas
-            </div>
-          </div>
         </div>
         <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-all">
           <Printer size={18} /> Imprimir Relatório
         </button>
       </div>
 
-      {/* PDF Simulation Start */}
       <div className="bg-white border-2 border-slate-100 p-8 shadow-sm flex flex-col space-y-6 min-w-[1000px] print:p-0 print:border-none print:shadow-none">
         
         {/* Header Section */}
@@ -126,225 +165,245 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries }) =>
             <h1 className="text-3xl font-black uppercase tracking-tighter">Resumo Controlo de Facturação</h1>
           </div>
           <div className="flex items-center gap-8">
-            <div className="w-16 h-16 flex items-center justify-center">
-               <svg viewBox="0 0 24 24" className="w-full h-full text-yellow-500 fill-current"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
-            </div>
             <div className="text-4xl font-black text-gray-300 tracking-widest uppercase">
               {formatMonthHeader(selectedMonth)}
             </div>
           </div>
         </div>
 
-        {/* Main Grid: Havi / SMS / Diferença */}
+        {/* Main Grid: HAVI / MyStore / Diferença */}
         <div className="grid grid-cols-12 gap-6">
           
-          {/* Section 1: Factura Havi */}
-          <div className="col-span-5 flex flex-col border border-gray-200">
-            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">Factura Havi</div>
+          <div className="col-span-4 flex flex-col border border-gray-200">
+            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">HAVI</div>
             <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
               <div className="col-span-2 px-2 py-1 border-r border-gray-50">Grupo</div>
               <div className="col-span-7 px-2 py-1 border-r border-gray-50">Descrição</div>
               <div className="col-span-3 px-2 py-1 text-right">Total</div>
             </div>
-            <div className="flex flex-col bg-white">
-              {Object.entries(aggregatedHavi).map(([code, g]) => (
+            <div className="flex flex-col bg-white overflow-y-auto max-h-60 custom-scrollbar">
+              {(Object.entries(aggregatedHavi) as [string, { desc: string, total: number }][]).map(([code, g]) => (
                 <div key={code} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-2 px-2 py-0.5 border-r border-gray-50">{code}</div>
                   <div className="col-span-7 px-2 py-0.5 border-r border-gray-50 truncate">{g.desc}</div>
-                  <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{g.total.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
+                  <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{g.total.toFixed(2)} €</div>
                 </div>
               ))}
               <div className="grid grid-cols-12 text-[11px] font-bold border-t border-gray-200 bg-gray-50">
-                <div className="col-span-9 px-2 py-1 flex items-center gap-2">
-                   <div className="w-5 h-5 bg-emerald-500 rounded-full"></div> Contribuição Ponto Verde
-                </div>
-                <div className="col-span-3 px-2 py-1 text-right">{totalPontoVerde.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
+                <div className="col-span-9 px-2 py-1">Ponto Verde</div>
+                <div className="col-span-3 px-2 py-1 text-right">{totalPontoVerde.toFixed(2)} €</div>
               </div>
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{grandTotalHavi.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
+              <div className="text-2xl font-black text-slate-900">{grandTotalHavi.toFixed(2)} €</div>
             </div>
           </div>
 
-          {/* Section 2: SMS */}
-          <div className="col-span-3 flex flex-col border border-gray-200">
-            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">SMS</div>
+          <div className="col-span-4 flex flex-col border border-gray-200">
+            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">MyStore</div>
             <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
               <div className="col-span-8 px-2 py-1 border-r border-gray-50">Descrição</div>
-              <div className="col-span-4 px-2 py-1 text-right">Montante</div>
+              <div className="col-span-4 px-2 py-1 text-right">Total</div>
             </div>
             <div className="flex flex-col bg-white h-full">
-              {Object.entries(aggregatedSms).map(([desc, val]) => (
+              {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, val]) => (
                 <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
-                  <div className="col-span-4 px-2 py-1 text-right tabular-nums">{val.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
+                  <div className="col-span-4 px-2 py-1 text-right tabular-nums">{val.toFixed(2)} €</div>
                 </div>
               ))}
-              <div className="p-3 mt-12 text-center bg-gray-50 border-y border-gray-100">
-                <div className="text-xl font-black text-slate-900">{grandTotalSms.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
-              </div>
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{grandTotalSms.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</div>
+              <div className="text-2xl font-black text-slate-900">{grandTotalSms.toFixed(2)} €</div>
             </div>
           </div>
 
-          {/* Section 3: Diferença & Side Boxes */}
-          <div className="col-span-4 flex flex-col space-y-4">
-            <div className="border border-gray-200 flex flex-col">
-              <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">Diferença</div>
-              <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
-                <div className="col-span-8 px-2 py-1 border-r border-gray-50">Descrição</div>
-                <div className="col-span-4 px-2 py-1 text-right">Montante</div>
-              </div>
-              <div className="flex flex-col bg-white">
-                 {Object.entries(aggregatedSms).map(([desc, smsVal]) => {
-                   // Calc Havi Group logic
+          <div className="col-span-4 flex flex-col border border-gray-200">
+            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">Diferença</div>
+            <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
+              <div className="col-span-8 px-2 py-1 border-r border-gray-50">Descrição</div>
+              <div className="col-span-4 px-2 py-1 text-right">Total</div>
+            </div>
+            <div className="flex flex-col bg-white">
+                 {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, smsVal]) => {
                    let haviMatch = 0;
                    if (desc === 'Comida') haviMatch = ['A','B','C','H','J','L','T'].reduce((s, c) => s + (aggregatedHavi[c]?.total || 0), 0);
-                   else if (desc === 'Papel') haviMatch = ['D','U'].reduce((s, c) => s + (aggregatedHavi[c]?.total || 0), 0);
+                   else if (desc === 'Papel') haviMatch = ['D','U']?.reduce((s, c) => s + (aggregatedHavi[c]?.total || 0), 0);
                    else if (desc === 'F. Operacionais') haviMatch = (aggregatedHavi['E']?.total || 0) + (aggregatedHavi['I']?.total || 0) + (aggregatedHavi['O']?.total || 0);
                    else if (desc === 'Material Adm') haviMatch = (aggregatedHavi['M']?.total || 0);
                    else if (desc === 'Happy Meal') haviMatch = (aggregatedHavi['F']?.total || 0);
                    else if (desc === 'Outros') haviMatch = (aggregatedHavi['G']?.total || 0) + (aggregatedHavi['N']?.total || 0) + (aggregatedHavi['P']?.total || 0) + (aggregatedHavi['R']?.total || 0) + (aggregatedHavi['S']?.total || 0);
 
-                   // Explicitly cast smsVal to number to fix arithmetic and logic error
-                   const diff = haviMatch - (smsVal as number);
-
+                   const diff = haviMatch - smsVal;
                    return (
                     <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0">
                       <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
-                      <div className={`col-span-4 px-2 py-1 text-right tabular-nums ${Math.abs(diff) > 0.05 ? 'text-red-500' : 'text-gray-400'}`}>
-                        {diff.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
+                      <div className={`col-span-4 px-2 py-1 text-right tabular-nums ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-gray-400'}`}>
+                        {diff.toFixed(2)} €
                       </div>
                     </div>
                    );
                  })}
-              </div>
             </div>
-
-            {/* Boxes */}
-            <div className="grid grid-cols-1 gap-2">
-              <SummaryBox title="Total Diferenças de Preço Comida" value={priceDiffsComida} />
-              <SummaryBox title="Total Diferenças de Preço Papel" value={priceDiffsPapel} />
-              <SummaryBox title="Produto Não Introduzido Comida" value={missingComida} />
-              <SummaryBox title="Produto Não Introduzido Papel" value={missingPapel} />
+            <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
+               <div className={`text-2xl font-black ${Math.abs(grandTotalHavi - grandTotalSms) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {(grandTotalHavi - grandTotalSms).toFixed(2)} €
+               </div>
             </div>
           </div>
-
         </div>
 
-        {/* Factura Ar Líquido / MaiaPapper */}
-        <div className="grid grid-cols-3 gap-6">
-           <SubReportSection title="Factura Ar Líquido" />
-           <SubReportSection title="Bens Recebidos" />
-           <SubReportSection title="Diferença" isLast />
+        {/* Quadro Unificado de Outros Fornecedores */}
+        <div className="border border-gray-200 rounded overflow-hidden">
+            <div className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center">
+                <span className="font-bold text-sm uppercase tracking-widest">Outros Fornecedores</span>
+                <button onClick={handleAddOtherSupplier} className="bg-white/10 hover:bg-white/20 p-1 rounded transition-colors print:hidden">
+                    <Plus size={16} />
+                </button>
+            </div>
+            <table className="w-full text-[11px]">
+                <thead className="bg-gray-100 text-gray-500 font-bold border-b border-gray-200">
+                    <tr>
+                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Fornecedor</th>
+                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Data</th>
+                        <th className="px-2 py-1.5 text-center border-r border-gray-200">Qtd</th>
+                        <th className="px-2 py-1.5 text-right border-r border-gray-200">Fatura (€)</th>
+                        <th className="px-2 py-1.5 text-right border-r border-gray-200">MyStore (€)</th>
+                        <th className="px-2 py-1.5 text-right border-r border-gray-200">Diferença (€)</th>
+                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Gerente</th>
+                        <th className="px-2 py-1.5 text-center print:hidden w-10"></th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                    {monthlyData.otherSuppliers.map(entry => (
+                        <tr key={entry.id} className="hover:bg-gray-50 group">
+                            <td className="p-1 border-r border-gray-50">
+                                <select value={entry.supplier} onChange={e => handleUpdateOtherSupplier(entry.id, 'supplier', e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-gray-700">
+                                    <option value="Air Liquide">Air Liquide</option>
+                                    <option value="MaiaPapper">MaiaPapper</option>
+                                </select>
+                            </td>
+                            <td className="p-1 border-r border-gray-50">
+                                <input type="date" value={entry.date} onChange={e => handleUpdateOtherSupplier(entry.id, 'date', e.target.value)} className="w-full bg-transparent border-none outline-none" />
+                            </td>
+                            <td className="p-1 border-r border-gray-50">
+                                <input type="number" value={entry.quantity || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center bg-transparent border-none outline-none" placeholder="0" />
+                            </td>
+                            <td className="p-1 border-r border-gray-50">
+                                <input type="number" value={entry.invoiceValue || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'invoiceValue', parseFloat(e.target.value) || 0)} className="w-full text-right bg-transparent border-none outline-none font-black" placeholder="0.00" />
+                            </td>
+                            <td className="p-1 border-r border-gray-50">
+                                <input type="number" value={entry.myStoreValue || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'myStoreValue', parseFloat(e.target.value) || 0)} className="w-full text-right bg-transparent border-none outline-none font-bold" placeholder="0.00" />
+                            </td>
+                            <td className="p-1 border-r border-gray-50 text-right font-black tabular-nums">
+                                {(entry.invoiceValue - entry.myStoreValue).toFixed(2)}
+                            </td>
+                            <td className="p-1 border-r border-gray-50">
+                                <select value={entry.managerId} onChange={e => handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)} className="w-full bg-transparent border-none outline-none font-medium truncate">
+                                    <option value="">-</option>
+                                    {gerentes.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                            </td>
+                            <td className="p-1 text-center print:hidden">
+                                <button onClick={() => handleDeleteOtherSupplier(entry.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14}/></button>
+                            </td>
+                        </tr>
+                    ))}
+                    {monthlyData.otherSuppliers.length === 0 && (
+                        <tr><td colSpan={8} className="p-4 text-center text-gray-400 italic">Clique em "+" para adicionar lançamentos de outros fornecedores.</td></tr>
+                    )}
+                </tbody>
+            </table>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
-           <SubReportSection title="Factura MaiaPapper" isCustom />
-           <SubReportSection title="Bens Recebidos" />
-           <SubReportSection title="Diferença" isLast />
+        {/* Resumo Mês Bar */}
+        <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg font-bold text-sm uppercase tracking-widest">
+            Resumo Mês
         </div>
 
-        {/* Bottom Operational Dashboard */}
-        <div className="grid grid-cols-3 gap-6 border-t-2 border-gray-100 pt-6">
-           
-           {/* Col 1 */}
-           <div className="space-y-1.5">
-              <DataRow label="Vendas Mês" value={215137.97} isHeader />
-              <div className="mt-4 space-y-1">
-                 <DataRow label="Compras Comida" value={65991.92} color="bg-[#5a7d36]" />
-                 <DataRow label="Compras Papel" value={6585.11} color="bg-[#5a7d36]" />
-                 <DataRow label="Compras Total Ops" value={2965.41} color="bg-[#5a7d36]" />
+        {/* Operational Dashboard Grid */}
+        <div className="grid grid-cols-3 gap-6 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
+           {/* Coluna 1 */}
+           <div className="space-y-4">
+              <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
+              <div className="space-y-1">
+                 <DataInputRow label="Compras Comida" value={monthlyData.comprasComida} onChange={v => handleUpdateMonthlyField('comprasComida', v)} />
+                 <DataInputRow label="Compras Papel" value={monthlyData.comprasPapel} onChange={v => handleUpdateMonthlyField('comprasPapel', v)} />
+                 <DataInputRow label="Compras Total Ops" value={monthlyData.comprasTotalOps} onChange={v => handleUpdateMonthlyField('comprasTotalOps', v)} />
               </div>
-              <div className="mt-4 space-y-1">
-                 <DataRow label="Consumo Comida" value={57259.33} color="bg-[#b4d493]" />
-                 <DataRow label="Consumo Papel" value={5786.06} color="bg-[#b4d493]" />
-                 <DataRow label="Consumo OPS" value={2680.21} color="bg-[#b4d493]" />
+              <div className="space-y-1">
+                 <DataInputRow label="Consumo Comida" value={monthlyData.consumoComida} onChange={v => handleUpdateMonthlyField('consumoComida', v)} />
+                 <DataInputRow label="Consumo Papel" value={monthlyData.consumoPapel} onChange={v => handleUpdateMonthlyField('consumoPapel', v)} />
+                 <DataInputRow label="Consumo OPS" value={monthlyData.consumoOps} onChange={v => handleUpdateMonthlyField('consumoOps', v)} />
               </div>
            </div>
 
-           {/* Col 2 */}
-           <div className="space-y-1">
-              <DataRow label="Inv. Inicial Comida" value={11738.09} color="bg-[#b4d493]" />
-              <DataRow label="Inv. Inicial OPS" value={6407.20} color="bg-[#b4d493]" />
-              <DataRow label="Perdas Comida" value={1072.07} color="bg-[#b4d493]" />
-              <DataRow label="Refeições Comida" value={2409.42} color="bg-[#b4d493]" />
-              <DataRow label="Promo Comida" value={1645.46} color="bg-[#b4d493]" />
-              <div className="pt-2 space-y-1">
-                <DataRow label="Inv. Final Comida" value={15343.73} color="bg-[#b4d493]" />
-                <DataRow label="Inv. Final Papel" value={4556.14} color="bg-[#b4d493]" />
-                <DataRow label="Inv. Final OPS" value={6692.40} color="bg-[#b4d493]" />
-                <DataRow label="Compras OPS Havi" value={2259.59} color="bg-[#b4d493]" />
+           {/* Coluna 2 */}
+           <div className="space-y-4">
+              <div className="space-y-1">
+                <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} />
+                <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} />
+                <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} />
+                <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} />
+                <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} />
+              </div>
+              <div className="space-y-1">
+                <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
+                <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
+                <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
+                <DataInputRow label="Compras OPS Havi" value={monthlyData.comprasOpsHavi} onChange={v => handleUpdateMonthlyField('comprasOpsHavi', v)} />
               </div>
            </div>
 
-           {/* Col 3 */}
-           <div className="space-y-1">
-              <DataRow label="Inv. Inicial Papel" value={4029.76} color="bg-[#b4d493]" />
-              <div className="pt-2 space-y-1">
-                 <DataRow label="Perdas Papel" value={15.63} color="bg-[#b4d493]" />
-                 <DataRow label="Refeições Papel" value={154.23} color="bg-[#b4d493]" />
-                 <DataRow label="Promo Papel" value={102.81} color="bg-[#b4d493]" />
+           {/* Coluna 3 */}
+           <div className="space-y-4">
+              <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} />
+              <div className="space-y-1">
+                <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} />
+                <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} />
+                <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
               </div>
-              <div className="pt-4 space-y-1">
-                 <DataRow label="% Custo Comida" value="26,62%" color="bg-[#b4d493]" isPercentage />
-                 <DataRow label="% Custo Papel" value="2,69%" color="bg-[#b4d493]" isPercentage />
-                 <DataRow label="% Custo OPS" value="1,25%" color="bg-[#b4d493]" isPercentage />
-                 <DataRow label="Compras OPS MaiaPapper" value={450.00} color="bg-[#b4d493]" />
+              <div className="space-y-1">
+                 <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                 <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                 <DataDisplayRow label="% Custo OPS" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                 <DataInputRow label="Compras OPS MaiaPapper" value={monthlyData.comprasOpsMaiaPapper} onChange={v => handleUpdateMonthlyField('comprasOpsMaiaPapper', v)} />
               </div>
            </div>
-
         </div>
       </div>
     </div>
   );
 };
 
-const SummaryBox: React.FC<{ title: string, value: number }> = ({ title, value }) => (
-  <div className="border border-[#b4d493] rounded-sm overflow-hidden flex flex-col items-center">
-    <div className="bg-[#b4d493] w-full py-1 text-[9px] font-black uppercase text-center text-gray-700 tracking-tighter">
-      {title}
-    </div>
-    <div className="bg-white w-full py-2 text-center text-sm font-bold text-gray-500 tabular-nums">
-      {value.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
-    </div>
-  </div>
-);
-
-const SubReportSection: React.FC<{ title: string, isLast?: boolean, isCustom?: boolean }> = ({ title, isLast, isCustom }) => (
-  <div className="flex flex-col border border-gray-200">
-    <div className={`bg-gray-50 py-1.5 text-center font-bold text-[13px] text-gray-600 border-b border-gray-200 flex items-center justify-center gap-2`}>
-      {title} {isCustom && <span className="text-[10px] text-gray-400 font-normal">(450,00€)</span>}
-    </div>
-    <div className="grid grid-cols-2 text-[9px] font-black uppercase text-gray-400 border-b border-gray-100">
-      <div className="px-2 py-1 border-r border-gray-50">Data</div>
-      <div className="px-2 py-1 text-right">Total</div>
-    </div>
-    <div className="h-12 bg-white flex flex-col divide-y divide-gray-50">
-       <div className="grid grid-cols-2 h-6">
-          <div className="border-r border-gray-50"></div>
-          <div></div>
-       </div>
-       <div className="grid grid-cols-2 h-6">
-          <div className="border-r border-gray-50"></div>
-          <div></div>
-       </div>
-    </div>
-  </div>
-);
-
-const DataRow: React.FC<{ label: string, value: number | string, color?: string, isHeader?: boolean, isPercentage?: boolean }> = ({ label, value, color, isHeader, isPercentage }) => {
-  const formattedValue = typeof value === 'number' ? value.toLocaleString('pt-PT', { minimumFractionDigits: 2 }) : value;
-  
+const DataInputRow: React.FC<{ label: string, value: number, onChange: (val: number) => void, isHeader?: boolean }> = ({ label, value, onChange, isHeader }) => {
   return (
     <div className="flex gap-1.5 items-stretch h-7">
-      <div className={`${color || 'bg-gray-100'} px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
-        <span className={`text-[10px] font-bold tracking-tight ${color ? 'text-white' : 'text-gray-500'} uppercase truncate`}>{label}</span>
+      <div className={`bg-[#b4d493] px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
+        <span className={`text-[10px] font-bold tracking-tight text-gray-700 uppercase truncate`}>{label}</span>
       </div>
-      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end px-3 font-black text-xs text-gray-700 ${isHeader ? 'bg-gray-50' : ''}`}>
-        {formattedValue} {!isPercentage && typeof value === 'number' ? '' : ''}
+      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end font-black text-xs text-gray-700 overflow-hidden ${isHeader ? 'bg-gray-50' : 'bg-white'}`}>
+        <input 
+          type="number" 
+          step="0.01" 
+          value={value || ''} 
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          className="w-full h-full text-right px-3 bg-transparent border-none outline-none focus:ring-0 transition-colors"
+          placeholder="0.00"
+        />
+      </div>
+    </div>
+  );
+};
+
+const DataDisplayRow: React.FC<{ label: string, value: string }> = ({ label, value }) => {
+  return (
+    <div className="flex gap-1.5 items-stretch h-7">
+      <div className={`bg-[#b4d493] px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
+        <span className={`text-[10px] font-bold tracking-tight text-gray-700 uppercase truncate`}>{label}</span>
+      </div>
+      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end px-3 font-black text-xs text-gray-700 bg-gray-50`}>
+        {value}
       </div>
     </div>
   );

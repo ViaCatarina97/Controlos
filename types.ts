@@ -160,3 +160,39 @@ export interface CreditNoteRecord {
   reason: string;
   status: 'Pendente' | 'Recebido';
 }
+
+export interface OtherSupplierEntry {
+  id: string;
+  supplier: 'Air Liquide' | 'MaiaPapper';
+  date: string;
+  quantity: number;
+  invoiceValue: number;
+  myStoreValue: number;
+  managerId: string;
+}
+
+export interface MonthlyOperationalData {
+  month: string; // YYYY-MM
+  vendasMes: number;
+  comprasComida: number;
+  comprasPapel: number;
+  comprasTotalOps: number;
+  consumoComida: number;
+  consumoPapel: number;
+  consumoOps: number;
+  invInicialComida: number;
+  invInicialOps: number;
+  perdasComida: number;
+  refeicoesComida: number;
+  promoComida: number;
+  invFinalComida: number;
+  invFinalPapel: number;
+  invFinalOps: number;
+  comprasOpsHavi: number;
+  invInicialPapel: number;
+  perdasPapel: number;
+  refeicoesPapel: number;
+  promoPapel: number;
+  comprasOpsMaiaPapper: number;
+  otherSuppliers: OtherSupplierEntry[];
+}

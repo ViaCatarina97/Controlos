@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppSettings, RestaurantTypology } from '../types';
 import { AVAILABLE_TYPOLOGIES, DEFAULT_SETTINGS } from '../constants';
@@ -65,8 +66,7 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
         <div className="bg-blue-600 p-8 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-white opacity-5 transform rotate-12 scale-150"></div>
           <div className="relative z-10">
-            <h1 className="text-3xl font-extrabold text-white tracking-tight mb-1">TeamPos</h1>
-            <p className="text-blue-100 text-sm">Gestão de Equipas & Operações</p>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">Controlos de Gestão</h1>
           </div>
         </div>
 
@@ -153,7 +153,7 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
 
           <div className="mt-6 text-center pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-500 mb-2">
-              {isRegistering ? 'Já tem uma conta?' : 'Novo no TeamPos?'}
+              {isRegistering ? 'Já tem uma conta?' : 'Novo no sistema?'}
             </p>
             <button
               onClick={() => {
@@ -171,7 +171,7 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
       </div>
       
       <div className="fixed bottom-4 text-slate-500 text-xs text-center w-full">
-         &copy; {new Date().getFullYear()} TeamPos. v2.1
+         &copy; {new Date().getFullYear()} Controlos de Gestão. v2.1
       </div>
     </div>
   );

@@ -133,11 +133,15 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
             )}
             {activeTab === 'credits' && (
               <div className="p-12 text-center text-gray-400 italic">
-                <ConstructionModule label="Notas de Crédito" />
+                <div className="flex flex-col items-center py-20">
+                    <FileText size={48} className="text-gray-200 mb-4" />
+                    <h3 className="text-lg font-bold text-gray-400 mb-1">Notas de Crédito</h3>
+                    <p className="text-sm">Esta funcionalidade está a ser preparada para o próximo lançamento.</p>
+                </div>
               </div>
             )}
             {activeTab === 'summary' && (
-              <BillingSummary deliveries={deliveries} />
+              <BillingSummary deliveries={deliveries} employees={employees} />
             )}
           </div>
         </>
@@ -166,7 +170,7 @@ const DeliveriesTab: React.FC<{
       <div className="p-6 border-b border-gray-100 flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Registo de Entregas</h2>
-          <p className="text-sm text-gray-500">Gestão e conferência de faturas HAVI vs SMS.</p>
+          <p className="text-sm text-gray-500">Gestão e conferência de faturas HAVI vs MyStore.</p>
         </div>
         <button 
           onClick={onOpenCreate}
@@ -298,11 +302,3 @@ const NewDeliveryModal: React.FC<{ employees: Employee[], onClose: () => void, o
     </div>
   );
 };
-
-const ConstructionModule: React.FC<{ label: string }> = ({ label }) => (
-  <div className="flex flex-col items-center py-20">
-    <FileText size={48} className="text-gray-200 mb-4" />
-    <h3 className="text-lg font-bold text-gray-400 mb-1">{label}</h3>
-    <p className="text-sm">Esta funcionalidade está a ser preparada para o próximo lançamento.</p>
-  </div>
-);

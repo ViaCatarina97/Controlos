@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
@@ -231,7 +232,6 @@ const App: React.FC = () => {
           {activeModule === 'billing' && (
             <>
               <NavButton active={activeTab === 'billing_main'} onClick={() => setActiveTab('billing_main')} icon={<FileText size={20} />} label="Entregas" expanded={sidebarOpen} />
-              <NavButton active={activeTab === 'billing_staff'} onClick={() => setActiveTab('billing_staff')} icon={<UserCircle size={20} />} label="Gestão Equipa" expanded={sidebarOpen} />
             </>
           )}
         </nav>
