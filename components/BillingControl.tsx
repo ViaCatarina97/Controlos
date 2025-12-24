@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
+import { BillingSummary } from './BillingSummary';
 import { Truck, FileMinus, ClipboardList, Plus, Search, Trash2, Eye, Calendar, User, FileText, CheckCircle2, Clock } from 'lucide-react';
 
 interface BillingControlProps {
@@ -136,9 +137,7 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
               </div>
             )}
             {activeTab === 'summary' && (
-              <div className="p-12 text-center text-gray-400 italic">
-                <ConstructionModule label="Resumo de Faturação" />
-              </div>
+              <BillingSummary deliveries={deliveries} />
             )}
           </div>
         </>
