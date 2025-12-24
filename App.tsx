@@ -8,8 +8,8 @@ import { Login } from './components/Login';
 import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
-import { STATIONS, INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Cloud, FileText, Loader2, Receipt } from 'lucide-react';
+import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Cloud, FileText, Loader2 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -21,7 +21,7 @@ type ModuleType = 'positioning' | 'finance' | 'billing';
 const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -38,24 +38,30 @@ const App: React.FC = () => {
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  const syncToCloud = useCallback(async (manualSchedules?: DailySchedule[]) => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
+  // --- FUNÇÃO DE GRAVAÇÃO MESTRE (REFORÇADA) ---
+  const forceSync = async (overrides: any = {}) => {
+    if (!authenticatedRestaurantId) return;
     setIsSyncing(true);
+    
+    const dataToSave = {
+      restaurant_id: authenticatedRestaurantId,
+      employees: overrides.employees || currentEmployees,
+      staffing_table: overrides.staffing_table || currentStaffingTable,
+      history: overrides.history || historyEntries,
+      schedules: overrides.schedules || savedSchedules,
+      settings: overrides.settings || allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId),
+      updated_at: new Date().toISOString()
+    };
+
     try {
-      await supabase.from('restaurant_data').upsert({
-        restaurant_id: authenticatedRestaurantId,
-        employees: currentEmployees,
-        staffing_table: currentStaffingTable,
-        history: historyEntries,
-        schedules: manualSchedules || savedSchedules,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'restaurant_id' });
+      const { error } = await supabase.from('restaurant_data').upsert(dataToSave, { onConflict: 'restaurant_id' });
+      if (error) throw error;
     } catch (err) {
-      console.error("Erro na sincronização:", err);
+      console.error("Erro ao gravar:", err);
     } finally {
       setTimeout(() => setIsSyncing(false), 500);
     }
-  }, [authenticatedRestaurantId, isLoaded, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
+  };
 
   const loadDataFromCloud = async (restaurantId: string) => {
     setIsLoaded(false);
@@ -66,22 +72,30 @@ const App: React.FC = () => {
         setCurrentStaffingTable(data.staffing_table || DEFAULT_STAFFING_TABLE);
         setHistoryEntries(data.history || MOCK_HISTORY);
         setSavedSchedules(data.schedules || []);
+        if (data.settings) {
+          setAllRestaurants(prev => prev.map(r => r.restaurantId === restaurantId ? { ...r, ...data.settings } : r));
+        }
       }
     } finally { setIsLoaded(true); }
   };
 
+  // --- HANDLERS PARA GRAVAÇÃO IMEDIATA ---
+
+  const handleSaveSettings = (updatedSettings: AppSettings) => {
+    setAllRestaurants(prev => prev.map(r => r.restaurantId === updatedSettings.restaurantId ? updatedSettings : r));
+    forceSync({ settings: updatedSettings });
+  };
+
   const handleSaveSchedule = async (scheduleToSave: DailySchedule) => {
     setCurrentSchedule(scheduleToSave);
-    const updatedSchedules = [...savedSchedules.filter(s => s.date !== scheduleToSave.date), scheduleToSave];
-    setSavedSchedules(updatedSchedules);
-    await syncToCloud(updatedSchedules);
+    const updated = [...savedSchedules.filter(s => s.date !== scheduleToSave.date), scheduleToSave];
+    setSavedSchedules(updated);
+    await forceSync({ schedules: updated });
   };
 
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
     const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!GEMINI_KEY) { alert("Configure a chave API no Vercel"); setIsProcessingInvoice(false); return; }
-    
     try {
       const base64Data = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -89,8 +103,7 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      // Prompt limpo sem marcações de citação para evitar erros de build
-      const prompt = "Analise esta fatura da HAVI Logistics. Extraia o Nº DOCUMENTO, a DATA DOCUMENTO e a tabela TOTAL POR GRUPO PRODUTO. Devolva exclusivamente em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number}";
+      const prompt = "Analise esta fatura da HAVI Logistics[cite: 1]. Extraia o Nº DOCUMENTO [cite: 29, 65], a DATA DOCUMENTO  e a tabela TOTAL POR GRUPO PRODUTO[cite: 57, 58]. Devolva em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number [cite: 58, 60]}";
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: 'POST',
@@ -100,31 +113,22 @@ const App: React.FC = () => {
 
       const data = await response.json();
       const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '');
-      const faturaExtraida = JSON.parse(textoLimpo);
+      const f = JSON.parse(textoLimpo);
 
       await supabase.from('faturas_havi').insert({
         restaurant_id: restaurantId,
-        num_documento: faturaExtraida.documento,
-        data_documento: faturaExtraida.data,
-        dados_grupos: faturaExtraida.grupos,
-        valor_total_liquido: faturaExtraida.total_liquido
+        num_documento: f.documento,
+        data_documento: f.data,
+        dados_grupos: f.grupos,
+        valor_total_liquido: f.total_liquido
       });
       alert("Fatura Gravada!");
-    } catch (error) { 
-      console.error(error);
-      alert("Erro ao processar a fatura."); 
-    } finally { setIsProcessingInvoice(false); }
+    } catch (e) { alert("Erro ao processar"); } finally { setIsProcessingInvoice(false); }
   };
 
   useEffect(() => {
     if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
   }, [authenticatedRestaurantId]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    const timer = setTimeout(() => syncToCloud(), 3000);
-    return () => clearTimeout(timer);
-  }, [currentEmployees, currentStaffingTable, historyEntries, syncToCloud]);
 
   useEffect(() => {
     const existing = savedSchedules.find(s => s.date === targetDate);
@@ -143,7 +147,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20`}>
         <div className="p-4 border-b border-slate-700 h-16 flex items-center gap-3">
           <Building2 size={20} className="text-blue-500" />
           {sidebarOpen && <span className="font-bold truncate text-sm">{activeRestaurant.restaurantName}</span>}
@@ -166,30 +170,27 @@ const App: React.FC = () => {
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-gray-50 flex flex-col">
+      <main className="flex-1 overflow-auto bg-gray-50 flex flex-col text-slate-900">
         <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10 px-8">
-          <h2 className="font-bold text-gray-800 uppercase text-xs tracking-widest">{activeTab}</h2>
-          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> SYNCING...</div>}
+          <h2 className="font-bold uppercase text-xs tracking-widest">{activeTab}</h2>
+          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> GRAVANDO...</div>}
         </header>
         <div className="p-8">
           {!isLoaded ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500" size={40} /></div> : (
             <>
               {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} />}
+              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveSettings} employees={currentEmployees} setEmployees={(emps) => { setCurrentEmployees(emps); forceSync({ employees: emps }); }} />}
               {activeTab === 'havi_invoices' && (
                 <div className="max-w-xl mx-auto bg-white p-12 rounded-3xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6"><FileText size={32} /></div>
-                  <h3 className="text-xl font-bold mb-2 text-gray-900">Importar Fatura HAVI</h3>
-                  <p className="text-gray-500 mb-8 text-center text-sm">Os dados de Nº de Documento, Data e Totais por Grupo [cite: 29, 30, 57, 58] serão extraídos automaticamente.</p>
+                  <FileText size={48} className="text-blue-500 mb-4" />
+                  <h3 className="font-bold mb-2">Controlo Faturação HAVI</h3>
                   <input type="file" accept="application/pdf,image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f && authenticatedRestaurantId) processarFaturaHavi(f, authenticatedRestaurantId); }} className="hidden" id="inv-up" />
-                  <label htmlFor="inv-up" className={`px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold cursor-pointer hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 ${isProcessingInvoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    {isProcessingInvoice ? 'Processando Fatura...' : 'Selecionar Ficheiro'}
-                  </label>
+                  <label htmlFor="inv-up" className="mt-4 px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold cursor-pointer">{isProcessingInvoice ? 'Processando...' : 'Carregar Fatura'}</label>
                 </div>
               )}
-              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={(u) => setAllRestaurants(prev => prev.map(r => r.restaurantId === u.restaurantId ? u : r))} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
-              {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
-              {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} targetSales={targetSales} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
-              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d) => {setTargetDate(d); setActiveTab('positioning');}} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
+              {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={(st) => { setCurrentStaffingTable(st); forceSync({ staffing_table: st }); }} />}
+              {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={(h) => { setHistoryEntries(h); forceSync({ history: h }); }} targetDate={targetDate} setTargetDate={setTargetDate} targetSales={targetSales} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
+              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d) => {setTargetDate(d); setActiveTab('positioning');}} onDeleteSchedule={(d) => { const filtered = savedSchedules.filter(s => s.date !== d); setSavedSchedules(filtered); forceSync({ schedules: filtered }); }} employees={currentEmployees} />}
             </>
           )}
         </div>
