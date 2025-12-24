@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabaseClient';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
@@ -7,9 +7,10 @@ import { Positioning } from './components/Positioning';
 import { Login } from './components/Login';
 import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
-import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
-import { STATIONS, INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, Cloud, FileText, Loader2 } from 'lucide-react';
+import { BillingControl } from './components/BillingControl';
+import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
+import { DEFAULT_SETTINGS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, FileText, UserCircle } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
 
@@ -27,8 +28,11 @@ const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, exp
     className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors mb-1
       ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
     `}
+    title={!expanded ? label : ''}
   >
-    <div className={active ? 'text-white' : ''}>{icon}</div>
+    <div className={`${active ? 'text-white' : ''}`}>
+      {icon}
+    </div>
     {expanded && <span className="font-medium">{label}</span>}
   </button>
 );
@@ -36,222 +40,241 @@ const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label, exp
 const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
-  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings' | 'invoices'>('positioning');
+  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings' | 'billing_main'>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isProcessingInvoice, setIsProcessingInvoice] = useState(false);
   
-  const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(INITIAL_RESTAURANTS);
+  const SETTINGS_KEY = 'app_all_restaurants';
+  const EMPLOYEES_KEY = (id: string) => `app_employees_${id}`;
+  const STAFFING_TABLE_KEY = (id: string) => `app_staffing_table_${id}`; 
+  const HISTORY_KEY = (id: string) => `app_history_detailed_${id}`;
+  const SCHEDULES_KEY = (id: string) => `app_schedules_${id}`;
+
+  const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(() => {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    const parsed: AppSettings[] = saved ? JSON.parse(saved) : INITIAL_RESTAURANTS;
+    return parsed.map(r => ({ ...r, customStations: r.customStations || STATIONS }));
+  });
+
   const [currentEmployees, setCurrentEmployees] = useState<Employee[]>([]);
   const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]); 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [savedSchedules, setSavedSchedules] = useState<DailySchedule[]>([]);
   
   const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
+  const [targetShift, setTargetShift] = useState<ShiftType | null>(null);
   const [targetSales, setTargetSales] = useState(0);
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
-  const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  // --- LÓGICA DE FATURAS HAVI ---
-  const processarFaturaHavi = async (file: File, restaurantId: string) => {
-    setIsProcessingInvoice(true);
-    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({
+    date: targetDate,
+    shifts: {}
+  });
 
-    if (!API_KEY) {
-      alert("Erro: VITE_GEMINI_API_KEY não configurada no Vercel.");
-      setIsProcessingInvoice(false);
+  useEffect(() => {
+    if (!authenticatedRestaurantId) {
+      setIsLoaded(false);
       return;
     }
-    
-    try {
-      const base64Data = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
-      });
+    const empSaved = localStorage.getItem(EMPLOYEES_KEY(authenticatedRestaurantId));
+    setCurrentEmployees(empSaved ? JSON.parse(empSaved) : MOCK_EMPLOYEES);
+    const staffingSaved = localStorage.getItem(STAFFING_TABLE_KEY(authenticatedRestaurantId));
+    setCurrentStaffingTable(staffingSaved ? JSON.parse(staffingSaved) : DEFAULT_STAFFING_TABLE);
+    const historySaved = localStorage.getItem(HISTORY_KEY(authenticatedRestaurantId));
+    setHistoryEntries(historySaved ? JSON.parse(historySaved) : MOCK_HISTORY);
+    const schedSaved = localStorage.getItem(SCHEDULES_KEY(authenticatedRestaurantId));
+    setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+    setTimeout(() => setIsLoaded(true), 100);
+  }, [authenticatedRestaurantId]);
 
-      const prompt = `Analisa esta fatura da HAVI Logistics. 
-      Extrai o 'Nº DOCUMENTO' e 'DATA DOCUMENTO'.
-      Na tabela 'TOTAL POR GRUPO PRODUTO', extrai cada GRUPO e o respetivo VALOR TOTAL.
-      Responde apenas em JSON puro:
-      {
-        "documento": "string",
-        "data": "YYYY-MM-DD",
-        "grupos": [{"nome": "string", "total": number}],
-        "total_liquido": number
-      }`;
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(allRestaurants));
+  }, [allRestaurants]);
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: file.type, data: base64Data } }
-            ]
-          }]
-        })
-      });
+  useEffect(() => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+    localStorage.setItem(EMPLOYEES_KEY(authenticatedRestaurantId), JSON.stringify(currentEmployees));
+    localStorage.setItem(STAFFING_TABLE_KEY(authenticatedRestaurantId), JSON.stringify(currentStaffingTable));
+    localStorage.setItem(HISTORY_KEY(authenticatedRestaurantId), JSON.stringify(historyEntries));
+    localStorage.setItem(SCHEDULES_KEY(authenticatedRestaurantId), JSON.stringify(savedSchedules));
+  }, [isLoaded, authenticatedRestaurantId, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
-      const data = await response.json();
-      if (data.error) throw new Error(data.error.message);
+  useEffect(() => {
+    const existingSchedule = savedSchedules.find(s => s.date === targetDate);
+    if (existingSchedule) {
+        setCurrentSchedule({
+          ...existingSchedule,
+          lockedShifts: existingSchedule.lockedShifts || []
+        });
+    } else {
+        setCurrentSchedule({ 
+          date: targetDate, 
+          shifts: {},
+          lockedShifts: []
+        });
+    }
+    const known = historyEntries.find(s => s.date === targetDate);
+    if(known) setTargetSales(known.totalSales);
+  }, [targetDate, historyEntries, savedSchedules]);
 
-      const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '');
-      const faturaExtraida = JSON.parse(textoLimpo);
+  const handleRegister = (newRest: AppSettings) => {
+    const restWithStations = { ...newRest, customStations: STATIONS };
+    setAllRestaurants(prev => [...prev, restWithStations]);
+    setAuthenticatedRestaurantId(newRest.restaurantId);
+    setActiveModule(null); 
+  };
 
-      const { error: supabaseError } = await supabase.from('faturas_havi').insert({
-        restaurant_id: restaurantId,
-        num_documento: faturaExtraida.documento,
-        data_documento: faturaExtraida.data,
-        dados_grupos: faturaExtraida.grupos,
-        valor_total_liquido: faturaExtraida.total_liquido
-      });
+  const handleLogin = (restaurant: AppSettings) => {
+    setAuthenticatedRestaurantId(restaurant.restaurantId);
+    setActiveModule(null); 
+  };
 
-      if (supabaseError) throw supabaseError;
-      alert("Fatura HAVI processada e gravada com sucesso!");
-    } catch (error: any) {
-      console.error("Erro no processamento:", error);
-      alert("Erro ao processar fatura: " + error.message);
-    } finally {
-      setIsProcessingInvoice(false);
+  const handleLogout = () => {
+    setAuthenticatedRestaurantId(null);
+    setActiveModule(null);
+    setActiveTab('positioning');
+    setIsLoaded(false);
+  };
+
+  const handleUpdateSettings = (updated: AppSettings) => {
+    setAllRestaurants(prev => prev.map(r => r.restaurantId === updated.restaurantId ? updated : r));
+  };
+
+  const handleSaveSchedule = (scheduleToSave: DailySchedule) => {
+    setCurrentSchedule(scheduleToSave);
+    setSavedSchedules(prev => {
+        const others = prev.filter(s => s.date !== scheduleToSave.date);
+        return [...others, scheduleToSave];
+    });
+    alert("Posicionamento guardado com sucesso!");
+    setActiveTab('schedule_history');
+  };
+
+  const handleLoadFromHistory = (date: string, shift?: ShiftType) => {
+    setTargetDate(date);
+    if (shift) setTargetShift(shift);
+    setActiveTab('positioning');
+  };
+
+  const handleDeleteSchedule = (date: string) => {
+    if (confirm(`Tem a certeza que deseja eliminar o registo de ${date}?`)) {
+      setSavedSchedules(prev => prev.filter(s => s.date !== date));
+      if (targetDate === date) setCurrentSchedule({ date, shifts: {}, lockedShifts: [] });
     }
   };
-
-  // --- SINCRONIZAÇÃO NUVEM ---
-  const loadDataFromCloud = async (restaurantId: string) => {
-    setIsLoaded(false);
-    try {
-      const { data } = await supabase.from('restaurant_data').select('*').eq('restaurant_id', restaurantId).single();
-      if (data) {
-        setCurrentEmployees(data.employees || MOCK_EMPLOYEES);
-        setCurrentStaffingTable(data.staffing_table || DEFAULT_STAFFING_TABLE);
-        setHistoryEntries(data.history || MOCK_HISTORY);
-        setSavedSchedules(data.schedules || []);
-        const cloudSettings = data.settings || {};
-        setAllRestaurants(prev => prev.map(r => r.restaurantId === restaurantId ? { ...r, ...cloudSettings } : r));
-      }
-    } catch (err) { console.error(err); } finally { setTimeout(() => setIsLoaded(true), 600); }
-  };
-
-  const syncToCloud = useCallback(async (manualSchedules?: DailySchedule[]) => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
-    setIsSyncing(true);
-    const currentRest = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
-    if (!currentRest) return;
-    const { restaurantId, customStations, ...otherSettings } = currentRest;
-    try {
-      await supabase.from('restaurant_data').upsert({
-        restaurant_id: authenticatedRestaurantId,
-        employees: currentEmployees,
-        staffing_table: currentStaffingTable,
-        history: historyEntries,
-        schedules: manualSchedules || savedSchedules,
-        settings: otherSettings,
-        updated_at: new Date().toISOString()
-      });
-    } finally { setTimeout(() => setIsSyncing(false), 500); }
-  }, [authenticatedRestaurantId, isLoaded, allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    const timer = setTimeout(() => syncToCloud(), 3000);
-    return () => clearTimeout(timer);
-  }, [currentEmployees, currentStaffingTable, historyEntries, allRestaurants, syncToCloud]);
-
-  useEffect(() => {
-    if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
-  }, [authenticatedRestaurantId]);
 
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
 
   if (!authenticatedRestaurantId || !activeRestaurant) {
-    return <Login restaurants={allRestaurants} onLogin={(r) => setAuthenticatedRestaurantId(r.restaurantId)} onRegister={(r) => { setAllRestaurants(prev => [...prev, r]); setAuthenticatedRestaurantId(r.restaurantId); }} />;
+    return <Login restaurants={allRestaurants} onLogin={handleLogin} onRegister={handleRegister} />;
   }
 
   if (!activeModule) {
-    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={setActiveModule} onLogout={() => setAuthenticatedRestaurantId(null)} />;
+    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={(mod) => {
+      setActiveModule(mod);
+      if (mod === 'billing') setActiveTab('billing_main');
+      else setActiveTab('positioning');
+    }} onLogout={handleLogout} />;
   }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-xl z-20`}>
         <div className="p-4 flex items-center gap-3 border-b border-slate-700 h-16">
           <div className="p-1.5 bg-blue-600 rounded-lg shrink-0"><Building2 size={20} /></div>
           {sidebarOpen && (
-            <div className="overflow-hidden">
-              <h1 className="font-bold text-sm truncate">{activeRestaurant.restaurantName}</h1>
-              <div className="flex items-center gap-1">
-                <Cloud size={12} className={isSyncing ? "text-blue-400 animate-pulse" : "text-emerald-400"} />
-                <p className="text-[10px] uppercase tracking-wider font-bold">{isSyncing ? "A Gravar..." : "Sincronizado"}</p>
+              <div className="overflow-hidden">
+                  <h1 className="font-bold text-sm tracking-tight truncate">{activeRestaurant.restaurantName}</h1>
+                  <p className="text-xs text-slate-400 truncate">{activeModule === 'billing' ? 'Faturação' : 'Operações'}</p>
               </div>
-            </div>
           )}
         </div>
-        
         <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 mb-4 border border-slate-700/30 transition-all">
-            <ArrowLeft size={20} /> {sidebarOpen && <span>Menu Principal</span>}
-          </button>
-          <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'invoices'} onClick={() => setActiveTab('invoices')} icon={<FileText size={20} />} label="Faturas HAVI" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Vendas" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Turnos" expanded={sidebarOpen} />
-          <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Definições" expanded={sidebarOpen} />
-        </nav>
+           <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-slate-400 hover:bg-slate-800 hover:text-white mb-6 border border-slate-700/50">
+             <ArrowLeft size={20} />
+             {sidebarOpen && <span className="font-medium">Menu Principal</span>}
+           </button>
+          
+          {activeModule === 'positioning' && (
+            <>
+              <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Histórico Vendas" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Histórico Turnos" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Definições" expanded={sidebarOpen} />
+            </>
+          )}
 
+          {activeModule === 'billing' && (
+            <>
+              <NavButton active={activeTab === 'billing_main'} onClick={() => setActiveTab('billing_main')} icon={<FileText size={20} />} label="Controlo de Faturação" expanded={sidebarOpen} />
+            </>
+          )}
+        </nav>
         <div className="p-4 border-t border-slate-700">
-          <button onClick={() => setAuthenticatedRestaurantId(null)} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400"><LogOut size={20} /> {sidebarOpen && <span>Sair</span>}</button>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-full mt-2 flex justify-center text-slate-500 hover:text-white"><Menu size={20} /></button>
+             <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
+             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-full mt-2 flex justify-center text-slate-500 hover:text-white"><Menu size={20} /></button>
         </div>
       </aside>
-
       <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm p-6 sticky top-0 z-10 flex justify-between items-center h-16">
-          <h2 className="text-xl font-bold text-gray-800 capitalize">{activeTab.replace('_', ' ')}</h2>
+        <header className="bg-white shadow-sm p-6 sticky top-0 z-10 print:hidden">
+          <h2 className="text-2xl font-bold text-gray-800">
+            {activeModule === 'billing' ? 'Controlo de Faturação' : (
+              <>
+                {activeTab === 'positioning' && 'Posicionamento'}
+                {activeTab === 'staffing' && 'Staffing'}
+                {activeTab === 'sales_history' && 'Histórico de Vendas'}
+                {activeTab === 'schedule_history' && 'Histórico de Turnos'}
+                {activeTab === 'settings' && 'Definições & Staff'}
+              </>
+            )}
+          </h2>
         </header>
-
         <div className="p-6 flex-1">
           {!isLoaded ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500"><Loader2 className="animate-spin text-blue-500 mb-2" size={32} /><p>A sincronizar...</p></div>
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-pulse">
+                <Building2 size={48} className="mb-4" />
+                <p className="font-medium">A carregar base de dados...</p>
+            </div>
           ) : (
             <>
-              {activeTab === 'invoices' && (
-                <div className="max-w-4xl mx-auto">
-                  <div className="bg-white p-12 rounded-2xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
-                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                      <FileText size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold mb-2">Importar Fatura HAVI</h3>
-                    <p className="text-gray-500 mb-8 max-w-sm text-center">Carregue o PDF da fatura para extrair automaticamente os valores por grupo (Congelados, Refrigerados, etc.)</p>
-                    
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file && authenticatedRestaurantId) processarFaturaHavi(file, authenticatedRestaurantId);
-                      }}
-                      disabled={isProcessingInvoice}
-                      className="hidden"
-                      id="invoice-upload"
-                    />
-                    <label
-                      htmlFor="invoice-upload"
-                      className={`cursor-pointer inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 ${isProcessingInvoice ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {isProcessingInvoice ? <><Loader2 className="animate-spin" size={20} /> Processando...</> : 'Selecionar Fatura PDF'}
-                    </label>
-                  </div>
-                </div>
+              {activeTab === 'settings' && activeModule === 'positioning' && <Settings settings={activeRestaurant} onSaveSettings={handleUpdateSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
+              {activeTab === 'staffing' && activeModule === 'positioning' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
+              {activeTab === 'sales_history' && activeModule === 'positioning' && (
+                <HistoryForecast 
+                  history={historyEntries}
+                  setHistory={setHistoryEntries}
+                  targetDate={targetDate}
+                  setTargetDate={setTargetDate}
+                  targetSales={targetSales}
+                  setTargetSales={setTargetSales}
+                  setHourlyData={setHourlyData}
+                  onNavigateToPositioning={() => setActiveTab('positioning')}
+                />
               )}
-              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={(u) => setAllRestaurants(prev => prev.map(r => r.restaurantId === u.restaurantId ? u : r))} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
-              {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
-              {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} targetSales={targetSales} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
-              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d) => {setTargetDate(d); setActiveTab('positioning');}} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
-              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={(s) => {setCurrentSchedule(s); setSavedSchedules(prev => [...prev.filter(x => x.date !== s.date), s]); syncToCloud();}} />}
+              {activeTab === 'schedule_history' && activeModule === 'positioning' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={handleLoadFromHistory} onDeleteSchedule={handleDeleteSchedule} employees={currentEmployees} />}
+              {activeTab === 'positioning' && activeModule === 'positioning' && (
+                <Positioning 
+                  date={targetDate}
+                  setDate={setTargetDate}
+                  projectedSales={targetSales}
+                  employees={currentEmployees.filter(e => e.isActive)}
+                  staffingTable={currentStaffingTable}
+                  schedule={currentSchedule}
+                  setSchedule={setCurrentSchedule}
+                  settings={activeRestaurant}
+                  hourlyData={hourlyData}
+                  onSaveSchedule={handleSaveSchedule}
+                  initialShift={targetShift}
+                  onShiftChangeComplete={() => setTargetShift(null)}
+                />
+              )}
+              {activeTab === 'billing_main' && activeModule === 'billing' && (
+                <BillingControl 
+                  restaurantId={activeRestaurant.restaurantId} 
+                  employees={currentEmployees} 
+                />
+              )}
             </>
           )}
         </div>
