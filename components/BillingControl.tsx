@@ -169,8 +169,8 @@ const DeliveriesTab: React.FC<{
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-gray-100 flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Registo de Entregas</h2>
-          <p className="text-sm text-gray-500">Gestão e conferência de faturas HAVI vs MyStore.</p>
+          <h2 className="text-xl font-bold text-gray-800">Faturas HAVI</h2>
+          <p className="text-sm text-gray-500">Conferência e arquivo de guias de entrega.</p>
         </div>
         <button 
           onClick={onOpenCreate}
@@ -184,7 +184,7 @@ const DeliveriesTab: React.FC<{
         {records.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <Truck size={48} className="mb-4 opacity-20" />
-            <p>Nenhuma entrega registada até ao momento.</p>
+            <p>Nenhuma fatura registada.</p>
           </div>
         ) : (
           <table className="w-full text-left">
@@ -193,7 +193,7 @@ const DeliveriesTab: React.FC<{
                 <th className="px-6 py-4">Data Fatura</th>
                 <th className="px-6 py-4">Gerente</th>
                 <th className="px-6 py-4">Estado</th>
-                <th className="px-6 py-4">Diferença Final</th>
+                <th className="px-6 py-4">Diferença MyStore</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
@@ -213,7 +213,7 @@ const DeliveriesTab: React.FC<{
                     <td className="px-6 py-4">
                       {record.isFinalized ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-                          <CheckCircle2 size={12} /> Concluído
+                          <CheckCircle2 size={12} /> Finalizado
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase">
@@ -295,7 +295,7 @@ const NewDeliveryModal: React.FC<{ employees: Employee[], onClose: () => void, o
             onClick={() => onConfirm(date, managerId)}
             className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
-            Continuar para Conferência
+            Conferir Fatura HAVI
           </button>
         </div>
       </div>

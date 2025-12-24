@@ -207,7 +207,7 @@ const App: React.FC = () => {
 
           {activeModule === 'billing' && (
             <>
-              <NavButton active={activeTab === 'billing_main'} onClick={() => setActiveTab('billing_main')} icon={<FileText size={20} />} label="Controlo de Faturação" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'billing_main'} onClick={() => setActiveTab('billing_main')} icon={<FileText size={20} />} label="Entregas & Faturação" expanded={sidebarOpen} />
             </>
           )}
         </nav>
