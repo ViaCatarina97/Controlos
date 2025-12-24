@@ -38,14 +38,11 @@ const App: React.FC = () => {
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  // --- SINCRONIZAÇÃO NUVEM (GRAVAÇÃO E LEITURA) ---
-
   const syncToCloud = useCallback(async (manualSchedules?: DailySchedule[]) => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     setIsSyncing(true);
-    
     try {
-      const { error } = await supabase.from('restaurant_data').upsert({
+      await supabase.from('restaurant_data').upsert({
         restaurant_id: authenticatedRestaurantId,
         employees: currentEmployees,
         staffing_table: currentStaffingTable,
@@ -53,8 +50,6 @@ const App: React.FC = () => {
         schedules: manualSchedules || savedSchedules,
         updated_at: new Date().toISOString()
       }, { onConflict: 'restaurant_id' });
-
-      if (error) throw error;
     } catch (err) {
       console.error("Erro na sincronização:", err);
     } finally {
@@ -72,31 +67,20 @@ const App: React.FC = () => {
         setHistoryEntries(data.history || MOCK_HISTORY);
         setSavedSchedules(data.schedules || []);
       }
-    } catch (err) { console.error(err); } 
-    finally { setIsLoaded(true); }
+    } finally { setIsLoaded(true); }
   };
-
-  // --- HANDLERS ESPECÍFICOS ---
 
   const handleSaveSchedule = async (scheduleToSave: DailySchedule) => {
-    // 1. Atualiza o estado visual
     setCurrentSchedule(scheduleToSave);
-    
-    // 2. Prepara a nova lista de turnos
     const updatedSchedules = [...savedSchedules.filter(s => s.date !== scheduleToSave.date), scheduleToSave];
     setSavedSchedules(updatedSchedules);
-    
-    // 3. Força a gravação imediata na nuvem
     await syncToCloud(updatedSchedules);
-    
-    if(scheduleToSave.isLocked) alert("Posicionamento Finalizado e Gravado!");
   };
 
-  // Processamento de faturas HAVI
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
     const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!GEMINI_KEY) { alert("Configure VITE_GEMINI_API_KEY"); setIsProcessingInvoice(false); return; }
+    if (!GEMINI_KEY) { alert("Configure a chave API no Vercel"); setIsProcessingInvoice(false); return; }
     
     try {
       const base64Data = await new Promise<string>((resolve) => {
@@ -105,7 +89,8 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      [cite_start]const prompt = "Analise esta fatura da HAVI Logistics[cite: 1]. [cite_start]Extraia Nº DOCUMENTO [cite: 29, 65][cite_start], DATA DOCUMENTO [cite: 30] [cite_start]e a tabela TOTAL POR GRUPO PRODUTO[cite: 57, 58]. [cite_start]Devolva JSON: {documento, data, grupos: [{nome, total}], total_liquido [cite: 58, 60]}";
+      // Prompt limpo sem marcações de citação para evitar erros de build
+      const prompt = "Analise esta fatura da HAVI Logistics. Extraia o Nº DOCUMENTO, a DATA DOCUMENTO e a tabela TOTAL POR GRUPO PRODUTO. Devolva exclusivamente em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number}";
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: 'POST',
@@ -125,15 +110,16 @@ const App: React.FC = () => {
         valor_total_liquido: faturaExtraida.total_liquido
       });
       alert("Fatura Gravada!");
-    } catch (error) { alert("Erro ao processar"); } 
-    finally { setIsProcessingInvoice(false); }
+    } catch (error) { 
+      console.error(error);
+      alert("Erro ao processar a fatura."); 
+    } finally { setIsProcessingInvoice(false); }
   };
 
   useEffect(() => {
     if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
   }, [authenticatedRestaurantId]);
 
-  // Auto-save para definições e funcionários (3 segundos)
   useEffect(() => {
     if (!isLoaded) return;
     const timer = setTimeout(() => syncToCloud(), 3000);
@@ -142,8 +128,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const existing = savedSchedules.find(s => s.date === targetDate);
-    if (existing) setCurrentSchedule(existing);
-    else setCurrentSchedule({ date: targetDate, shifts: {} });
+    setCurrentSchedule(existing || { date: targetDate, shifts: {} });
   }, [targetDate, savedSchedules]);
 
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
@@ -158,7 +143,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20 shadow-2xl`}>
         <div className="p-4 border-b border-slate-700 h-16 flex items-center gap-3">
           <Building2 size={20} className="text-blue-500" />
           {sidebarOpen && <span className="font-bold truncate text-sm">{activeRestaurant.restaurantName}</span>}
@@ -175,32 +160,30 @@ const App: React.FC = () => {
               <button onClick={() => setActiveTab('schedule_history')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'schedule_history' ? 'bg-blue-600' : ''}`}><History size={20} />{sidebarOpen && <span>Turnos</span>}</button>
             </>
           ) : (
-            <>
-              <button onClick={() => setActiveTab('havi_invoices')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'havi_invoices' ? 'bg-blue-600' : ''}`}><FileText size={20} />{sidebarOpen && <span>Faturas HAVI</span>}</button>
-            </>
+            <button onClick={() => setActiveTab('havi_invoices')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'havi_invoices' ? 'bg-blue-600' : ''}`}><FileText size={20} />{sidebarOpen && <span>Faturas HAVI</span>}</button>
           )}
           <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'settings' ? 'bg-blue-600' : ''}`}><SettingsIcon size={20} />{sidebarOpen && <span>Definições</span>}</button>
         </nav>
-        <div className="p-4 border-t border-slate-700">
-          <button onClick={() => setAuthenticatedRestaurantId(null)} className="flex items-center gap-3 p-2 text-slate-400 hover:text-red-400"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
-        </div>
       </aside>
 
-      <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10">
-          <h2 className="font-bold text-gray-800 uppercase text-sm tracking-widest">{activeTab}</h2>
-          {isSyncing && <div className="text-blue-600 text-xs flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> Sincronizando...</div>}
+      <main className="flex-1 overflow-auto bg-gray-50 flex flex-col">
+        <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10 px-8">
+          <h2 className="font-bold text-gray-800 uppercase text-xs tracking-widest">{activeTab}</h2>
+          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> SYNCING...</div>}
         </header>
-        <div className="p-6">
+        <div className="p-8">
           {!isLoaded ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500" size={40} /></div> : (
             <>
               {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} />}
               {activeTab === 'havi_invoices' && (
-                <div className="max-w-xl mx-auto bg-white p-10 rounded-2xl shadow-sm border-2 border-dashed flex flex-col items-center">
-                  <FileText size={48} className="text-blue-500 mb-4" />
-                  <h3 className="font-bold mb-2">Carregar Fatura HAVI</h3>
+                <div className="max-w-xl mx-auto bg-white p-12 rounded-3xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6"><FileText size={32} /></div>
+                  <h3 className="text-xl font-bold mb-2 text-gray-900">Importar Fatura HAVI</h3>
+                  <p className="text-gray-500 mb-8 text-center text-sm">Os dados de Nº de Documento, Data e Totais por Grupo [cite: 29, 30, 57, 58] serão extraídos automaticamente.</p>
                   <input type="file" accept="application/pdf,image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f && authenticatedRestaurantId) processarFaturaHavi(f, authenticatedRestaurantId); }} className="hidden" id="inv-up" />
-                  <label htmlFor="inv-up" className="mt-4 px-8 py-3 bg-blue-600 text-white rounded-lg font-bold cursor-pointer">{isProcessingInvoice ? 'Processando...' : 'Selecionar Ficheiro'}</label>
+                  <label htmlFor="inv-up" className={`px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold cursor-pointer hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 ${isProcessingInvoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    {isProcessingInvoice ? 'Processando Fatura...' : 'Selecionar Ficheiro'}
+                  </label>
                 </div>
               )}
               {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={(u) => setAllRestaurants(prev => prev.map(r => r.restaurantId === u.restaurantId ? u : r))} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
