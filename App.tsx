@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
@@ -10,6 +10,11 @@ import { ScheduleHistory } from './components/ScheduleHistory';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry } from './types';
 import { STATIONS, INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from './constants';
 import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, Construction, Cloud, FileText, Loader2 } from 'lucide-react';
+
+// --- CONFIGURAÇÃO SUPABASE INTEGRADA ---
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
 
@@ -56,9 +61,9 @@ const App: React.FC = () => {
   // --- LÓGICA DE FATURAS HAVI ---
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
-    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-    if (!API_KEY) {
+    if (!GEMINI_KEY) {
       alert("Erro: VITE_GEMINI_API_KEY não configurada no Vercel.");
       setIsProcessingInvoice(false);
       return;
@@ -71,10 +76,11 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      const prompt = `Analisa esta fatura da HAVI Logistics. 
-      Extrai o 'Nº DOCUMENTO' e 'DATA DOCUMENTO'.
-      Na tabela 'TOTAL POR GRUPO PRODUTO', extrai cada GRUPO e o respetivo VALOR TOTAL.
-      Responde apenas em JSON puro:
+      // Prompt otimizado para a fatura HAVI enviada
+      const prompt = `Analise esta fatura da HAVI Logistics. 
+      Extraia o 'Nº DOCUMENTO' e 'DATA DOCUMENTO'.
+      Na tabela 'TOTAL POR GRUPO PRODUTO', extraia cada GRUPO e o respetivo VALOR TOTAL.
+      Responda apenas em JSON puro:
       {
         "documento": "string",
         "data": "YYYY-MM-DD",
@@ -82,7 +88,7 @@ const App: React.FC = () => {
         "total_liquido": number
       }`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -225,7 +231,7 @@ const App: React.FC = () => {
                       <FileText size={32} />
                     </div>
                     <h3 className="text-xl font-bold mb-2">Importar Fatura HAVI</h3>
-                    <p className="text-gray-500 mb-8 max-w-sm text-center">Carregue o PDF da fatura para extrair automaticamente os valores por grupo.</p>
+                    <p className="text-gray-500 mb-8 max-w-sm text-center">Carregue o PDF da fatura para extrair os valores por grupo.</p>
                     
                     <input
                       type="file"
