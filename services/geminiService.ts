@@ -1,6 +1,5 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { StaffingTableEntry, AppSettings, Employee, SalesData } from "../types";
 
 // Função para converter File para Base64 com tratamento de erro
 const fileToBase64 = (file: File): Promise<string> => {
@@ -23,31 +22,30 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
-    // 1. Converter PDF para Base64
     const base64Data = await fileToBase64(file);
 
-    // 2. Definir o Prompt especializado na fatura HAVI
     const prompt = `
-      Atue como um especialista em processamento de faturas logísticas. 
-      Analise o PDF da fatura HAVI fornecido e extraia os dados da tabela "TOTAL POR GRUPO PRODUTO".
-      
-      INSTRUÇÕES:
-      1. Localize a tabela "TOTAL POR GRUPO PRODUTO".
-      2. Para cada grupo listado (ex: CONGELADOS, REFRIGERADOS, SECOS PAPEL), extraia o valor numérico da coluna "VALOR TOTAL" (a última coluna da direita).
-      3. Localize a linha de "TOTAL" e extraia o valor da coluna "PTO VERDE".
-      
-      MAPEAMENTO DE NOMES DE GRUPO:
-      Retorne os nomes normalizados conforme o UI: "Congelados", "Refrigerados", "Secos Comida", "Secos Papel", "Manutenção Limpeza", "Marketing IPL", "Marketing Geral", "Produtos Frescos", "Manutenção Limpeza Compras", "Condimentos", "Condimentos Cozinha", "Material Adm", "Manuais", "Ferramentas Utensilios", "Marketing Geral Custo", "Fardas", "Distribuição de Marketing", "Bulk Alimentar", "Bulk Papel".
+      Aja como um especialista em análise de dados logísticos. Analise este documento da HAVI Logistics e foque-se na tabela intitulada 'TOTAL POR GRUPO PRODUTO'.
 
-      REGRAS:
-      - Remova símbolos de moeda (€ ou EUR).
-      - Converta vírgulas decimais para pontos (ex: 6.052,67 -> 6052.67).
-      - Se um grupo não for encontrado, ignore-o ou retorne 0.
-      
-      Responda APENAS em formato JSON puro.
+      Extraia os dados e apresente-os exclusivamente em formato JSON, seguindo estas regras:
+      1. Identifique o 'Nº DOCUMENTO' e a 'DATA DOCUMENTO'.
+      2. Para cada linha da tabela 'TOTAL POR GRUPO PRODUTO', extraia o nome do grupo e o respetivo 'VALOR TOTAL' (a última coluna).
+      3. Extraia também o 'PTO VERDE' da linha 'TOTAL' dessa tabela se disponível.
+      4. Converta todos os valores monetários para formato numérico (ex: 9.412,00 deve tornar-se 9412.00).
+
+      Estrutura JSON esperada:
+      {
+        "documento": "string",
+        "data": "string",
+        "grupos": [
+          { "nome": "string", "total": number },
+          ...
+        ],
+        "pto_verde": number,
+        "valor_final_fatura": number
+      }
     `;
 
-    // 3. Chamar a API do Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -66,62 +64,31 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            groups: {
+            documento: { type: Type.STRING },
+            data: { type: Type.STRING },
+            grupos: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  description: { type: Type.STRING },
+                  nome: { type: Type.STRING },
                   total: { type: Type.NUMBER }
                 },
-                required: ["description", "total"]
+                required: ["nome", "total"]
               }
             },
-            pontoVerde: { type: Type.NUMBER }
+            pto_verde: { type: Type.NUMBER },
+            valor_final_fatura: { type: Type.NUMBER }
           },
-          required: ["groups", "pontoVerde"]
+          required: ["documento", "data", "grupos", "valor_final_fatura"]
         }
       }
     });
 
-    // 4. Retornar os dados parseados
     return JSON.parse(response.text || '{}');
 
   } catch (error: any) {
     console.error("Gemini Invoice Error:", error);
-    if (error.message?.includes("corrompido")) {
-      throw new Error("Não foi possível ler o PDF. O ficheiro parece estar corrompido ou protegido.");
-    }
     throw new Error("Erro na extração de dados da fatura. Por favor, tente novamente.");
-  }
-};
-
-export const generateScheduleSuggestion = async (
-  salesData: SalesData,
-  staffingTable: StaffingTableEntry[],
-  settings: AppSettings,
-  employees: Employee[]
-): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  const prompt = `
-    Atue como um gerente operacional de restaurante.
-    Restaurante: ${settings.restaurantName}
-    Previsão de Vendas: €${salesData.amount}
-    Sugira a alocação para os turnos baseando-se na tabela de staffing e funcionários disponíveis.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    throw error;
   }
 };

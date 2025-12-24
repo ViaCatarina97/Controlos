@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { processInvoicePdf } from '../services/geminiService';
 
 interface BillingDeliveryDetailProps {
   record: DeliveryRecord;
@@ -27,6 +27,29 @@ const MISSING_REASONS = [
   'Produto devolvido (Solicitado pelo restaurante)',
   'Outros (descrever nos comentários)'
 ];
+
+const GROUP_MAPPING: Record<string, string> = {
+  'CONGELADOS': 'Congelados',
+  'REFRIGERADOS': 'Refrigerados',
+  'SECOS COMIDA': 'Secos Comida',
+  'SECOS PAPEL': 'Secos Papel',
+  'MANUTENÇÃO LIMPEZA': 'Manutenção Limpeza',
+  'MARKETING IPL': 'Marketing IPL',
+  'MARKETING GERAL': 'Marketing Geral',
+  'PRODUTOS FRESCOS': 'Produtos Frescos',
+  'MANUTENÇÃO LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
+  'CONDIMENTOS': 'Condimentos',
+  'CONDIMENTOS COZINHA': 'Condimentos Cozinha',
+  'MATERIAL ADM': 'Material Adm',
+  'MANUAIS': 'Manuais',
+  'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
+  'FERRAMENTAS & UTENSÍLIOS': 'Ferramentas Utensilios',
+  'MARKETING GERAL CUSTO': 'Marketing Geral Custo',
+  'FARDAS': 'Fardas',
+  'DISTRIBUIÇÃO DE MARKETING': 'Distribuição de Marketing',
+  'BULK ALIMENTAR': 'Bulk Alimentar',
+  'BULK PAPEL': 'Bulk Papel'
+};
 
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
@@ -160,18 +183,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
   const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -179,32 +190,45 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       alert("Por favor, selecione um ficheiro PDF.");
       return;
     }
+    
     setIsProcessingPdf(true);
     try {
-      const base64Pdf = await fileToBase64(file);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Analise o PDF HAVI, extraia VALOR TOTAL da tabela TOTAL POR GRUPO PRODUTO e PTO VERDE da linha TOTAL. Responda apenas JSON.`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [{ inlineData: { mimeType: 'application/pdf', data: base64Pdf } }, { text: prompt }]
-        },
-        config: { responseMimeType: "application/json" }
-      });
-      const result = JSON.parse(response.text || '{}');
-      if (result.groups || result.pontoVerde !== undefined) {
+      const result = await processInvoicePdf(file);
+      
+      if (result) {
         setLocal(prev => {
-          const updatedGroups = prev.haviGroups.map(g => {
-            const match = result.groups?.find((rg: any) => rg.description.toLowerCase() === g.description.toLowerCase());
-            return match ? { ...g, total: match.total } : g;
+          // Map groups from PDF to internal structure
+          const updatedHaviGroups = prev.haviGroups.map(g => {
+            const pdfMatch = result.grupos.find((pg: any) => {
+                const normalizedPdfName = pg.nome.toUpperCase().trim();
+                const mappedName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
+                return mappedName.toLowerCase() === g.description.toLowerCase();
+            });
+            return pdfMatch ? { ...g, total: pdfMatch.total } : g;
           });
-          return { ...prev, haviGroups: updatedGroups, pontoVerde: result.pontoVerde || 0 };
+
+          // Extract date (usually in dd/mm/yyyy format in PT invoices)
+          let formattedDate = prev.date;
+          if (result.data) {
+              const parts = result.data.split('/');
+              if (parts.length === 3) {
+                  formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+          }
+
+          return { 
+            ...prev, 
+            haviGroups: updatedHaviGroups, 
+            pontoVerde: result.pto_verde || 0,
+            date: formattedDate,
+            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\n${prev.comments}`
+          };
         });
         alert("Fatura HAVI processada com sucesso!");
       }
     } catch (err) {
       console.error(err);
-      alert("Erro ao processar PDF.");
+      alert("Erro ao processar PDF: " + (err instanceof Error ? err.message : "Desconhecido"));
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -317,4 +341,157 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
         </div>
-        {/* ... Rest of the file unchanged ... */}
+
+        <div className="flex gap-6">
+           <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><AlertCircle size={16} className="text-amber-500" /> Diferenças de Preço (Havivs MyStore)</h3>
+                 <button onClick={() => setShowAddModal(true)} className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors"><Plus size={20} /></button>
+              </div>
+              <div className="overflow-auto max-h-48 custom-scrollbar">
+                 <table className="w-full text-[10px]">
+                    <thead className="text-slate-400 uppercase font-black border-b border-slate-200">
+                       <tr>
+                          <th className="text-left py-2">Categoria</th>
+                          <th className="text-left py-2">Produto</th>
+                          <th className="text-right py-2">HAVI</th>
+                          <th className="text-right py-2">MyStore</th>
+                          <th className="text-right py-2">Diff</th>
+                          <th className="w-8"></th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                       {local.priceDifferences.map(item => (
+                          <tr key={item.id} className="hover:bg-white group transition-colors">
+                             <td className="py-2 text-slate-500">{item.category}</td>
+                             <td className="py-2 font-bold text-slate-700">{item.product}</td>
+                             <td className="py-2 text-right">€{item.priceHavi.toFixed(2)}</td>
+                             <td className="py-2 text-right">€{item.priceSms.toFixed(2)}</td>
+                             <td className="py-2 text-right font-black text-red-500">€{(item.priceHavi - item.priceSms).toFixed(2)}</td>
+                             <td className="text-center"><button onClick={() => handleRemoveItem(item.id, 'diff')} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={12} /></button></td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+
+           <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><Calculator size={16} className="text-blue-500" /> Produto Não Introduzido</h3>
+                 <button onClick={() => setShowMissingModal(true)} className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors"><Plus size={20} /></button>
+              </div>
+              <div className="overflow-auto max-h-48 custom-scrollbar">
+                 <table className="w-full text-[10px]">
+                    <thead className="text-slate-400 uppercase font-black border-b border-slate-200">
+                       <tr>
+                          <th className="text-left py-2">Produto</th>
+                          <th className="text-left py-2">Grupo</th>
+                          <th className="text-right py-2">Valor</th>
+                          <th className="text-left py-2 px-2">Motivo</th>
+                          <th className="w-8"></th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                       {local.missingProducts.map(item => (
+                          <tr key={item.id} className="hover:bg-white group transition-colors">
+                             <td className="py-2 font-bold text-slate-700">{item.product}</td>
+                             <td className="py-2 text-slate-500">{item.group}</td>
+                             <td className="py-2 text-right font-black">€{item.priceHavi.toFixed(2)}</td>
+                             <td className="py-2 px-2 truncate max-w-[120px] italic text-slate-400">{item.reason}</td>
+                             <td className="text-center"><button onClick={() => handleRemoveItem(item.id, 'missing')} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={12} /></button></td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários e Notas da Conferência</h3>
+           <textarea 
+             value={local.comments} 
+             onChange={(e) => setLocal({...local, comments: e.target.value})} 
+             placeholder="Notas adicionais sobre a entrega..."
+             className="w-full h-24 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
+           />
+        </div>
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-scale-up">
+            <h3 className="text-xl font-bold text-gray-800 mb-6">Nova Diferença de Preço</h3>
+            <div className="space-y-4">
+               <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Categoria</label>
+                  <select value={newEntry.category} onChange={e => setNewEntry({...newEntry, category: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                     {BILLING_GROUPS.map(c => <option key={c} value={c}>{c}</option>)}
+                     <option value="H.M.">H.M.</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
+                  <input type="text" value={newEntry.product} onChange={e => setNewEntry({...newEntry, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome do produto..." />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço HAVI (€)</label>
+                     <input type="number" step="0.01" value={newEntry.priceHavi || ''} onChange={e => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço MyStore (€)</label>
+                     <input type="number" step="0.01" value={newEntry.priceSms || ''} onChange={e => setNewEntry({...newEntry, priceSms: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                  </div>
+               </div>
+               <div className="pt-4 flex gap-3">
+                  <button onClick={() => setShowAddModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+                  <button onClick={handleAddPriceDiff} className="flex-2 px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-500/30">Adicionar Registo</button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMissingModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-scale-up">
+            <h3 className="text-xl font-bold text-gray-800 mb-6">Produto Não Introduzido</h3>
+            <div className="space-y-4">
+               <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
+                  <input type="text" value={newMissing.product} onChange={e => setNewMissing({...newMissing, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome do produto..." />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo</label>
+                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="Comida">Comida</option>
+                        <option value="Papel">Papel</option>
+                        <option value="Outros">Outros</option>
+                        <option value="Happy Meal">Happy Meal</option>
+                     </select>
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço HAVI (€)</label>
+                     <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                  </div>
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo</label>
+                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                     {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+               </div>
+               <div className="pt-4 flex gap-3">
+                  <button onClick={() => setShowMissingModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+                  <button onClick={handleAddMissingProductConfirm} className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30">Adicionar Registo</button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
