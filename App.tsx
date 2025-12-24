@@ -38,18 +38,18 @@ const App: React.FC = () => {
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({ date: targetDate, shifts: {} });
 
-  // --- FUNÇÃO DE GRAVAÇÃO MESTRE (REFORÇADA) ---
+  // --- FUNÇÃO DE GRAVAÇÃO MESTRE ---
   const forceSync = async (overrides: any = {}) => {
     if (!authenticatedRestaurantId) return;
     setIsSyncing(true);
     
     const dataToSave = {
       restaurant_id: authenticatedRestaurantId,
-      employees: overrides.employees || currentEmployees,
-      staffing_table: overrides.staffing_table || currentStaffingTable,
-      history: overrides.history || historyEntries,
-      schedules: overrides.schedules || savedSchedules,
-      settings: overrides.settings || allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId),
+      employees: overrides.employees !== undefined ? overrides.employees : currentEmployees,
+      staffing_table: overrides.staffing_table !== undefined ? overrides.staffing_table : currentStaffingTable,
+      history: overrides.history !== undefined ? overrides.history : historyEntries,
+      schedules: overrides.schedules !== undefined ? overrides.schedules : savedSchedules,
+      settings: overrides.settings !== undefined ? overrides.settings : allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId),
       updated_at: new Date().toISOString()
     };
 
@@ -79,23 +79,11 @@ const App: React.FC = () => {
     } finally { setIsLoaded(true); }
   };
 
-  // --- HANDLERS PARA GRAVAÇÃO IMEDIATA ---
-
-  const handleSaveSettings = (updatedSettings: AppSettings) => {
-    setAllRestaurants(prev => prev.map(r => r.restaurantId === updatedSettings.restaurantId ? updatedSettings : r));
-    forceSync({ settings: updatedSettings });
-  };
-
-  const handleSaveSchedule = async (scheduleToSave: DailySchedule) => {
-    setCurrentSchedule(scheduleToSave);
-    const updated = [...savedSchedules.filter(s => s.date !== scheduleToSave.date), scheduleToSave];
-    setSavedSchedules(updated);
-    await forceSync({ schedules: updated });
-  };
-
+  // --- PROCESSAMENTO FATURA HAVI ---
   const processarFaturaHavi = async (file: File, restaurantId: string) => {
     setIsProcessingInvoice(true);
     const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    
     try {
       const base64Data = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -103,7 +91,8 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
 
-      const prompt = "Analise esta fatura da HAVI Logistics[cite: 1]. Extraia o Nº DOCUMENTO [cite: 29, 65], a DATA DOCUMENTO  e a tabela TOTAL POR GRUPO PRODUTO[cite: 57, 58]. Devolva em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number [cite: 58, 60]}";
+      // Extração baseada nos campos fornecidos [cite: 29, 30, 58, 60]
+      const prompt = "Analise esta fatura da HAVI Logistics. Extraia o Nº DOCUMENTO , a DATA DOCUMENTO  e os totais da tabela TOTAL POR GRUPO PRODUTO. Devolva em JSON: {documento: string, data: string, grupos: [{nome: string, total: number}], total_liquido: number }";
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: 'POST',
@@ -122,18 +111,17 @@ const App: React.FC = () => {
         dados_grupos: f.grupos,
         valor_total_liquido: f.total_liquido
       });
-      alert("Fatura Gravada!");
-    } catch (e) { alert("Erro ao processar"); } finally { setIsProcessingInvoice(false); }
+      alert("Fatura HAVI processada e gravada com sucesso!");
+    } catch (e) {
+      alert("Erro ao ler fatura. Verifique a chave API.");
+    } finally {
+      setIsProcessingInvoice(false);
+    }
   };
 
   useEffect(() => {
     if (authenticatedRestaurantId) loadDataFromCloud(authenticatedRestaurantId);
   }, [authenticatedRestaurantId]);
-
-  useEffect(() => {
-    const existing = savedSchedules.find(s => s.date === targetDate);
-    setCurrentSchedule(existing || { date: targetDate, shifts: {} });
-  }, [targetDate, savedSchedules]);
 
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
 
@@ -146,7 +134,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 overflow-hidden text-slate-900 font-sans">
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col z-20`}>
         <div className="p-4 border-b border-slate-700 h-16 flex items-center gap-3">
           <Building2 size={20} className="text-blue-500" />
@@ -158,28 +146,27 @@ const App: React.FC = () => {
           </button>
           {activeModule === 'positioning' ? (
             <>
-              <button onClick={() => setActiveTab('positioning')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'positioning' ? 'bg-blue-600' : ''}`}><LayoutDashboard size={20} />{sidebarOpen && <span>Posicionamento</span>}</button>
-              <button onClick={() => setActiveTab('staffing')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'staffing' ? 'bg-blue-600' : ''}`}><Sliders size={20} />{sidebarOpen && <span>Staffing</span>}</button>
-              <button onClick={() => setActiveTab('sales_history')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'sales_history' ? 'bg-blue-600' : ''}`}><TrendingUp size={20} />{sidebarOpen && <span>Vendas</span>}</button>
-              <button onClick={() => setActiveTab('schedule_history')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'schedule_history' ? 'bg-blue-600' : ''}`}><History size={20} />{sidebarOpen && <span>Turnos</span>}</button>
+              <NavButton active={activeTab === 'positioning'} onClick={() => setActiveTab('positioning')} icon={<LayoutDashboard size={20} />} label="Posicionamento" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')} icon={<Sliders size={20} />} label="Staffing" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'sales_history'} onClick={() => setActiveTab('sales_history')} icon={<TrendingUp size={20} />} label="Vendas" expanded={sidebarOpen} />
+              <NavButton active={activeTab === 'schedule_history'} onClick={() => setActiveTab('schedule_history')} icon={<History size={20} />} label="Turnos" expanded={sidebarOpen} />
             </>
           ) : (
-            <button onClick={() => setActiveTab('havi_invoices')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'havi_invoices' ? 'bg-blue-600' : ''}`}><FileText size={20} />{sidebarOpen && <span>Faturas HAVI</span>}</button>
+            <NavButton active={activeTab === 'havi_invoices'} onClick={() => setActiveTab('havi_invoices')} icon={<FileText size={20} />} label="Faturas HAVI" expanded={sidebarOpen} />
           )}
-          <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 p-3 rounded-lg ${activeTab === 'settings' ? 'bg-blue-600' : ''}`}><SettingsIcon size={20} />{sidebarOpen && <span>Definições</span>}</button>
+          <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Definições" expanded={sidebarOpen} />
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-gray-50 flex flex-col text-slate-900">
+      <main className="flex-1 overflow-auto flex flex-col">
         <header className="bg-white shadow-sm p-4 flex justify-between items-center h-16 sticky top-0 z-10 px-8">
-          <h2 className="font-bold uppercase text-xs tracking-widest">{activeTab}</h2>
-          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> GRAVANDO...</div>}
+          <h2 className="font-bold uppercase text-xs tracking-widest">{activeTab.replace('_', ' ')}</h2>
+          {isSyncing && <div className="text-blue-600 text-[10px] font-bold flex items-center gap-2"><Cloud size={14} className="animate-pulse" /> SYNCING...</div>}
         </header>
         <div className="p-8">
           {!isLoaded ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500" size={40} /></div> : (
             <>
-              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} />}
-              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveSettings} employees={currentEmployees} setEmployees={(emps) => { setCurrentEmployees(emps); forceSync({ employees: emps }); }} />}
+              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={(s) => {setCurrentSchedule(s); setSavedSchedules(prev => [...prev.filter(x => x.date !== s.date), s]); forceSync({ schedules: [...savedSchedules.filter(x => x.date !== s.date), s] }); }} />}
               {activeTab === 'havi_invoices' && (
                 <div className="max-w-xl mx-auto bg-white p-12 rounded-3xl shadow-sm border-2 border-dashed border-gray-200 flex flex-col items-center">
                   <FileText size={48} className="text-blue-500 mb-4" />
@@ -188,6 +175,7 @@ const App: React.FC = () => {
                   <label htmlFor="inv-up" className="mt-4 px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold cursor-pointer">{isProcessingInvoice ? 'Processando...' : 'Carregar Fatura'}</label>
                 </div>
               )}
+              {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveSettings} employees={currentEmployees} setEmployees={(emps) => { setCurrentEmployees(emps); forceSync({ employees: emps }); }} />}
               {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={(st) => { setCurrentStaffingTable(st); forceSync({ staffing_table: st }); }} />}
               {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={(h) => { setHistoryEntries(h); forceSync({ history: h }); }} targetDate={targetDate} setTargetDate={setTargetDate} targetSales={targetSales} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
               {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d) => {setTargetDate(d); setActiveTab('positioning');}} onDeleteSchedule={(d) => { const filtered = savedSchedules.filter(s => s.date !== d); setSavedSchedules(filtered); forceSync({ schedules: filtered }); }} employees={currentEmployees} />}
