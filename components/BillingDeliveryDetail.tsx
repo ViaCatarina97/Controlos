@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
-import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 interface BillingDeliveryDetailProps {
   record: DeliveryRecord;
@@ -22,6 +22,7 @@ const BILLING_GROUPS = [
 
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
+  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   
@@ -107,65 +108,131 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = evt.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
+    if (file.type !== 'application/pdf') {
+      alert("Por favor, selecione um ficheiro PDF.");
+      return;
+    }
 
-        const updatedHaviGroups = [...local.haviGroups];
-        let updatedPontoVerde = local.pontoVerde;
+    setIsProcessingPdf(true);
 
-        const cleanNum = (val: any) => {
-          if (!val) return 0;
-          let str = String(val).replace(/[€\s\r\n\t]/g, '').replace(',', '.');
-          let n = parseFloat(str);
-          return isNaN(n) ? 0 : n;
-        };
+    try {
+      const base64Pdf = await fileToBase64(file);
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const prompt = `
+        Analise esta fatura da HAVI Logistics.
+        Procure a tabela "TOTAL POR GRUPO PRODUTO" (geralmente no final da fatura).
+        Extraia o valor da coluna "VALOR TOTAL" para cada um dos seguintes grupos:
+        - CONGELADOS
+        - REFRIGERADOS
+        - SECOS COMIDA
+        - SECOS PAPEL
+        - MANUTENÇÃO & LIMPEZA
+        - MARKETING IPL
+        - MARKETING GERAL
+        - PRODUTOS FRESCOS
+        - MANUTENÇÃO & LIMPEZA COMPRAS
+        - CONDIMENTOS
+        - CONDIMENTOS COZINHA
+        - MATERIAL ADM
+        - MANUAIS
+        - FERRAMENTAS & UTENSÍLIOS
+        - MARKETING GERAL CUSTO
+        - FARDAS
+        - DISTRIBUIÇÃO DE MARKETING
+        - BULK ALIMENTAR
+        - BULK PAPEL
+        
+        Extraia também o valor total de "PTO VERDE" (Soma da coluna PTO VERDE na tabela de grupos).
+        
+        Responda APENAS em JSON com a seguinte estrutura:
+        {
+          "groups": [
+            {"description": "Congelados", "total": 0.00},
+            {"description": "Refrigerados", "total": 0.00},
+            {"description": "Secos Comida", "total": 0.00},
+            {"description": "Secos Papel", "total": 0.00},
+            {"description": "Manutenção Limpeza", "total": 0.00},
+            {"description": "Marketing IPL", "total": 0.00},
+            {"description": "Marketing Geral", "total": 0.00},
+            {"description": "Produtos Frescos", "total": 0.00},
+            {"description": "Manutenção Limpeza Compras", "total": 0.00},
+            {"description": "Condimentos", "total": 0.00},
+            {"description": "Condimentos Cozinha", "total": 0.00},
+            {"description": "Material Adm", "total": 0.00},
+            {"description": "Manuais", "total": 0.00},
+            {"description": "Ferramentas Utensilios", "total": 0.00},
+            {"description": "Marketing Geral Custo", "total": 0.00},
+            {"description": "Fardas", "total": 0.00},
+            {"description": "Distribuição de Marketing", "total": 0.00},
+            {"description": "Bulk Alimentar", "total": 0.00},
+            {"description": "Bulk Papel", "total": 0.00}
+          ],
+          "pontoVerde": 0.00
+        }
+        
+        Certifique-se de ignorar o símbolo de Euro e usar ponto para decimais.
+      `;
 
-        rows.forEach(row => {
-          if (!row || row.length < 2) return;
-          const label = String(row[0]).toUpperCase();
-          const totalVal = cleanNum(row[row.length - 1]); // Assume last column is total (like Valor Total in PDF)
-          const ptoVerdeVal = cleanNum(row[2]); // PTO VERDE column in PDF page 5
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: base64Pdf,
+              },
+            },
+            { text: prompt }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
 
-          // Mapping logic based on descriptions from page 5 of invoice
-          updatedHaviGroups.forEach(g => {
-            const desc = g.description.toUpperCase();
-            if (label.includes(desc) || (desc === "FERRAMENTAS UTENSILIOS" && label.includes("FERRAMENTAS & UTENSÍLIOS"))) {
-              g.total = totalVal;
-            }
+      const result = JSON.parse(response.text || '{}');
+      
+      if (result.groups || result.pontoVerde !== undefined) {
+        setLocal(prev => {
+          const updatedGroups = prev.haviGroups.map(g => {
+            const match = result.groups?.find((rg: any) => rg.description.toLowerCase() === g.description.toLowerCase());
+            return match ? { ...g, total: match.total } : g;
           });
 
-          // Ponto Verde summing logic
-          if (label === "TOTAL") {
-              updatedPontoVerde = ptoVerdeVal;
-          } else if (label.includes("PTO VERDE") || label.includes("PONTO VERDE")) {
-              // If it's a specific row just for punto verde
-              updatedPontoVerde += ptoVerdeVal;
-          }
+          return {
+            ...prev,
+            haviGroups: updatedGroups,
+            pontoVerde: result.pontoVerde || 0
+          };
         });
-
-        setLocal(prev => ({
-          ...prev,
-          haviGroups: updatedHaviGroups,
-          pontoVerde: updatedPontoVerde
-        }));
-        
-        alert("Fatura carregada com sucesso! Os valores dos grupos foram mapeados.");
-      } catch (err) {
-        alert("Erro ao ler o ficheiro da fatura. Verifique se o formato está correto.");
+        alert("Fatura carregada e valores extraídos com sucesso!");
       }
-    };
-    reader.readAsBinaryString(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    } catch (err) {
+      console.error("Erro ao processar PDF:", err);
+      alert("Ocorreu um erro ao processar a fatura PDF. Verifique se o ficheiro é válido.");
+    } finally {
+      setIsProcessingPdf(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -175,9 +242,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           <ArrowLeft size={18} /> Voltar
         </button>
         <div className="flex items-center gap-3">
-           <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx,.xls,.csv" className="hidden" />
-           <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all">
-              <UploadCloud size={18}/> Carregar Fatura
+           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
+           <button 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isProcessingPdf}
+            className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50"
+           >
+              {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
+              {isProcessingPdf ? "A processar..." : "Carregar Fatura"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
@@ -413,7 +485,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 text-gray-500 font-bold text-sm hover:bg-gray-50 rounded-lg transition-colors">Cancelar</button>
+                  <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 text-gray-500 font-bold text-sm hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
                   <button 
                     onClick={handleAddPriceDiff}
                     disabled={!newEntry.product.trim()}
