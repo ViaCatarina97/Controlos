@@ -136,10 +136,15 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const prompt = `
-        Analise esta fatura da HAVI Logistics.
-        Vá especificamente à tabela "TOTAL POR GRUPO PRODUTO" (localizada na página 5 de 6).
-        Extraia o valor da coluna "VALOR TOTAL" para cada linha listada.
-        Mapeie os valores para os seguintes grupos internos:
+        Atue como um especialista em processamento de faturas.
+        Analise o PDF da fatura HAVI fornecido, focando especificamente na tabela intitulada "TOTAL POR GRUPO PRODUTO".
+        
+        INSTRUÇÕES DE EXTRAÇÃO:
+        1. Localize a tabela "TOTAL POR GRUPO PRODUTO" (geralmente nas páginas finais).
+        2. Para cada linha de grupo de produto (ex: "1 CONGELADOS", "14 FERRAMENTAS & UTENSÍLIOS"), extraia o valor numérico da ÚLTIMA COLUNA chamada "VALOR TOTAL".
+        3. Localize a linha de "TOTAL" no fundo desta tabela e extraia o valor numérico da coluna "PTO VERDE".
+        
+        MAPEAMENTO DE GRUPOS (Ignore os números iniciais na fatura):
         - CONGELADOS -> Congelados
         - REFRIGERADOS -> Refrigerados
         - SECOS COMIDA -> Secos Comida
@@ -159,19 +164,20 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         - DISTRIBUIÇÃO DE MARKETING -> Distribuição de Marketing
         - BULK ALIMENTAR -> Bulk Alimentar
         - BULK PAPEL -> Bulk Papel
+
+        REGRAS DE FORMATAÇÃO:
+        - Os valores na fatura usam vírgula para decimais e ponto para milhares (ex: 6.035,57). Converta para formato numérico (ex: 6035.57).
+        - Responda APENAS em JSON.
         
-        Também extraia o valor total da coluna "PTO VERDE" na linha "TOTAL" (no final da tabela).
-        
-        Responda APENAS em JSON com a seguinte estrutura:
+        ESTRUTURA DA RESPOSTA:
         {
           "groups": [
             {"description": "Congelados", "total": 6052.67},
+            {"description": "Ferramentas Utensilios", "total": 17.66},
             ...
           ],
           "pontoVerde": 30.06
         }
-        
-        Certifique-se de ignorar o símbolo de Euro e usar ponto para decimais. Se um grupo não existir na fatura, use 0.00.
       `;
 
       const response = await ai.models.generateContent({
@@ -207,7 +213,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             pontoVerde: result.pontoVerde || 0
           };
         });
-        alert("Fatura HAVI processada. Os valores por grupo e Ponto Verde foram preenchidos automaticamente.");
+        alert("Fatura HAVI processada com sucesso! Totais por grupo e Ponto Verde extraídos.");
       }
 
     } catch (err) {
@@ -233,7 +239,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50"
            >
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "A ler PDF..." : "Carregar Fatura"}
+              {isProcessingPdf ? "A processar fatura..." : "Carregar Fatura"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
@@ -243,7 +249,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 space-y-6 shadow-xl print:border-none print:shadow-none print:p-0">
         <div className="flex justify-between items-center border-b border-purple-100 pb-4">
-          <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Entregas</h2>
+          <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Conferência de Entrega</h2>
           <div className="text-right">
             <div className="text-[10px] font-bold text-purple-500 uppercase tracking-widest">ID Registo</div>
             <div className="text-xs font-mono text-gray-400">{local.id.split('-')[0]}</div>
@@ -251,11 +257,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* HAVI SECTION */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Factura Havi</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
                <div className="grid grid-cols-12 gap-1 text-[9px] font-black uppercase text-purple-600 px-2 py-1">
-                 <div className="col-span-1">Grupo</div>
+                 <div className="col-span-1">GRP</div>
                  <div className="col-span-8">Descrição</div>
                  <div className="col-span-3 text-right">Total</div>
                </div>
@@ -293,6 +300,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
 
+          {/* MYSTORE SECTION */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">MyStore</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
@@ -321,8 +329,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
 
+          {/* DIFFERENCE SECTION */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Diferença</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Resumo de Diferenças</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
                <div className="grid grid-cols-12 gap-1 text-[9px] font-black uppercase text-purple-600 px-2 py-1">
                  <div className="col-span-9">Descrição</div>
@@ -349,11 +358,13 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                <div className="mt-12 p-3 bg-white text-center flex flex-col justify-end flex-1 items-center pb-8">
                   <div className="text-4xl font-black text-purple-950 mb-1">{finalDifference.toFixed(2)} €</div>
                   <div className={`h-1.5 w-24 rounded-full ${Math.abs(finalDifference) > 0.05 ? 'bg-red-500' : 'bg-purple-500'}`}></div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase mt-2">Diferença Total Final</span>
                </div>
             </div>
           </div>
         </div>
 
+        {/* PRICE DIFFERENCES TABLE */}
         <div className="border border-purple-500 rounded-lg overflow-hidden">
            <div className="bg-purple-50 py-1.5 px-4 flex justify-between items-center border-b border-purple-500">
               <span className="font-black text-purple-800 uppercase text-xs tracking-wider">Diferenças de Preço</span>
@@ -393,6 +404,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  )}
               </div>
 
+              {/* SUMMARY BY GROUP */}
               {local.priceDifferences.length > 0 && (
                 <div className="bg-purple-50/40 p-4 border-t border-purple-200">
                     <h4 className="text-[10px] font-black text-purple-800 uppercase mb-3 flex items-center gap-1.5"><Calculator size={12}/> Resumo das Diferenças por Grupo</h4>
@@ -412,6 +424,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            </div>
         </div>
 
+        {/* MODAL FOR ADDING PRICE DIFFERENCE */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-scale-up">
@@ -483,6 +496,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           </div>
         )}
 
+        {/* MISSING PRODUCTS SECTION */}
         <div className="border border-purple-500 rounded-lg overflow-hidden">
            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Produto não Introduzido</div>
            <div className="flex flex-col">
@@ -509,6 +523,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            </div>
         </div>
 
+        {/* COMMENTS */}
         <div className="border border-purple-500 rounded-lg overflow-hidden">
            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Comentários Adicionais</div>
            <textarea 
