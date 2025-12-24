@@ -109,3 +109,54 @@ export interface AISuggestion {
     [key in RoleType]: number;
   };
 }
+
+// --- Billing Types ---
+
+export interface HaviInvoiceGroup {
+  group: string;
+  description: string;
+  total: number;
+}
+
+export interface SmsValue {
+  description: string;
+  amount: number;
+}
+
+export interface PriceDifferenceItem {
+  id: string;
+  category: 'Comida' | 'Papel' | 'F. Operacionais' | 'Mat. Adm.' | 'Outros' | 'H.M.';
+  product: string;
+  priceHavi: number;
+  priceSms: number;
+}
+
+export interface MissingProduct {
+  id: string;
+  product: string;
+  group: string;
+  priceHavi: number;
+  reason: string;
+}
+
+export interface DeliveryRecord {
+  id: string;
+  date: string;
+  managerId: string;
+  haviGroups: HaviInvoiceGroup[];
+  pontoVerde: number;
+  smsValues: SmsValue[];
+  priceDifferences: PriceDifferenceItem[];
+  missingProducts: MissingProduct[];
+  comments: string;
+  isFinalized: boolean;
+}
+
+export interface CreditNoteRecord {
+  id: string;
+  date: string;
+  invoiceNumber: string;
+  value: number;
+  reason: string;
+  status: 'Pendente' | 'Recebido';
+}
