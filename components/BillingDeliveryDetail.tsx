@@ -275,7 +275,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                         type="number" 
                         value={group.total || ''} 
                         onChange={(e) => handleUpdateGroupTotal(group.group, parseFloat(e.target.value) || 0)}
-                        className="w-full text-right bg-transparent border-none p-0 text-[10px] font-black focus:ring-0" 
+                        className="w-full text-right bg-transparent border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0" 
                         placeholder="0.00"
                       />
                     </div>
@@ -289,7 +289,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                         type="number" 
                         value={local.pontoVerde || ''} 
                         onChange={(e) => setLocal({...local, pontoVerde: parseFloat(e.target.value) || 0})}
-                        className="w-full text-right bg-transparent border-none p-0 text-[10px] font-black focus:ring-0 text-purple-800" 
+                        className="w-full text-right bg-transparent border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0 text-purple-800" 
                         placeholder="0.00"
                     />
                   </div>
@@ -316,7 +316,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                         type="number" 
                         value={v.amount || ''} 
                         onChange={(e) => handleUpdateMyStoreValue(v.description, parseFloat(e.target.value) || 0)}
-                        className="w-full text-right bg-transparent border-none p-0 text-[11px] font-black focus:ring-0" 
+                        className="w-full text-right bg-transparent border-none p-0 text-[11px] font-black text-slate-900 focus:ring-0" 
                         placeholder="0.00"
                       />
                     </div>
@@ -356,7 +356,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  );
                })}
                <div className="mt-12 p-3 bg-white text-center flex flex-col justify-end flex-1 items-center pb-8">
-                  <div className="text-4xl font-black text-purple-950 mb-1">{finalDifference.toFixed(2)} €</div>
+                  <div className="text-4xl font-black text-slate-950 mb-1">{finalDifference.toFixed(2)} €</div>
                   <div className={`h-1.5 w-24 rounded-full ${Math.abs(finalDifference) > 0.05 ? 'bg-red-500' : 'bg-purple-500'}`}></div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase mt-2">Diferença Total Final</span>
                </div>
@@ -390,10 +390,10 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  {local.priceDifferences.map(item => (
                     <div key={item.id} className="grid grid-cols-12 gap-2 px-4 py-2 group items-center hover:bg-purple-50/10">
                        <div className="col-span-2 text-[11px] font-bold text-purple-700 uppercase">{item.category}</div>
-                       <div className="col-span-4"><input type="text" value={item.product} onChange={(e) => handleUpdatePriceDiff(item.id, 'product', e.target.value)} className="w-full text-[11px] border-none p-0 focus:ring-0 font-medium" /></div>
-                       <div className="col-span-2"><input type="number" value={item.priceHavi || ''} onChange={(e) => handleUpdatePriceDiff(item.id, 'priceHavi', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-center border-none p-0 focus:ring-0 font-bold" /></div>
-                       <div className="col-span-2"><input type="number" value={item.priceSms || ''} onChange={(e) => handleUpdatePriceDiff(item.id, 'priceSms', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-center border-none p-0 focus:ring-0 font-bold" /></div>
-                       <div className="col-span-1 text-[11px] text-center font-black text-purple-900">{(item.priceHavi - item.priceSms).toFixed(2)}€</div>
+                       <div className="col-span-4"><input type="text" value={item.product} onChange={(e) => handleUpdatePriceDiff(item.id, 'product', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0 font-medium" /></div>
+                       <div className="col-span-2"><input type="number" value={item.priceHavi || ''} onChange={(e) => handleUpdatePriceDiff(item.id, 'priceHavi', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-slate-900 text-center border-none p-0 focus:ring-0 font-bold" /></div>
+                       <div className="col-span-2"><input type="number" value={item.priceSms || ''} onChange={(e) => handleUpdatePriceDiff(item.id, 'priceSms', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-slate-900 text-center border-none p-0 focus:ring-0 font-bold" /></div>
+                       <div className="col-span-1 text-[11px] text-center font-black text-slate-900">{(item.priceHavi - item.priceSms).toFixed(2)}€</div>
                        <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleRemoveItem(item.id, 'diff')} className="text-red-400 p-1 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
                        </div>
@@ -438,7 +438,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                   <select 
                     value={newEntry.category} 
                     onChange={(e) => setNewEntry({...newEntry, category: e.target.value})}
-                    className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                    className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 outline-none"
                   >
                     {BILLING_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
@@ -450,7 +450,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                     value={newEntry.product}
                     onChange={(e) => setNewEntry({...newEntry, product: e.target.value})}
                     placeholder="Ex: Pão Arch"
-                    className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                    className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 outline-none"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -461,7 +461,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                       value={newEntry.priceHavi || ''}
                       onChange={(e) => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})}
                       placeholder="0.00"
-                      className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                      className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 outline-none"
                     />
                   </div>
                   <div>
@@ -471,14 +471,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                       value={newEntry.priceMyStore || ''}
                       onChange={(e) => setNewEntry({...newEntry, priceMyStore: parseFloat(e.target.value) || 0})}
                       placeholder="0.00"
-                      className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                      className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 outline-none"
                     />
                   </div>
                 </div>
                 
                 <div className="bg-purple-50 p-3 rounded-lg flex justify-between items-center">
                   <span className="text-[10px] font-black text-purple-600 uppercase">Diferença Estimada</span>
-                  <span className="text-lg font-black text-purple-900">{(newEntry.priceHavi - newEntry.priceMyStore).toFixed(2)}€</span>
+                  <span className="text-lg font-black text-slate-900">{(newEntry.priceHavi - newEntry.priceMyStore).toFixed(2)}€</span>
                 </div>
 
                 <div className="flex gap-3 pt-4">
@@ -509,11 +509,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
               <div className="divide-y divide-purple-50 min-h-[60px]">
                  {local.missingProducts.map(item => (
                     <div key={item.id} className="grid grid-cols-12 gap-2 px-4 py-2 group">
-                       <div className="col-span-5"><input type="text" value={item.product} onChange={(e) => handleUpdateMissingProduct(item.id, 'product', e.target.value)} className="w-full text-[11px] border-none p-0 focus:ring-0 font-bold" /></div>
-                       <div className="col-span-2"><input type="text" value={item.group} onChange={(e) => handleUpdateMissingProduct(item.id, 'group', e.target.value)} className="w-full text-[11px] border-none p-0 focus:ring-0" /></div>
-                       <div className="col-span-2"><input type="number" value={item.priceHavi || ''} onChange={(e) => handleUpdateMissingProduct(item.id, 'priceHavi', parseFloat(e.target.value) || 0)} className="w-full text-[11px] border-none p-0 focus:ring-0 font-black" /></div>
+                       <div className="col-span-5"><input type="text" value={item.product} onChange={(e) => handleUpdateMissingProduct(item.id, 'product', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0 font-bold" /></div>
+                       <div className="col-span-2"><input type="text" value={item.group} onChange={(e) => handleUpdateMissingProduct(item.id, 'group', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0" /></div>
+                       <div className="col-span-2"><input type="number" value={item.priceHavi || ''} onChange={(e) => handleUpdateMissingProduct(item.id, 'priceHavi', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0 font-black" /></div>
                        <div className="col-span-3 flex justify-between">
-                          <input type="text" value={item.reason} onChange={(e) => handleUpdateMissingProduct(item.id, 'reason', e.target.value)} className="w-full text-[11px] border-none p-0 focus:ring-0" />
+                          <input type="text" value={item.reason} onChange={(e) => handleUpdateMissingProduct(item.id, 'reason', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0" />
                           <button onClick={() => handleRemoveItem(item.id, 'missing')} className="text-red-400 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
                        </div>
                     </div>
@@ -529,7 +529,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            <textarea 
             value={local.comments}
             onChange={(e) => setLocal({...local, comments: e.target.value})}
-            className="w-full min-h-[80px] p-4 text-xs font-medium text-gray-700 outline-none border-none resize-none placeholder:text-gray-300" 
+            className="w-full min-h-[80px] p-4 text-xs font-medium text-slate-900 outline-none border-none resize-none placeholder:text-gray-300" 
             placeholder="Escreva aqui quaisquer observações ou anomalias detetadas..."
            />
         </div>
@@ -537,11 +537,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         <div className="grid grid-cols-4 gap-4 pt-4 border-t border-purple-100">
            <div className="col-span-2 flex flex-col border-r border-purple-100">
               <span className="text-[10px] font-black uppercase text-purple-400">Data Factura</span>
-              <span className="text-sm font-black text-purple-950">{new Date(local.date).toLocaleDateString('pt-PT')}</span>
+              <span className="text-sm font-black text-slate-950">{new Date(local.date).toLocaleDateString('pt-PT')}</span>
            </div>
            <div className="col-span-2 flex flex-col">
               <span className="text-[10px] font-black uppercase text-purple-400">Gerente Responsável</span>
-              <span className="text-sm font-black text-purple-950 uppercase">{managerName}</span>
+              <span className="text-sm font-black text-slate-950 uppercase">{managerName}</span>
            </div>
         </div>
       </div>
