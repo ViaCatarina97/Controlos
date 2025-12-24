@@ -42,7 +42,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     category: 'Comida',
     product: '',
     priceHavi: 0,
-    priceMyStore: 0
+    priceSms: 0
   });
 
   // Missing Product form state
@@ -116,10 +116,10 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       category: newEntry.category as any, 
       product: newEntry.product, 
       priceHavi: newEntry.priceHavi, 
-      priceSms: newEntry.priceMyStore
+      priceSms: newEntry.priceSms
     };
     setLocal(prev => ({ ...prev, priceDifferences: [...prev.priceDifferences, newItem] }));
-    setNewEntry({ category: 'Comida', product: '', priceHavi: 0, priceMyStore: 0 });
+    setNewEntry({ category: 'Comida', product: '', priceHavi: 0, priceSms: 0 });
     setShowAddModal(false);
   };
 
@@ -365,21 +365,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            
            <div className="flex flex-col">
               <div className="grid grid-cols-12 gap-2 bg-purple-50/20 px-4 py-2 border-b border-purple-100">
-                 <div className="col-span-4 text-[10px] font-bold uppercase text-purple-600">Produto</div>
+                 <div className="col-span-3 text-[10px] font-bold uppercase text-purple-600">Produto</div>
                  <div className="col-span-2 text-[10px] font-bold uppercase text-purple-600 text-center">Grupo</div>
                  <div className="col-span-2 text-[10px] font-bold uppercase text-purple-600 text-center">Preço HAVI</div>
-                 <div className="col-span-3 text-[10px] font-bold uppercase text-purple-600 text-center">Motivo</div>
+                 <div className="col-span-4 text-[10px] font-bold uppercase text-purple-600 text-center">Motivo</div>
                  <div className="col-span-1"></div>
               </div>
               <div className="divide-y divide-purple-50 min-h-[40px]">
                  {local.missingProducts.map(item => (
-                    <div key={item.id} className="grid grid-cols-12 gap-2 px-4 py-2 group items-center hover:bg-purple-50/10">
-                       <div className="col-span-4"><input type="text" value={item.product} onChange={(e) => handleUpdateMissingProduct(item.id, 'product', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0 font-black bg-white" /></div>
+                    <div key={item.id} className="grid grid-cols-12 gap-2 px-4 py-5 group items-start hover:bg-purple-50/10 h-auto">
+                       <div className="col-span-3"><input type="text" value={item.product} onChange={(e) => handleUpdateMissingProduct(item.id, 'product', e.target.value)} className="w-full text-[11px] text-slate-900 border-none p-0 focus:ring-0 font-black bg-white" /></div>
                        <div className="col-span-2 text-[11px] text-center text-slate-900 font-bold uppercase">{item.group}</div>
                        <div className="col-span-2"><input type="number" value={item.priceHavi || ''} onChange={(e) => handleUpdateMissingProduct(item.id, 'priceHavi', parseFloat(e.target.value) || 0)} className="w-full text-[11px] text-center text-slate-900 border-none p-0 focus:ring-0 font-black bg-white" /></div>
-                       <div className="col-span-3">
-                          <select value={item.reason} onChange={(e) => handleUpdateMissingProduct(item.id, 'reason', e.target.value)} className="w-full text-[10px] font-bold text-slate-700 border-none p-0 focus:ring-0 bg-transparent">
-                            {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                       <div className="col-span-4 flex items-start h-auto">
+                          <select 
+                            value={item.reason} 
+                            onChange={(e) => handleUpdateMissingProduct(item.id, 'reason', e.target.value)} 
+                            className="w-full text-[12px] font-black text-slate-800 border-none p-0 focus:ring-0 bg-transparent whitespace-normal break-words h-auto leading-relaxed overflow-visible focus:bg-white"
+                          >
+                            {MISSING_REASONS.map(r => <option key={r} value={r} className="whitespace-normal py-1">{r}</option>)}
                           </select>
                        </div>
                        <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -428,7 +432,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                   <input type="number" value={newEntry.priceHavi || ''} onChange={(e) => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 bg-white focus:ring-2 focus:ring-purple-500 outline-none" />
                 </div>
                 <div><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Preço MyStore</label>
-                  <input type="number" value={newEntry.priceMyStore || ''} onChange={(e) => setNewEntry({...newEntry, priceMyStore: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 bg-white focus:ring-2 focus:ring-purple-500 outline-none" />
+                  <input type="number" value={newEntry.priceSms || ''} onChange={(e) => setNewEntry({...newEntry, priceSms: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border border-purple-100 rounded-lg text-sm font-bold text-slate-900 bg-white focus:ring-2 focus:ring-purple-500 outline-none" />
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
