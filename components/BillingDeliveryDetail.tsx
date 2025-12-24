@@ -137,57 +137,41 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       
       const prompt = `
         Analise esta fatura da HAVI Logistics.
-        Procure a tabela "TOTAL POR GRUPO PRODUTO" (geralmente no final da fatura).
-        Extraia o valor da coluna "VALOR TOTAL" para cada um dos seguintes grupos:
-        - CONGELADOS
-        - REFRIGERADOS
-        - SECOS COMIDA
-        - SECOS PAPEL
-        - MANUTENÇÃO & LIMPEZA
-        - MARKETING IPL
-        - MARKETING GERAL
-        - PRODUTOS FRESCOS
-        - MANUTENÇÃO & LIMPEZA COMPRAS
-        - CONDIMENTOS
-        - CONDIMENTOS COZINHA
-        - MATERIAL ADM
-        - MANUAIS
-        - FERRAMENTAS & UTENSÍLIOS
-        - MARKETING GERAL CUSTO
-        - FARDAS
-        - DISTRIBUIÇÃO DE MARKETING
-        - BULK ALIMENTAR
-        - BULK PAPEL
+        Vá especificamente à tabela "TOTAL POR GRUPO PRODUTO" (localizada na página 5 de 6).
+        Extraia o valor da coluna "VALOR TOTAL" para cada linha listada.
+        Mapeie os valores para os seguintes grupos internos:
+        - CONGELADOS -> Congelados
+        - REFRIGERADOS -> Refrigerados
+        - SECOS COMIDA -> Secos Comida
+        - SECOS PAPEL -> Secos Papel
+        - MANUTENÇÃO & LIMPEZA -> Manutenção Limpeza
+        - MARKETING IPL -> Marketing IPL
+        - MARKETING GERAL -> Marketing Geral
+        - PRODUTOS FRESCOS -> Produtos Frescos
+        - MANUTENÇÃO & LIMPEZA COMPRAS -> Manutenção Limpeza Compras
+        - CONDIMENTOS -> Condimentos
+        - CONDIMENTOS COZINHA -> Condimentos Cozinha
+        - MATERIAL ADM -> Material Adm
+        - MANUAIS -> Manuais
+        - FERRAMENTAS & UTENSÍLIOS -> Ferramentas Utensilios
+        - MARKETING GERAL CUSTO -> Marketing Geral Custo
+        - FARDAS -> Fardas
+        - DISTRIBUIÇÃO DE MARKETING -> Distribuição de Marketing
+        - BULK ALIMENTAR -> Bulk Alimentar
+        - BULK PAPEL -> Bulk Papel
         
-        Extraia também o valor total de "PTO VERDE" (Soma da coluna PTO VERDE na tabela de grupos).
+        Também extraia o valor total da coluna "PTO VERDE" na linha "TOTAL" (no final da tabela).
         
         Responda APENAS em JSON com a seguinte estrutura:
         {
           "groups": [
-            {"description": "Congelados", "total": 0.00},
-            {"description": "Refrigerados", "total": 0.00},
-            {"description": "Secos Comida", "total": 0.00},
-            {"description": "Secos Papel", "total": 0.00},
-            {"description": "Manutenção Limpeza", "total": 0.00},
-            {"description": "Marketing IPL", "total": 0.00},
-            {"description": "Marketing Geral", "total": 0.00},
-            {"description": "Produtos Frescos", "total": 0.00},
-            {"description": "Manutenção Limpeza Compras", "total": 0.00},
-            {"description": "Condimentos", "total": 0.00},
-            {"description": "Condimentos Cozinha", "total": 0.00},
-            {"description": "Material Adm", "total": 0.00},
-            {"description": "Manuais", "total": 0.00},
-            {"description": "Ferramentas Utensilios", "total": 0.00},
-            {"description": "Marketing Geral Custo", "total": 0.00},
-            {"description": "Fardas", "total": 0.00},
-            {"description": "Distribuição de Marketing", "total": 0.00},
-            {"description": "Bulk Alimentar", "total": 0.00},
-            {"description": "Bulk Papel", "total": 0.00}
+            {"description": "Congelados", "total": 6052.67},
+            ...
           ],
-          "pontoVerde": 0.00
+          "pontoVerde": 30.06
         }
         
-        Certifique-se de ignorar o símbolo de Euro e usar ponto para decimais.
+        Certifique-se de ignorar o símbolo de Euro e usar ponto para decimais. Se um grupo não existir na fatura, use 0.00.
       `;
 
       const response = await ai.models.generateContent({
@@ -223,7 +207,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             pontoVerde: result.pontoVerde || 0
           };
         });
-        alert("Fatura carregada e valores extraídos com sucesso!");
+        alert("Fatura HAVI processada. Os valores por grupo e Ponto Verde foram preenchidos automaticamente.");
       }
 
     } catch (err) {
@@ -249,7 +233,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50"
            >
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "A processar..." : "Carregar Fatura"}
+              {isProcessingPdf ? "A ler PDF..." : "Carregar Fatura"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
