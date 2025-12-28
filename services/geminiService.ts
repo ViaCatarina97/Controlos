@@ -15,8 +15,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // A chave de API é injetada no ambiente. 
-  // Devemos inicializar a instância SEMPRE dentro da função para captar a chave mais recente.
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -29,15 +27,17 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Analise esta fatura da HAVI Logistics.
-      Extraia os dados da tabela 'TOTAL POR GRUPO PRODUTO'.
-      Campos necessários:
-      1. Nº do Documento
-      2. Data do Documento (DD/MM/YYYY)
-      3. Grupos e Valores (Coluna Valor Total)
-      4. Valor do Ponto Verde
-      5. Valor Final da Fatura
+      Aja como um especialista em conferência de faturas da HAVI Logistics.
+      Analise o documento PDF anexado, focando especificamente na tabela de resumo intitulada 'TOTAL POR GRUPO PRODUTO' (geralmente localizada nas páginas finais).
+      
+      Extraia os seguintes campos:
+      1. DOCUMENTO: O número da fatura (ex: ZF2 BW1X/7131317425).
+      2. DATA: A data do documento (formato DD/MM/YYYY).
+      3. GRUPOS: Uma lista de objetos contendo o 'nome' do grupo (ex: CONGELADOS, SECOS COMIDA) e o 'total' da coluna 'VALOR TOTAL'.
+      4. PTO_VERDE_TOTAL: O valor total da coluna 'PTO VERDE' na linha de TOTAL da tabela.
+      5. VALOR_FINAL: O valor total final da fatura (TOTAL da coluna 'VALOR TOTAL').
 
+      Certifique-se de extrair os valores da coluna 'VALOR TOTAL' e não apenas do 'VALOR LIQ.'.
       Retorne estritamente um JSON.
     `;
 
@@ -72,10 +72,10 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
                 required: ["nome", "total"]
               }
             },
-            pto_verde: { type: Type.NUMBER },
-            valor_final_fatura: { type: Type.NUMBER }
+            pto_verde_total: { type: Type.NUMBER },
+            valor_final: { type: Type.NUMBER }
           },
-          required: ["documento", "data", "grupos", "valor_final_fatura"]
+          required: ["documento", "data", "grupos", "valor_final"]
         }
       }
     });
@@ -89,7 +89,6 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const errorMessage = error.message || "";
     console.error("Gemini SDK Error:", errorMessage);
 
-    // Conforme diretrizes: "Requested entity was not found" indica necessidade de re-seleção de chave
     if (
       errorMessage.includes("Requested entity was not found") || 
       errorMessage.includes("API key") ||

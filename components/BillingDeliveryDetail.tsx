@@ -28,22 +28,24 @@ const MISSING_REASONS = [
   'Outros (descrever nos comentários)'
 ];
 
+// Mapeamento exato entre os nomes que aparecem no PDF e as descrições no app
 const GROUP_MAPPING: Record<string, string> = {
   'CONGELADOS': 'Congelados',
   'REFRIGERADOS': 'Refrigerados',
   'SECOS COMIDA': 'Secos Comida',
   'SECOS PAPEL': 'Secos Papel',
+  'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'MANUTENÇÃO LIMPEZA': 'Manutenção Limpeza',
   'MARKETING IPL': 'Marketing IPL',
   'MARKETING GERAL': 'Marketing Geral',
   'PRODUTOS FRESCOS': 'Produtos Frescos',
-  'MANUTENÇÃO LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'CONDIMENTOS': 'Condimentos',
   'CONDIMENTOS COZINHA': 'Condimentos Cozinha',
   'MATERIAL ADM': 'Material Adm',
   'MANUAIS': 'Manuais',
-  'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
   'FERRAMENTAS & UTENSÍLIOS': 'Ferramentas Utensilios',
+  'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
+  'FERRAMENTAS & UTENSILIOS': 'Ferramentas Utensilios',
   'MARKETING GERAL CUSTO': 'Marketing Geral Custo',
   'FARDAS': 'Fardas',
   'DISTRIBUIÇÃO DE MARKETING': 'Distribuição de Marketing',
@@ -180,23 +182,21 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     
     setIsProcessingPdf(true);
     try {
-      // Regra de Ouro: Se não houver chave, abra o diálogo mas PROCEDA.
       // @ts-ignore
       if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
           await triggerApiKeySelection();
-          // Não retornamos aqui. Procedemos para tentar a chamada, 
-          // que falhará com AUTH_REQUIRED se a injeção for lenta, ou terá sucesso.
       }
 
       const result = await processInvoicePdf(file);
       
       if (result) {
         setLocal(prev => {
+          // Atualiza os grupos HAVI com base no mapeamento de nomes extraídos
           const updatedHaviGroups = prev.haviGroups.map(g => {
             const pdfMatch = result.grupos.find((pg: any) => {
                 const normalizedPdfName = pg.nome.toUpperCase().trim();
-                const mappedName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
-                return mappedName.toLowerCase() === g.description.toLowerCase();
+                const mappedInternalName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
+                return mappedInternalName.toLowerCase() === g.description.toLowerCase();
             });
             return pdfMatch ? { ...g, total: pdfMatch.total } : g;
           });
@@ -212,17 +212,16 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           return { 
             ...prev, 
             haviGroups: updatedHaviGroups, 
-            pontoVerde: result.pto_verde || 0,
+            pontoVerde: result.pto_verde_total || 0,
             date: formattedDate,
-            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\n${prev.comments}`
+            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nValor Total PDF: ${result.valor_final}€\n${prev.comments}`
           };
         });
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
-          // Se a tentativa imediata falhar, explicamos ao usuário e abrimos o diálogo novamente
           await triggerApiKeySelection();
-          alert("A extração de faturas requer uma API Key válida de um projeto Google Cloud com faturação ativa. Por favor, selecione uma chave paga no diálogo.");
+          alert("A extração de faturas requer uma API Key válida. Por favor, selecione uma chave paga no diálogo.");
       } else {
           alert("Erro no processamento da fatura: " + (err instanceof Error ? err.message : "Tente novamente."));
       }
@@ -484,7 +483,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço HAVI (€)</label>
-                     <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                     <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
                   </div>
                </div>
                <div>
