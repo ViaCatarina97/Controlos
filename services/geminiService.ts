@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -15,6 +14,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
+  // Obter a chave API diretamente do ambiente
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -27,18 +27,20 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um especialista em conferência de faturas HAVI Logistics.
-      Analise o PDF e foque EXCLUSIVAMENTE na tabela intitulada "TOTAL POR GRUPO PRODUTO".
+      Você é um assistente especializado em ler faturas da HAVI Logistics.
       
-      INSTRUÇÕES TÉCNICAS:
-      1. Localize a tabela de resumo de grupos (conforme a imagem de exemplo).
-      2. Para cada linha (ex: CONGELADOS, REFRIGERADOS, etc.), ignore as colunas do meio e extraia APENAS o valor da ÚLTIMA coluna à direita, intitulada "VALOR TOTAL".
-      3. Na linha final "TOTAL", extraia o valor da coluna "PTO VERDE".
-      4. Extraia também o número do documento (ex: ZF2 BW1X/...) e a data da fatura.
-
-      REGRAS DE FORMATAÇÃO:
-      - Remova "EUR" ou "€" dos valores.
-      - Retorne estritamente um JSON.
+      FOCO: Extrair dados da tabela "TOTAL POR GRUPO PRODUTO" (geralmente no final do documento).
+      
+      INSTRUÇÕES:
+      1. Localize a tabela intitulada "TOTAL POR GRUPO PRODUTO".
+      2. Extraia o nome do grupo e o valor da ÚLTIMA coluna ("VALOR TOTAL") para cada linha.
+      3. Extraia o valor da coluna "PTO VERDE" na linha final de "TOTAL".
+      4. Extraia o número do documento e a data do documento do cabeçalho.
+      
+      IMPORTANTE:
+      - Nomes de grupos comuns: CONGELADOS, REFRIGERADOS, SECOS COMIDA, SECOS PAPEL, etc.
+      - Use apenas números para os valores.
+      - Retorne o resultado estritamente em JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -66,8 +68,8 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  nome: { type: Type.STRING, description: "O nome do grupo exatamente como escrito na primeira coluna." },
-                  valor_total: { type: Type.NUMBER, description: "O valor da última coluna da direita." }
+                  nome: { type: Type.STRING },
+                  valor_total: { type: Type.NUMBER }
                 },
                 required: ["nome", "valor_total"]
               }
@@ -81,13 +83,13 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
+    if (!textOutput) throw new Error("Resposta da API vazia.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
     const errorMessage = error.message || "";
-    console.error("Gemini Error:", errorMessage);
+    console.error("Gemini Service Error:", errorMessage);
 
     if (
       errorMessage.includes("Requested entity was not found") || 

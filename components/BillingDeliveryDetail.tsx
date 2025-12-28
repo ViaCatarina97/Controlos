@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
-import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-center';
+import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
 import { processInvoicePdf } from '../services/geminiService';
 
 interface BillingDeliveryDetailProps {
@@ -174,24 +173,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     setIsProcessingPdf(true);
     try {
       // @ts-ignore
-      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-          // @ts-ignore
-          await window.aistudio.openSelectKey();
+      const hasKey = window.aistudio ? await window.aistudio.hasSelectedApiKey() : false;
+      
+      if (!hasKey) {
+        // @ts-ignore
+        if (window.aistudio) await window.aistudio.openSelectKey();
       }
 
       const result = await processInvoicePdf(file);
       
-      if (result) {
+      if (result && result.grupos) {
         setLocal(prev => {
           const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
-            // Normalizar o nome vindo do PDF para busca no mapeamento
+            // Busca o grupo no PDF que mapeia para o nosso nome interno
             const pdfMatch = result.grupos.find((pg: any) => {
                 const normalizedPdfName = pg.nome.toUpperCase().replace(/\s+/g, ' ').trim();
                 const mappedInternalName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
                 return mappedInternalName.toLowerCase() === internalGroup.description.toLowerCase();
             });
             
-            // Se encontrar o valor, preenche o total
             return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
           });
 
@@ -208,7 +208,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             haviGroups: updatedHaviGroups, 
             pontoVerde: result.ponto_verde_total || 0,
             date: formattedDate,
-            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nTotal Extraído: ${result.total_geral_fatura}€\n${prev.comments}`
+            comments: `Fatura: ${result.documento || 'Extraída'}\nData Doc: ${result.data || '-'}\nTotal: ${result.total_geral_fatura || 0}€\n${prev.comments}`
           };
         });
       }
@@ -217,7 +217,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
       } else {
-          alert("Não foi possível processar a fatura. Verifique se o ficheiro é um PDF válido e se a chave API está configurada.");
+          console.error("Extraction failed:", err);
+          alert("Erro ao extrair dados. Verifique o ficheiro ou a chave API.");
       }
     } finally {
       setIsProcessingPdf(false);
@@ -235,7 +236,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
            <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "Extraindo dados..." : "Extrair de PDF"}
+              {isProcessingPdf ? "Extraindo..." : "Extrair de PDF"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
