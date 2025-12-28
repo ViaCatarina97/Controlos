@@ -27,30 +27,25 @@ const MISSING_REASONS = [
   'Outros (descrever nos comentários)'
 ];
 
-// Mapeamento exaustivo baseado na imagem da fatura HAVI
-const GROUP_MAPPING: Record<string, string> = {
+// Mapeamento de normalização para os nomes exatos da tabela HAVI
+const HAVI_NAME_NORMALIZATION: Record<string, string> = {
   'CONGELADOS': 'Congelados',
   'REFRIGERADOS': 'Refrigerados',
   'SECOS COMIDA': 'Secos Comida',
   'SECOS PAPEL': 'Secos Papel',
-  'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
-  'MANUTENÇÃO LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'MANUTENÇÃO & LIMPEZA': 'Manutenção Limpeza',
-  'MANUTENÇÃO LIMPEZA': 'Manutenção Limpeza',
-  'MARKETING IPL': 'Marketing IPL',
-  'MARKETING GERAL': 'Marketing Geral',
+  'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'PRODUTOS FRESCOS': 'Produtos Frescos',
   'CONDIMENTOS': 'Condimentos',
   'CONDIMENTOS COZINHA': 'Condimentos Cozinha',
-  'MATERIAL ADM': 'Material Adm',
-  'MANUAIS': 'Manuais',
   'FERRAMENTAS & UTENSÍLIOS': 'Ferramentas Utensilios',
-  'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
-  'MARKETING GERAL CUSTO': 'Marketing Geral Custo',
-  'FARDAS': 'Fardas',
-  'DISTRIBUIÇÃO DE MARKETING': 'Distribuição de Marketing',
   'BULK ALIMENTAR': 'Bulk Alimentar',
-  'BULK PAPEL': 'Bulk Papel'
+  'BULK PAPEL': 'Bulk Papel',
+  'MARKETING IPL': 'Marketing IPL',
+  'MARKETING GERAL': 'Marketing Geral',
+  'FARDAS': 'Fardas',
+  'MATERIAL ADM': 'Material Adm',
+  'MANUAIS': 'Manuais'
 };
 
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
@@ -98,13 +93,13 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                              v.description === 'Happy Meal' ? ['F'] :
                              v.description === 'Outros' ? ['G','N','P','R','S'] : [];
 
-      const diffKey = v.description === 'F. Operacionais' ? 'Ferramentas Operacionais' :
-                      v.description === 'Material Adm' ? 'Material Administrativo' :
-                      v.description;
-
       const haviSubtotal = local.haviGroups
           .filter(g => haviMatchCodes.includes(g.group))
           .reduce((s, g) => s + g.total, 0);
+
+      const diffKey = v.description === 'F. Operacionais' ? 'Ferramentas Operacionais' :
+                      v.description === 'Material Adm' ? 'Material Administrativo' :
+                      v.description;
 
       const groupPriceDiff = diffByGroup[diffKey] || 0;
       return haviSubtotal - v.amount - groupPriceDiff;
@@ -174,25 +169,30 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     try {
       // @ts-ignore
       const hasKey = window.aistudio ? await window.aistudio.hasSelectedApiKey() : false;
-      
-      if (!hasKey) {
-        // @ts-ignore
-        if (window.aistudio) await window.aistudio.openSelectKey();
+      if (!hasKey && window.aistudio) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
       }
 
       const result = await processInvoicePdf(file);
       
       if (result && result.grupos) {
         setLocal(prev => {
-          const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
-            // Busca o grupo no PDF que mapeia para o nosso nome interno
+          const updatedHaviGroups = prev.haviGroups.map(internal => {
+            // Busca o grupo no PDF
             const pdfMatch = result.grupos.find((pg: any) => {
-                const normalizedPdfName = pg.nome.toUpperCase().replace(/\s+/g, ' ').trim();
-                const mappedInternalName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
-                return mappedInternalName.toLowerCase() === internalGroup.description.toLowerCase();
+                const pdfNameRaw = pg.nome.toUpperCase().trim();
+                const internalName = internal.description.toUpperCase().trim();
+                
+                // Normaliza o nome do PDF (ex: FERRAMENTAS & UTENSÍLIOS -> FERRAMENTAS UTENSILIOS)
+                const normalizedPdfName = HAVI_NAME_NORMALIZATION[pdfNameRaw] ? 
+                    HAVI_NAME_NORMALIZATION[pdfNameRaw].toUpperCase() : 
+                    pdfNameRaw;
+
+                return normalizedPdfName.includes(internalName) || internalName.includes(normalizedPdfName);
             });
             
-            return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
+            return pdfMatch ? { ...internal, total: Number(pdfMatch.valor_total) || 0 } : internal;
           });
 
           let formattedDate = prev.date;
@@ -206,9 +206,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           return { 
             ...prev, 
             haviGroups: updatedHaviGroups, 
-            pontoVerde: result.ponto_verde_total || 0,
+            pontoVerde: Number(result.ponto_verde_total) || 0,
             date: formattedDate,
-            comments: `Fatura: ${result.documento || 'Extraída'}\nData Doc: ${result.data || '-'}\nTotal: ${result.total_geral_fatura || 0}€\n${prev.comments}`
+            comments: `Importado: ${result.documento || 'Fatura'}\nTotal Fatura: ${result.total_geral_fatura}€\n${prev.comments}`
           };
         });
       }
@@ -217,8 +217,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
       } else {
-          console.error("Extraction failed:", err);
-          alert("Erro ao extrair dados. Verifique o ficheiro ou a chave API.");
+          alert("Não foi possível processar a fatura. Verifique se o ficheiro está legível.");
       }
     } finally {
       setIsProcessingPdf(false);
@@ -429,23 +428,23 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             <div className="space-y-4">
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Categoria</label>
-                  <select value={newEntry.category} onChange={e => setNewEntry({...newEntry, category: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                  <select value={newEntry.category} onChange={e => setNewEntry({...newEntry, category: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                      {BILLING_GROUPS.map(c => <option key={c} value={c}>{c}</option>)}
                      <option value="H.M.">H.M.</option>
                   </select>
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
-                  <input type="text" value={newEntry.product} onChange={e => setNewEntry({...newEntry, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome..." />
+                  <input type="text" value={newEntry.product} onChange={e => setNewEntry({...newEntry, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nome..." />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">HAVI (€)</label>
-                     <input type="number" step="0.01" value={newEntry.priceHavi || ''} onChange={e => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                     <input type="number" step="0.01" value={newEntry.priceHavi || ''} onChange={e => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">MyStore (€)</label>
-                     <input type="number" step="0.01" value={newEntry.priceSms || ''} onChange={e => setNewEntry({...newEntry, priceSms: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                     <input type="number" step="0.01" value={newEntry.priceSms || ''} onChange={e => setNewEntry({...newEntry, priceSms: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                   </div>
                </div>
                <div className="pt-4 flex gap-3">
@@ -464,12 +463,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             <div className="space-y-4">
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
-                  <input type="text" value={newMissing.product} onChange={e => setNewMissing({...newMissing, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome..." />
+                  <input type="text" value={newMissing.product} onChange={e => setNewMissing({...newMissing, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nome..." />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo</label>
-                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
+                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="Comida">Comida</option>
                         <option value="Papel">Papel</option>
                         <option value="Outros">Outros</option>
@@ -478,12 +477,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">HAVI (€)</label>
-                     <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+                     <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                   </div>
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo</label>
-                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
+                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
                      {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                </div>

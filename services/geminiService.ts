@@ -14,7 +14,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Obter a chave API diretamente do ambiente
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -27,20 +26,25 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Você é um assistente especializado em ler faturas da HAVI Logistics.
-      
-      FOCO: Extrair dados da tabela "TOTAL POR GRUPO PRODUTO" (geralmente no final do documento).
-      
-      INSTRUÇÕES:
-      1. Localize a tabela intitulada "TOTAL POR GRUPO PRODUTO".
-      2. Extraia o nome do grupo e o valor da ÚLTIMA coluna ("VALOR TOTAL") para cada linha.
-      3. Extraia o valor da coluna "PTO VERDE" na linha final de "TOTAL".
-      4. Extraia o número do documento e a data do documento do cabeçalho.
-      
-      IMPORTANTE:
-      - Nomes de grupos comuns: CONGELADOS, REFRIGERADOS, SECOS COMIDA, SECOS PAPEL, etc.
-      - Use apenas números para os valores.
-      - Retorne o resultado estritamente em JSON.
+      Você é um especialista em faturas da HAVI Logistics Portugal.
+      Analise o documento PDF anexado e extraia os dados da tabela intitulada "TOTAL POR GRUPO PRODUTO".
+
+      INSTRUÇÕES DE EXTRAÇÃO:
+      1. Localize a tabela que contém as colunas: "GRUPO PRODUTO", "VALOR LIQ.", "PTO VERDE", "Cont. Embal. Plástico" e "VALOR TOTAL".
+      2. Para cada linha desta tabela (ex: CONGELADOS, REFRIGERADOS, SECOS COMIDA, etc.):
+         - Extraia o nome do grupo (remova o número inicial se houver, ex: de "1 CONGELADOS" extraia apenas "CONGELADOS").
+         - Extraia o valor da última coluna intitulada "VALOR TOTAL".
+      3. Na linha final "TOTAL":
+         - Extraia o valor da coluna "PTO VERDE".
+         - Extraia o valor da última coluna "VALOR TOTAL" (Total Geral).
+      4. Extraia o "Nº DOCUMENTO" e a "DATA DOCUMENTO" do cabeçalho da fatura.
+
+      IMPORTANTE - FORMATO DE NÚMEROS:
+      - A fatura usa vírgula como separador decimal (ex: 6.052,67).
+      - Você DEVE converter para ponto (ex: 6052.67) para que o JSON retorne números válidos.
+      - Remova o símbolo "EUR" ou "€".
+
+      Retorne estritamente o JSON conforme o esquema definido.
     `;
 
     const response = await ai.models.generateContent({
@@ -68,14 +72,14 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  nome: { type: Type.STRING },
-                  valor_total: { type: Type.NUMBER }
+                  nome: { type: Type.STRING, description: "Nome do grupo sem o número (ex: CONGELADOS)" },
+                  valor_total: { type: Type.NUMBER, description: "Valor da coluna VALOR TOTAL" }
                 },
                 required: ["nome", "valor_total"]
               }
             },
-            ponto_verde_total: { type: Type.NUMBER },
-            total_geral_fatura: { type: Type.NUMBER }
+            ponto_verde_total: { type: Type.NUMBER, description: "O valor da coluna PTO VERDE na linha de TOTAL" },
+            total_geral_fatura: { type: Type.NUMBER, description: "O VALOR TOTAL na linha de TOTAL" }
           },
           required: ["documento", "data", "grupos", "total_geral_fatura"]
         }
@@ -83,21 +87,13 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("Resposta da API vazia.");
+    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
-    const errorMessage = error.message || "";
-    console.error("Gemini Service Error:", errorMessage);
-
-    if (
-      errorMessage.includes("Requested entity was not found") || 
-      errorMessage.includes("API key") ||
-      errorMessage.includes("unauthorized") ||
-      error.status === 403 || 
-      error.status === 401
-    ) {
+    console.error("Erro na extração Gemini:", error);
+    if (error.message?.includes("API key") || error.status === 403) {
       throw new Error("AUTH_REQUIRED");
     }
     throw error;
