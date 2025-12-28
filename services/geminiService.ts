@@ -1,57 +1,40 @@
-// 1. Correção do import: O nome correto do pacote é @google/generative-ai
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64String = result.split(',')[1];
-      resolve(base64String);
-    };
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
     reader.onerror = reject;
   });
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // 2. No Vite/Vercel, use import.meta.env para variáveis de ambiente
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("AUTH_REQUIRED");
-  }
+  if (!apiKey) throw new Error("AUTH_REQUIRED");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  // Uso do modelo 1.5 Flash que suporta PDFs nativamente
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   try {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Analise a fatura da HAVI Logistics Portugal[cite: 1, 10].
-      Extraia os dados da tabela "TOTAL POR GRUPO PRODUTO"[cite: 57, 58].
+      Analise a fatura HAVI anexada. 
+      Extraia os valores da tabela "TOTAL POR GRUPO PRODUTO". [cite: 57]
+      Converta valores como "6.052,67" para "6052.67" (ponto em vez de vírgula). 
       
-      Campos a extrair da tabela:
-      - Grupos: CONGELADOS, REFRIGERADOS, SECOS COMIDA, SECOS PAPEL, PRODUTOS FRESCOS, MANUTENÇÃO & LIMPEZA COMPRAS, FERRAMENTAS & UTENSÍLIOS, BULK ALIMENTAR, BULK PAPEL.
-      - Extraia o VALOR LIQ. de cada grupo.
-      - Extraia o PTO VERDE da linha TOTAL (valor: 30.06).
-      - Do cabeçalho: Nº DOCUMENTO (7131317425) e DATA ENTREGA (20/12/2025)[cite: 29, 30].
+      Campos obrigatórios:
+      - documento: Nº DOCUMENTO 
+      - data: DATA ENTREGA [cite: 30]
+      - pto_verde_total: Valor da coluna PTO VERDE na linha TOTAL 
+      - grupos: Lista com {nome, total} para cada grupo (Ex: CONGELADOS, REFRIGERADOS). 
     `;
 
     const result = await model.generateContent({
       contents: [{
         role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: "application/pdf",
-              data: base64Data
-            }
-          },
-          { text: prompt }
-        ]
+        parts: [{ inlineData: { mimeType: "application/pdf", data: base64Data } }, { text: prompt }]
       }],
       generationConfig: {
         responseMimeType: "application/json",
@@ -60,30 +43,28 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
           properties: {
             documento: { type: SchemaType.STRING },
             data: { type: SchemaType.STRING },
+            pto_verde_total: { type: SchemaType.NUMBER },
+            valor_final: { type: SchemaType.NUMBER },
             grupos: {
               type: SchemaType.ARRAY,
               items: {
                 type: SchemaType.OBJECT,
                 properties: {
                   nome: { type: SchemaType.STRING },
-                  total: { type: SchemaType.NUMBER } // Alterado para 'total' para bater com o seu BillingControl
+                  total: { type: SchemaType.NUMBER }
                 },
                 required: ["nome", "total"]
               }
-            },
-            pto_verde_total: { type: SchemaType.NUMBER },
-            valor_final: { type: SchemaType.NUMBER }
+            }
           },
-          required: ["documento", "data", "grupos", "valor_final"]
+          required: ["documento", "data", "grupos"]
         }
       }
     });
 
-    const response = await result.response;
-    return JSON.parse(response.text());
-
-  } catch (error: any) {
+    return JSON.parse(result.response.text());
+  } catch (error) {
     console.error("Erro Gemini:", error);
-    throw error;
+    throw new Error("Não foi possível processar a fatura. Verifique a API Key.");
   }
 };
