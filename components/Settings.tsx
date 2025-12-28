@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppSettings, Employee, RoleType, StationConfig, RestaurantTypology, ShiftType, BusinessArea } from '../types';
 import { AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS, STATIONS, AVAILABLE_SHIFTS, AVAILABLE_AREAS } from '../constants';
 import { 
-  Save, Trash2, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, CheckSquare, Square, Truck
+  Save, Trash2, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, CheckSquare, Square, Edit2, Plus, X, Check
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -27,9 +27,24 @@ const getStationCategory = (label: string) => {
     return { key: 'other', icon: Users, color: 'bg-gray-100 text-gray-700' };
 };
 
+const AREA_LABELS: Record<string, string> = {
+  kitchen: 'Produção',
+  counter: 'Serviço',
+  beverage: 'Bebidas',
+  fries: 'Batatas',
+  lobby: 'Sala',
+  delivery: 'Delivery',
+  drive: 'Drive-Thru',
+  mccafe: 'McCafé'
+};
+
 export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'stations'>('staff');
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+  
+  // Station Modal State
+  const [isStationModalOpen, setIsStationModalOpen] = useState(false);
+  const [editingStation, setEditingStation] = useState<StationConfig | null>(null);
 
   const groupedStations = useMemo(() => {
     const groups: Record<string, { label: string, icon: any, color: string, stations: StationConfig[] }> = {};
@@ -38,7 +53,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         const area = station.area || cat.key;
         if (!groups[area]) {
             groups[area] = { 
-                label: area === 'kitchen' ? 'Produção' : area === 'counter' ? 'Serviço' : area.charAt(0).toUpperCase() + area.slice(1), 
+                label: AREA_LABELS[area] || area.charAt(0).toUpperCase() + area.slice(1), 
                 icon: cat.icon, color: cat.color, stations: [] 
             };
         }
@@ -70,6 +85,48 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
     alert("Configurações da loja guardadas com sucesso!");
   };
 
+  // Station Handlers
+  const handleOpenStationModal = (station?: StationConfig) => {
+    if (station) {
+      setEditingStation({ ...station });
+    } else {
+      setEditingStation({
+        id: crypto.randomUUID(),
+        label: '',
+        designation: '',
+        icon: 'Users',
+        defaultSlots: 1,
+        area: 'counter',
+        isActive: true
+      });
+    }
+    setIsStationModalOpen(true);
+  };
+
+  const handleSaveStation = () => {
+    if (!editingStation || !editingStation.label.trim()) return;
+
+    setLocalSettings(prev => {
+      const exists = prev.customStations.some(s => s.id === editingStation.id);
+      const updatedStations = exists
+        ? prev.customStations.map(s => s.id === editingStation.id ? editingStation : s)
+        : [...prev.customStations, editingStation];
+      
+      return { ...prev, customStations: updatedStations };
+    });
+    setIsStationModalOpen(false);
+    setEditingStation(null);
+  };
+
+  const handleDeleteStation = (id: string) => {
+    if (confirm('Tem a certeza que deseja eliminar este posto?')) {
+      setLocalSettings(prev => ({
+        ...prev,
+        customStations: prev.customStations.filter(s => s.id !== id)
+      }));
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
       <div className="flex border-b border-gray-100 bg-gray-50/50 p-1">
@@ -95,7 +152,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Turnos Ativos */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         Turnos Operacionais
@@ -117,7 +173,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                     </div>
                 </div>
 
-                {/* Áreas de Negócio */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         Áreas de Atividade
@@ -139,36 +194,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                     </div>
                 </div>
             </div>
-
-            {/* Delivery Partners */}
-            {localSettings.businessAreas.includes('Delivery') && (
-                <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 animate-slide-up">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Truck size={16} className="text-blue-500" /> Parceiros de Delivery
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                        {["Uber Eats", "Glovo", "Próprio"].map(provider => {
-                            const isSelected = localSettings.deliveryProviders.includes(provider);
-                            return (
-                                <button 
-                                    key={provider}
-                                    onClick={() => {
-                                        setLocalSettings(prev => ({
-                                            ...prev,
-                                            deliveryProviders: isSelected 
-                                                ? prev.deliveryProviders.filter(p => p !== provider)
-                                                : [...prev.deliveryProviders, provider]
-                                        }));
-                                    }}
-                                    className={`px-4 py-2 rounded-full border-2 text-xs font-black uppercase tracking-widest transition-all ${isSelected ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'}`}
-                                >
-                                    {provider}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl">
                 <Save size={20} /> Guardar Configuração da Loja
@@ -202,26 +227,119 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         )}
 
         {activeTab === 'stations' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in pb-12">
-             {groupedStations.map(group => (
-               <div key={group.label} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                  <div className={`px-4 py-3 border-b flex items-center gap-2 ${group.color} bg-opacity-10`}>
-                     <group.icon size={18} />
-                     <span className="font-black text-xs uppercase tracking-widest">{group.label}</span>
+          <div className="animate-fade-in pb-12">
+             <div className="flex justify-between items-center mb-6">
+                <div>
+                   <h3 className="text-xl font-black text-gray-800">Postos de Trabalho</h3>
+                   <p className="text-xs text-gray-400">Configure a matriz de postos para o posicionamento.</p>
+                </div>
+                <button 
+                  onClick={() => handleOpenStationModal()}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
+                >
+                   <Plus size={18} /> Novo Posto
+                </button>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {groupedStations.map(group => (
+                  <div key={group.label} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                      <div className={`px-4 py-3 border-b flex items-center gap-2 ${group.color} bg-opacity-10`}>
+                        <group.icon size={18} />
+                        <span className="font-black text-xs uppercase tracking-widest">{group.label}</span>
+                      </div>
+                      <div className="divide-y divide-gray-50">
+                        {group.stations.map(station => (
+                          <div key={station.id} className="p-3 flex justify-between items-center hover:bg-gray-50 group">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-700">{station.label}</span>
+                                {station.designation && <span className="text-[10px] text-gray-400 font-mono">{station.designation}</span>}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Slots: {station.defaultSlots}</span>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                   <button onClick={() => handleOpenStationModal(station)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
+                                   <button onClick={() => handleDeleteStation(station.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                                </div>
+                              </div>
+                          </div>
+                        ))}
+                      </div>
                   </div>
-                  <div className="divide-y divide-gray-50">
-                     {group.stations.map(station => (
-                       <div key={station.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
-                          <span className="text-sm font-bold text-gray-700">{station.label}</span>
-                          <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Slot: {station.defaultSlots}</span>
-                       </div>
-                     ))}
-                  </div>
-               </div>
-             ))}
+                ))}
+             </div>
           </div>
         )}
       </div>
+
+      {/* Station Modal */}
+      {isStationModalOpen && editingStation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-scale-up">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Configurar Posto</h3>
+              <button onClick={() => setIsStationModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Nome do Posto</label>
+                <input 
+                  type="text" 
+                  value={editingStation.label} 
+                  onChange={e => setEditingStation({...editingStation, label: e.target.value})} 
+                  className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" 
+                  placeholder="Ex: Iniciador 1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Sigla / ID</label>
+                  <input 
+                    type="text" 
+                    value={editingStation.designation || ''} 
+                    onChange={e => setEditingStation({...editingStation, designation: e.target.value.toUpperCase()})} 
+                    className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
+                    placeholder="INI 1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Slots Padrão</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={editingStation.defaultSlots} 
+                    onChange={e => setEditingStation({...editingStation, defaultSlots: parseInt(e.target.value) || 1})} 
+                    className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Área Operacional</label>
+                <select 
+                  value={editingStation.area} 
+                  onChange={e => setEditingStation({...editingStation, area: e.target.value as any})} 
+                  className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {Object.entries(AREA_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                  <option value="other">Outra Área</option>
+                </select>
+              </div>
+
+              <div className="pt-6 flex gap-3">
+                <button onClick={() => setIsStationModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+                <button onClick={handleSaveStation} className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2">
+                   <Check size={18} /> Guardar Posto
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

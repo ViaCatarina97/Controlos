@@ -1,3 +1,4 @@
+
 import { AppSettings, BusinessArea, Employee, HistoryEntry, RestaurantTypology, RoleType, ShiftType, StaffingTableEntry, StationConfig } from "./types";
 
 export const STATIONS: StationConfig[] = [
@@ -53,7 +54,6 @@ export const INITIAL_RESTAURANTS: AppSettings[] = [
     password: "Via97",
     activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
     businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
     customStations: STATIONS
   },
   {
@@ -64,7 +64,6 @@ export const INITIAL_RESTAURANTS: AppSettings[] = [
     password: "Imperial96",
     activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
     businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    deliveryProviders: ["Uber Eats", "Glovo"],
     customStations: STATIONS
   }
 ];
@@ -77,7 +76,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   password: "123",
   activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
   businessAreas: ['Loja', 'Delivery', 'McCafé'],
-  deliveryProviders: ["Uber Eats", "Glovo"],
   customStations: STATIONS
 };
 

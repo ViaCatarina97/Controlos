@@ -30,7 +30,6 @@ export interface AppSettings {
   password: string;
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
-  deliveryProviders: string[];
   customStations: StationConfig[]; 
 }
 
