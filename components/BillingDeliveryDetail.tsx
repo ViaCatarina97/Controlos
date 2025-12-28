@@ -245,7 +245,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 space-y-6 shadow-xl print:border-none print:shadow-none print:p-0">
         <div className="flex justify-between items-center border-b border-purple-100 pb-4">
-          <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Conferência de Fatura HAVI</h2>
+          <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Controlo de Faturação</h2>
           <div className="text-right flex items-center gap-4">
              {/* @ts-ignore */}
              {window.aistudio && (
@@ -266,25 +266,22 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Fatura HAVI (Resumo)</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">HAVI</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
                <div className="grid grid-cols-12 gap-1 text-[9px] font-black uppercase text-purple-600 px-2 py-1">
-                 <div className="col-span-1">GRP</div>
-                 <div className="col-span-8">Descrição</div>
+                 <div className="col-span-9">Descrição</div>
                  <div className="col-span-3 text-right">Total</div>
                </div>
                {local.haviGroups.map(group => (
                  <div key={group.group} className="grid grid-cols-12 gap-1 px-2 py-0.5 items-center hover:bg-purple-50/50">
-                    <div className="col-span-1 text-[10px] font-bold text-gray-400">{group.group}</div>
-                    <div className="col-span-8 text-[10px] font-medium text-gray-700">{group.description}</div>
+                    <div className="col-span-9 text-[10px] font-medium text-gray-700">{group.description}</div>
                     <div className="col-span-3">
                       <input type="number" value={group.total || ''} onChange={(e) => handleUpdateGroupTotal(group.group, parseFloat(e.target.value) || 0)} className="w-full text-right bg-white border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0" placeholder="0.00" />
                     </div>
                  </div>
                ))}
                <div className="grid grid-cols-12 gap-1 px-2 py-1 items-center bg-purple-50/30">
-                  <div className="col-span-1"></div>
-                  <div className="col-span-8 text-[10px] font-black text-purple-800">Contribuição Ponto Verde</div>
+                  <div className="col-span-9 text-[10px] font-black text-purple-800">Contribuição Ponto Verde</div>
                   <div className="col-span-3">
                     <input type="number" value={local.pontoVerde || ''} onChange={(e) => setLocal({...local, pontoVerde: parseFloat(e.target.value) || 0})} className="w-full text-right bg-white border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0 text-purple-800" placeholder="0.00" />
                   </div>
