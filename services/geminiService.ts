@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+// 1. Correção do import: O nome correto do pacote é @google/generative-ai
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -14,88 +15,75 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  const apiKey = process.env.API_KEY;
+  // 2. No Vite/Vercel, use import.meta.env para variáveis de ambiente
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+  if (!apiKey) {
     throw new Error("AUTH_REQUIRED");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Uso do modelo 1.5 Flash que suporta PDFs nativamente
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   try {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Você é um especialista em faturas da HAVI Logistics Portugal.
-      Analise o documento PDF anexado e extraia os dados da tabela intitulada "TOTAL POR GRUPO PRODUTO".
-
-      INSTRUÇÕES DE EXTRAÇÃO:
-      1. Localize a tabela que contém as colunas: "GRUPO PRODUTO", "VALOR LIQ.", "PTO VERDE", "Cont. Embal. Plástico" e "VALOR TOTAL".
-      2. Para cada linha desta tabela (ex: CONGELADOS, REFRIGERADOS, SECOS COMIDA, etc.):
-         - Extraia o nome do grupo (remova o número inicial se houver, ex: de "1 CONGELADOS" extraia apenas "CONGELADOS").
-         - Extraia o valor da última coluna intitulada "VALOR TOTAL".
-      3. Na linha final "TOTAL":
-         - Extraia o valor da coluna "PTO VERDE".
-         - Extraia o valor da última coluna "VALOR TOTAL" (Total Geral).
-      4. Extraia o "Nº DOCUMENTO" e a "DATA DOCUMENTO" do cabeçalho da fatura.
-
-      IMPORTANTE - FORMATO DE NÚMEROS:
-      - A fatura usa vírgula como separador decimal (ex: 6.052,67).
-      - Você DEVE converter para ponto (ex: 6052.67) para que o JSON retorne números válidos.
-      - Remova o símbolo "EUR" ou "€".
-
-      Retorne estritamente o JSON conforme o esquema definido.
+      Analise a fatura da HAVI Logistics Portugal[cite: 1, 10].
+      Extraia os dados da tabela "TOTAL POR GRUPO PRODUTO"[cite: 57, 58].
+      
+      Campos a extrair da tabela:
+      - Grupos: CONGELADOS, REFRIGERADOS, SECOS COMIDA, SECOS PAPEL, PRODUTOS FRESCOS, MANUTENÇÃO & LIMPEZA COMPRAS, FERRAMENTAS & UTENSÍLIOS, BULK ALIMENTAR, BULK PAPEL.
+      - Extraia o VALOR LIQ. de cada grupo.
+      - Extraia o PTO VERDE da linha TOTAL (valor: 30.06).
+      - Do cabeçalho: Nº DOCUMENTO (7131317425) e DATA ENTREGA (20/12/2025)[cite: 29, 30].
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
+    const result = await model.generateContent({
+      contents: [{
+        role: "user",
         parts: [
           {
             inlineData: {
-              mimeType: 'application/pdf',
-              data: base64Data,
-            },
+              mimeType: "application/pdf",
+              data: base64Data
+            }
           },
           { text: prompt }
         ]
-      },
-      config: {
+      }],
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
+          type: SchemaType.OBJECT,
           properties: {
-            documento: { type: Type.STRING },
-            data: { type: Type.STRING },
+            documento: { type: SchemaType.STRING },
+            data: { type: SchemaType.STRING },
             grupos: {
-              type: Type.ARRAY,
+              type: SchemaType.ARRAY,
               items: {
-                type: Type.OBJECT,
+                type: SchemaType.OBJECT,
                 properties: {
-                  nome: { type: Type.STRING, description: "Nome do grupo sem o número (ex: CONGELADOS)" },
-                  valor_total: { type: Type.NUMBER, description: "Valor da coluna VALOR TOTAL" }
+                  nome: { type: SchemaType.STRING },
+                  total: { type: SchemaType.NUMBER } // Alterado para 'total' para bater com o seu BillingControl
                 },
-                required: ["nome", "valor_total"]
+                required: ["nome", "total"]
               }
             },
-            ponto_verde_total: { type: Type.NUMBER, description: "O valor da coluna PTO VERDE na linha de TOTAL" },
-            total_geral_fatura: { type: Type.NUMBER, description: "O VALOR TOTAL na linha de TOTAL" }
+            pto_verde_total: { type: SchemaType.NUMBER },
+            valor_final: { type: SchemaType.NUMBER }
           },
-          required: ["documento", "data", "grupos", "total_geral_fatura"]
+          required: ["documento", "data", "grupos", "valor_final"]
         }
       }
     });
 
-    const textOutput = response.text;
-    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
-    
-    return JSON.parse(textOutput.trim());
+    const response = await result.response;
+    return JSON.parse(response.text());
 
   } catch (error: any) {
-    console.error("Erro na extração Gemini:", error);
-    if (error.message?.includes("API key") || error.status === 403) {
-      throw new Error("AUTH_REQUIRED");
-    }
+    console.error("Erro Gemini:", error);
     throw error;
   }
 };
