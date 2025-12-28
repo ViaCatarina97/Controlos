@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
 import { BillingSummary } from './BillingSummary';
-import { Truck, FileMinus, ClipboardList, Plus, Search, Trash2, Eye, Calendar, User, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, FileMinus, ClipboardList, Plus, Eye, Trash2, FileText, CheckCircle2, Clock } from 'lucide-react';
 
 interface BillingControlProps {
   restaurantId: string;
@@ -105,7 +105,7 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
               onClick={() => setActiveTab('deliveries')} 
               className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all ${activeTab === 'deliveries' ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}
             >
-              <Truck size={18} /> Entregas
+              <Truck size={18} /> Faturas HAVI
             </button>
             <button 
               onClick={() => setActiveTab('credits')} 
@@ -252,42 +252,34 @@ const NewDeliveryModal: React.FC<{ employees: Employee[], onClose: () => void, o
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-scale-up">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Truck className="text-blue-600" /> Nova Entrega
-          </h3>
+        <div className="flex justify-between items-center mb-6 text-blue-600 font-bold uppercase tracking-widest text-sm">
+          <span>Nova Conferência</span>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><Plus className="rotate-45" size={24} /></button>
         </div>
         
         <div className="space-y-6">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Data da Fatura</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-3 text-gray-400" size={18} />
-              <input 
+            <input 
                 type="date" 
                 value={date} 
                 onChange={(e) => setDate(e.target.value)} 
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+            />
           </div>
           
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Gerente Responsável</label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 text-gray-400" size={18} />
-              <select 
+            <select 
                 value={managerId} 
                 onChange={(e) => setManagerId(e.target.value)} 
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              >
+                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
                 <option value="">Selecione o gerente...</option>
                 {employees.filter(e => e.role === 'GERENTE').map(e => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
+                    <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
-              </select>
-            </div>
+            </select>
           </div>
 
           <button 
