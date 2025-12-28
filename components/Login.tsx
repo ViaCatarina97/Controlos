@@ -37,14 +37,14 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade-in border border-slate-700">
         <div className="bg-blue-600 p-8 text-center text-white">
-          <h1 className="text-3xl font-black uppercase tracking-tighter">TeamPos</h1>
-          <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">Gestão de Posicionamento</p>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">Controlos</h1>
+          <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">Controlos de Gestão</p>
         </div>
 
         <div className="p-8">
           <div className="flex bg-gray-100 p-1 rounded-2xl mb-8">
              <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'login' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Login</button>
-             <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'register' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Criar Conta</button>
+             <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'register' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Nova Loja</button>
           </div>
 
           {error && <div className="bg-red-50 text-red-600 text-xs p-3 rounded-xl flex items-center gap-2 mb-6 border border-red-100 font-bold"><AlertCircle size={16}/>{error}</div>}
@@ -70,7 +70,7 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
           </form>
         </div>
       </div>
-      <div className="fixed bottom-4 text-slate-500 text-[10px] font-black uppercase tracking-widest">© TeamPos Management System</div>
+      <div className="fixed bottom-4 text-slate-500 text-[10px] font-black uppercase tracking-widest">© Controlos de Gestão v3.0</div>
     </div>
   );
 };

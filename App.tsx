@@ -10,7 +10,7 @@ import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, CheckCircle2 } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
 
@@ -115,7 +115,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `backup_posicionamento_${data.restaurant?.restaurantName.replace(/\s+/g, '_')}.json`;
+    link.download = `backup_controlos_${data.restaurant?.restaurantName.replace(/\s+/g, '_')}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -132,7 +132,7 @@ const App: React.FC = () => {
     if (data.staffing) setCurrentStaffingTable(data.staffing);
     if (data.history) setHistoryEntries(data.history);
     if (data.schedules) setSavedSchedules(data.schedules);
-    alert("Dados importados com sucesso!");
+    alert("Backup restaurado com sucesso!");
     setActiveModule(null);
   };
 
@@ -154,7 +154,7 @@ const App: React.FC = () => {
           {sidebarOpen && (
               <div className="overflow-hidden">
                   <h1 className="font-bold text-sm tracking-tight truncate">{activeRestaurant.restaurantName}</h1>
-                  <p className="text-xs text-slate-400 truncate">{activeModule === 'billing' ? 'Faturação' : 'Operações'}</p>
+                  <p className="text-xs text-slate-400 truncate">Controlos de Gestão</p>
               </div>
           )}
         </div>
@@ -186,7 +186,7 @@ const App: React.FC = () => {
 
           {activeModule === 'billing' && (
             <button onClick={() => setActiveTab('billing_main')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'billing_main' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <FileText size={20} /> {sidebarOpen && <span>Faturação HAVI</span>}
+              <FileText size={20} /> {sidebarOpen && <span>Faturação</span>}
             </button>
           )}
         </nav>
@@ -204,9 +204,9 @@ const App: React.FC = () => {
              activeTab === 'sales_history' ? 'Histórico & Previsão' :
              activeTab === 'settings' ? 'Definições do Restaurante' : 'Controlo de Faturação'}
           </h2>
-          <div className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 flex items-center gap-1">
-             <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-             Base de Dados Local Ativa
+          <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
+             <CheckCircle2 size={12} className="text-emerald-500" />
+             Dados Locais Seguros
           </div>
         </header>
 

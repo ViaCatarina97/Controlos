@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppSettings, Employee, RoleType, StationConfig, RestaurantTypology } from '../types';
 import { AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS, STATIONS } from '../constants';
 import { 
-  Save, Plus, Trash2, User, Edit2, Store, Briefcase, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, Download, Upload, Cloud
+  Save, Plus, Trash2, User, Edit2, Store, Briefcase, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, Download, Upload, ShieldCheck
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -72,33 +72,33 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   return (
     <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
       <div className="flex border-b border-gray-100 bg-gray-50/50 p-1">
-        <button onClick={() => setActiveTab('staff')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Staff</button>
+        <button onClick={() => setActiveTab('staff')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Equipa</button>
         <button onClick={() => setActiveTab('stations')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'stations' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Postos</button>
-        <button onClick={() => setActiveTab('sync')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'sync' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-emerald-600'}`}>Sincronização</button>
-        <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Restaurante</button>
+        <button onClick={() => setActiveTab('sync')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'sync' ? 'bg-slate-800 text-white shadow-md' : 'text-gray-400 hover:text-slate-800'}`}>Cópia de Segurança</button>
+        <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Loja</button>
       </div>
 
       <div className="p-8 overflow-auto flex-1">
         {activeTab === 'sync' && (
           <div className="max-w-2xl mx-auto space-y-8 animate-fade-in py-8">
             <div className="text-center">
-              <div className="inline-flex p-4 bg-emerald-50 text-emerald-600 rounded-full mb-4"><Cloud size={48} /></div>
-              <h3 className="text-2xl font-black text-gray-800">Portabilidade de Dados</h3>
-              <p className="text-gray-500 mt-2">Use esta funcionalidade para mover todas as suas definições, histórico e equipas entre diferentes computadores ou para fazer cópias de segurança.</p>
+              <div className="inline-flex p-4 bg-slate-100 text-slate-800 rounded-full mb-4"><ShieldCheck size={48} /></div>
+              <h3 className="text-2xl font-black text-gray-800">Cópia de Segurança e Backup</h3>
+              <p className="text-gray-500 mt-2">Os seus dados são guardados apenas neste computador. Use a exportação para criar um backup ou mover a base de dados para outro PC.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
                     <Download size={32} className="text-blue-500 mb-4" />
-                    <h4 className="font-bold text-gray-800 mb-1">Exportar Backup</h4>
-                    <p className="text-xs text-gray-400 mb-6">Descarregue um ficheiro com todos os dados atuais do restaurante.</p>
-                    <button onClick={onExport} className="w-full py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">Guardar Ficheiro</button>
+                    <h4 className="font-bold text-gray-800 mb-1">Exportar Base de Dados</h4>
+                    <p className="text-xs text-gray-400 mb-6">Gera um ficheiro com tudo: Staff, Vendas, Turnos e Faturas.</p>
+                    <button onClick={onExport} className="w-full py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">Descarregar Backup</button>
                 </div>
 
                 <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
                     <Upload size={32} className="text-emerald-500 mb-4" />
-                    <h4 className="font-bold text-gray-800 mb-1">Importar Backup</h4>
-                    <p className="text-xs text-gray-400 mb-6">Carregue um ficheiro de backup para restaurar os dados neste PC.</p>
+                    <h4 className="font-bold text-gray-800 mb-1">Restaurar Backup</h4>
+                    <p className="text-xs text-gray-400 mb-6">Carrega um ficheiro guardado anteriormente para restaurar os dados.</p>
                     <label className="w-full py-3 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer text-center">
                         Selecionar Ficheiro
                         <input type="file" accept=".json" className="hidden" onChange={handleFileUpload} />
@@ -122,7 +122,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                 </select>
               </div>
             </div>
-            <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all">Guardar Configuração Geral</button>
+            <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all">Guardar Configuração</button>
           </div>
         )}
 
