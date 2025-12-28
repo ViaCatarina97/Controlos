@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
 import { BillingSummary } from './BillingSummary';
-import { Truck, FileMinus, ClipboardList, Plus, Eye, Trash2, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, FileMinus, ClipboardList, Plus, Eye, Trash2, FileText, CheckCircle2, Clock } from 'lucide-center';
 
 interface BillingControlProps {
   restaurantId: string;

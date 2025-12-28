@@ -56,11 +56,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
   
-  // Price Difference form state
   const [newEntry, setNewEntry] = useState({
     category: 'Comida',
     product: '',
@@ -68,7 +66,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     priceSms: 0
   });
 
-  // Missing Product form state
   const [newMissing, setNewMissing] = useState({
     product: '',
     group: 'Comida',
@@ -167,16 +164,17 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  const checkApiKey = async () => {
-    // @ts-ignore
-    if (window.aistudio) {
+  // Função para garantir que a API Key existe antes de processar
+  const ensureApiKey = async (): Promise<boolean> => {
+    const key = process.env.API_KEY;
+    if (!key || key === "undefined") {
+      // @ts-ignore
+      if (window.aistudio) {
         // @ts-ignore
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-            // @ts-ignore
-            await window.aistudio.openSelectKey();
-            return true; // Assume sucesso após abrir o diálogo conforme diretriz
-        }
+        await window.aistudio.openSelectKey();
+        return true; // Prosseguimos assumindo sucesso após abertura do diálogo
+      }
+      return false;
     }
     return true;
   };
@@ -189,8 +187,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       return;
     }
 
-    // Primeiro garante que temos uma chave selecionada
-    await checkApiKey();
+    const hasKey = await ensureApiKey();
+    if (!hasKey) {
+      alert("É necessário selecionar uma API Key para processar faturas.");
+      return;
+    }
     
     setIsProcessingPdf(true);
     try {
@@ -223,16 +224,13 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\n${prev.comments}`
           };
         });
-        alert("Fatura HAVI processada com sucesso!");
       }
     } catch (err: any) {
-      console.error(err);
       if (err.message === "AUTH_REQUIRED") {
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
-          alert("Por favor, selecione uma chave API válida para continuar.");
       } else {
-          alert("Erro ao processar PDF: " + (err instanceof Error ? err.message : "Desconhecido"));
+          alert("Erro ao processar fatura: " + (err instanceof Error ? err.message : "Erro desconhecido"));
       }
     } finally {
       setIsProcessingPdf(false);
@@ -336,15 +334,15 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Diferenças</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
                <div className="grid grid-cols-12 gap-1 text-[9px] font-black uppercase text-purple-600 px-2 py-1">
-                 <div className="col-span-9">Descrição</div>
-                 <div className="col-span-3 text-right">Total</div>
+                 <div className="col-span-8">Descrição</div>
+                 <div className="col-span-4 text-right">Total</div>
                </div>
                {local.smsValues.map((v, idx) => {
                  const diff = categoryDifferences[idx];
                  return (
                     <div key={v.description} className="grid grid-cols-12 gap-1 px-2 py-1.5 items-center">
-                        <div className="col-span-9 text-[11px] font-bold text-gray-700">{v.description}</div>
-                        <div className={`col-span-3 text-right text-[11px] font-black ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-gray-400'}`}>
+                        <div className="col-span-8 text-[11px] font-bold text-gray-700">{v.description}</div>
+                        <div className={`col-span-4 text-right text-[11px] font-black ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-gray-400'}`}>
                             {diff.toFixed(2)} €
                         </div>
                     </div>
