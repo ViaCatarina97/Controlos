@@ -10,7 +10,7 @@ import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, CheckCircle2 } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, CheckCircle2, CloudCheck } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings' | 'billing_main'>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
 
   const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(() => {
     const saved = localStorage.getItem('app_all_restaurants');
@@ -58,15 +59,18 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, [authenticatedRestaurantId]);
 
-  // Persistência Local Total
+  // Persistência Local Automática Total
   useEffect(() => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     const id = authenticatedRestaurantId;
+    
     localStorage.setItem('app_all_restaurants', JSON.stringify(allRestaurants));
     localStorage.setItem(`app_employees_${id}`, JSON.stringify(currentEmployees));
     localStorage.setItem(`app_staffing_table_${id}`, JSON.stringify(currentStaffingTable));
     localStorage.setItem(`app_history_detailed_${id}`, JSON.stringify(historyEntries));
     localStorage.setItem(`app_schedules_${id}`, JSON.stringify(savedSchedules));
+    
+    setLastSync(new Date().toLocaleTimeString());
   }, [allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules, authenticatedRestaurantId, isLoaded]);
 
   useEffect(() => {
@@ -93,12 +97,63 @@ const App: React.FC = () => {
     setIsLoaded(false);
   };
 
+  const handleSaveRestaurantSettings = (updated: AppSettings) => {
+    setAllRestaurants(prev => prev.map(r => r.restaurantId === updated.restaurantId ? updated : r));
+  };
+
   const handleSaveSchedule = (scheduleToSave: DailySchedule) => {
     setSavedSchedules(prev => {
         const others = prev.filter(s => s.date !== scheduleToSave.date);
         return [...others, scheduleToSave];
     });
     setCurrentSchedule(scheduleToSave);
+  };
+
+  // Funções de Portabilidade (Exportar tudo do restaurante atual)
+  const exportFullStoreData = () => {
+    const restaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
+    if (!restaurant) return;
+
+    const exportData = {
+        restaurant,
+        employees: currentEmployees,
+        staffingTable: currentStaffingTable,
+        history: historyEntries,
+        schedules: savedSchedules,
+        exportTimestamp: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BASE_DADOS_OPERACIONAL_${restaurant.restaurantName.replace(/\s+/g, '_')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importFullStoreData = (data: any) => {
+    if (!data.restaurant || !data.employees) {
+        alert("Ficheiro de importação inválido.");
+        return;
+    }
+
+    if (confirm("Isto irá substituir TODOS os dados locais deste restaurante pelos do ficheiro. Continuar?")) {
+        // Atualizar lista global de lojas
+        setAllRestaurants(prev => {
+            const others = prev.filter(r => r.restaurantId !== data.restaurant.restaurantId);
+            return [...others, data.restaurant];
+        });
+
+        // Atualizar estados locais
+        setAuthenticatedRestaurantId(data.restaurant.restaurantId);
+        setCurrentEmployees(data.employees);
+        setCurrentStaffingTable(data.staffingTable || DEFAULT_STAFFING_TABLE);
+        setHistoryEntries(data.history || []);
+        setSavedSchedules(data.schedules || []);
+        
+        alert("Dados restaurados com sucesso neste dispositivo.");
+    }
   };
 
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
@@ -169,14 +224,20 @@ const App: React.FC = () => {
              activeTab === 'sales_history' ? 'Histórico & Previsão' :
              activeTab === 'settings' ? 'Definições do Restaurante' : 'Controlo de Faturação'}
           </h2>
-          <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
-             <CheckCircle2 size={12} className="text-emerald-500" />
-             Dados Locais Seguros
+          <div className="flex items-center gap-4">
+            <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
+                <CloudCheck size={12} className="text-emerald-500" />
+                Dados Gravados: {lastSync}
+            </div>
+            <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
+                <CheckCircle2 size={12} className="text-emerald-500" />
+                Sincronização Local Ativa
+            </div>
           </div>
         </header>
 
         <div className="p-6 flex-1">
-          {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={setAllRestaurants as any} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
+          {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveRestaurantSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} onExportFullData={exportFullStoreData} onImportFullData={importFullStoreData} />}
           {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
           {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
           {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}

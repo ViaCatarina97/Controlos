@@ -1,16 +1,18 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { AppSettings, Employee, RoleType, StationConfig, RestaurantTypology, ShiftType, BusinessArea } from '../types';
 import { AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS, STATIONS, AVAILABLE_SHIFTS, AVAILABLE_AREAS } from '../constants';
 import { 
-  Save, Trash2, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, CheckSquare, Square, Edit2, Plus, X, Check
+  Save, Trash2, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, CheckSquare, Square, Edit2, Plus, X, Check, Download, Upload, Share2
 } from 'lucide-react';
 
 interface SettingsProps {
   settings: AppSettings;
-  onSaveSettings: (settings: AppSettings[]) => void;
+  onSaveSettings: (settings: AppSettings) => void;
   employees: Employee[];
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
+  onImportFullData: (data: any) => void;
+  onExportFullData: () => void;
 }
 
 const getStationCategory = (label: string) => {
@@ -38,9 +40,10 @@ const AREA_LABELS: Record<string, string> = {
   mccafe: 'McCafé'
 };
 
-export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees }) => {
+export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees, onImportFullData, onExportFullData }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'stations'>('staff');
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Station Modal State
   const [isStationModalOpen, setIsStationModalOpen] = useState(false);
@@ -81,8 +84,23 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   };
 
   const handleSaveGeneral = () => {
-    onSaveSettings([localSettings]);
+    onSaveSettings(localSettings);
     alert("Configurações da loja guardadas com sucesso!");
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        onImportFullData(data);
+      } catch (err) {
+        alert("Ficheiro de dados inválido.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   // Station Handlers
@@ -152,6 +170,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Turnos Ativos */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         Turnos Operacionais
@@ -173,6 +192,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                     </div>
                 </div>
 
+                {/* Áreas de Negócio */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         Áreas de Atividade
@@ -195,9 +215,28 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                 </div>
             </div>
 
-            <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl">
-                <Save size={20} /> Guardar Configuração da Loja
-            </button>
+            <div className="pt-4 flex flex-col gap-4 border-t border-gray-100 pt-8">
+                <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl">
+                    <Save size={20} /> Guardar Alterações da Loja
+                </button>
+
+                {/* Portabilidade Section */}
+                <div className="bg-blue-50/50 p-6 rounded-2xl border-2 border-dashed border-blue-200 mt-4 text-center">
+                    <div className="inline-flex p-3 bg-blue-100 text-blue-600 rounded-full mb-3"><Share2 size={24} /></div>
+                    <h4 className="font-black text-gray-800 uppercase tracking-tighter">Portabilidade entre PCs</h4>
+                    <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto">Para abrir noutro computador, descarregue a base de dados e carregue-a no novo dispositivo.</p>
+                    
+                    <div className="flex gap-3">
+                        <button onClick={onExportFullData} className="flex-1 bg-white border border-blue-200 text-blue-600 px-4 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 hover:bg-blue-50 transition-all">
+                            <Download size={16} /> Exportar Base de Dados
+                        </button>
+                        <label className="flex-1 bg-white border border-blue-200 text-blue-600 px-4 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 hover:bg-blue-50 transition-all cursor-pointer">
+                            <Upload size={16} /> Importar Dados
+                            <input type="file" className="hidden" accept=".json" onChange={handleImportFile} ref={fileInputRef} />
+                        </label>
+                    </div>
+                </div>
+            </div>
           </div>
         )}
 
