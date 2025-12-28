@@ -27,12 +27,14 @@ const MISSING_REASONS = [
   'Outros (descrever nos comentários)'
 ];
 
+// Mapeamento normalizado para converter nomes do PDF para nomes internos do App
 const GROUP_MAPPING: Record<string, string> = {
   'CONGELADOS': 'Congelados',
   'REFRIGERADOS': 'Refrigerados',
   'SECOS COMIDA': 'Secos Comida',
   'SECOS PAPEL': 'Secos Papel',
   'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
+  'MANUTENÇÃO LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'MANUTENÇÃO LIMPEZA': 'Manutenção Limpeza',
   'MARKETING IPL': 'Marketing IPL',
   'MARKETING GERAL': 'Marketing Geral',
@@ -43,7 +45,6 @@ const GROUP_MAPPING: Record<string, string> = {
   'MANUAIS': 'Manuais',
   'FERRAMENTAS & UTENSÍLIOS': 'Ferramentas Utensilios',
   'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
-  'FERRAMENTAS & UTENSILIOS': 'Ferramentas Utensilios',
   'MARKETING GERAL CUSTO': 'Marketing Geral Custo',
   'FARDAS': 'Fardas',
   'DISTRIBUIÇÃO DE MARKETING': 'Distribuição de Marketing',
@@ -185,23 +186,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       
       if (!hasKey) {
         await triggerApiKeySelection();
-        // Não retornamos nem mostramos erro aqui. De acordo com as regras, assumimos sucesso 
-        // e procedemos para que a injeção da chave ocorra durante a execução do serviço.
       }
 
       const result = await processInvoicePdf(file);
       
       if (result) {
         setLocal(prev => {
-          const updatedHaviGroups = prev.haviGroups.map(g => {
+          // Atualiza os grupos HAVI procurando correspondência no PDF
+          const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
+            // Tentamos encontrar o grupo no PDF que mapeie para esta descrição interna
             const pdfMatch = result.grupos.find((pg: any) => {
-                const normalizedPdfName = pg.nome.toUpperCase().trim();
-                const mappedInternalName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
-                return mappedInternalName.toLowerCase() === g.description.toLowerCase();
+                const normalizedPdfName = pg.nome.toUpperCase().replace(/\s+/g, ' ').trim();
+                const mappedName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
+                return mappedName.toLowerCase() === internalGroup.description.toLowerCase();
             });
-            return pdfMatch ? { ...g, total: pdfMatch.total } : g;
+            
+            return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
           });
 
+          // Formatação da data para o input (YYYY-MM-DD)
           let formattedDate = prev.date;
           if (result.data) {
               const parts = result.data.split('/');
@@ -213,9 +216,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           return { 
             ...prev, 
             haviGroups: updatedHaviGroups, 
-            pontoVerde: result.pto_verde_total || 0,
+            pontoVerde: result.ponto_verde_total || 0,
             date: formattedDate,
-            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nValor Total PDF: ${result.valor_final}€\n${prev.comments}`
+            comments: `Fatura Importada: ${result.documento}\nData Doc: ${result.data}\nTotal Fatura: ${result.total_geral_fatura}€\n${prev.comments}`
           };
         });
       }
@@ -223,9 +226,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       if (err.message === "AUTH_REQUIRED") {
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
-          alert("Para processar faturas é necessária uma chave de API válida de um projeto com faturação ativa. (Veja: ai.google.dev/gemini-api/docs/billing)");
+          alert("A extração de dados requer uma API Key configurada. Por favor, selecione uma chave válida no diálogo.");
       } else {
-          alert("Erro no processamento da fatura: " + (err instanceof Error ? err.message : "Tente novamente."));
+          alert("Ocorreu um erro ao processar a fatura. Verifique se o PDF está correto ou tente novamente.");
       }
     } finally {
       setIsProcessingPdf(false);
@@ -241,9 +244,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </button>
         <div className="flex items-center gap-3">
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50">
+           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "A analisar..." : "Importar Fatura PDF"}
+              {isProcessingPdf ? "A extrair dados..." : "Extrair de PDF"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
@@ -262,7 +265,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                 onClick={() => window.aistudio.openSelectKey()} 
                 className="flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors"
                >
-                 <Key size={12} /> Configurar Chave API
+                 <Key size={12} /> Alterar Chave API
                </button>
              )}
              <div>
@@ -476,7 +479,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo</label>
-                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
+                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="Comida">Comida</option>
                         <option value="Papel">Papel</option>
                         <option value="Outros">Outros</option>
@@ -490,7 +493,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo</label>
-                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
+                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
                      {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                </div>

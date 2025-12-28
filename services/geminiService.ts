@@ -14,7 +14,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Conforme diretrizes: Criar uma nova instância logo antes da chamada para usar a chave mais recente.
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -27,17 +26,28 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um especialista em conferência de faturas da HAVI Logistics.
-      Analise o documento PDF anexado, focando especificamente na tabela de resumo intitulada 'TOTAL POR GRUPO PRODUTO'.
+      Aja como um assistente de faturação. Analise o documento PDF anexado.
       
-      Extraia os seguintes campos:
-      1. DOCUMENTO: O número da fatura.
-      2. DATA: A data do documento (formato DD/MM/YYYY).
-      3. GRUPOS: Uma lista de objetos com 'nome' do grupo (ex: CONGELADOS) e o 'total' da coluna 'VALOR TOTAL'.
-      4. PTO_VERDE_TOTAL: O valor total da coluna 'PTO VERDE' na linha de TOTAL.
-      5. VALOR_FINAL: O valor total final da fatura (TOTAL da coluna 'VALOR TOTAL').
+      FOCO PRINCIPAL: Tabela "TOTAL POR GRUPO PRODUTO" (geralmente nas páginas finais).
+      
+      INSTRUÇÕES DE EXTRAÇÃO:
+      1. Localize a tabela intitulada "TOTAL POR GRUPO PRODUTO".
+      2. Para cada linha (ex: CONGELADOS, SECOS COMIDA, etc.), extraia o NOME do grupo e o "VALOR TOTAL" (é a ÚLTIMA coluna da direita).
+      3. Na linha final de "TOTAL", extraia o valor da coluna "PTO VERDE" (Ponto Verde).
+      4. Extraia o "Nº DOCUMENTO" e a "DATA DOCUMENTO" encontrados no cabeçalho da fatura.
 
-      Retorne estritamente um JSON.
+      REGRAS DE VALORES:
+      - Use apenas números. Remova símbolos de moeda (EUR, €).
+      - Certifique-se de que os decimais estão corretos.
+
+      Retorne estritamente um objeto JSON com esta estrutura:
+      {
+        "documento": "string",
+        "data": "string (DD/MM/YYYY)",
+        "grupos": [{"nome": "string", "valor_total": number}],
+        "ponto_verde_total": number,
+        "total_geral_fatura": number
+      }
     `;
 
     const response = await ai.models.generateContent({
@@ -66,29 +76,28 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
                 type: Type.OBJECT,
                 properties: {
                   nome: { type: Type.STRING },
-                  total: { type: Type.NUMBER }
+                  valor_total: { type: Type.NUMBER }
                 },
-                required: ["nome", "total"]
+                required: ["nome", "valor_total"]
               }
             },
-            pto_verde_total: { type: Type.NUMBER },
-            valor_final: { type: Type.NUMBER }
+            ponto_verde_total: { type: Type.NUMBER },
+            total_geral_fatura: { type: Type.NUMBER }
           },
-          required: ["documento", "data", "grupos", "valor_final"]
+          required: ["documento", "data", "grupos", "total_geral_fatura"]
         }
       }
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
+    if (!textOutput) throw new Error("A API não retornou conteúdo legível.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
     const errorMessage = error.message || "";
-    console.error("Gemini SDK Error:", errorMessage);
+    console.error("Gemini Extraction Error:", errorMessage);
 
-    // Se falhar com erro de entidade não encontrada ou problemas de chave, sinaliza necessidade de nova seleção.
     if (
       errorMessage.includes("Requested entity was not found") || 
       errorMessage.includes("API key") ||
