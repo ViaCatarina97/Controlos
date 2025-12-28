@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -6,7 +5,8 @@ const fileToBase64 = (file: File): Promise<string> => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-      const base64String = (reader.result as string).split(',')[1];
+      const result = reader.result as string;
+      const base64String = result.split(',')[1];
       resolve(base64String);
     };
     reader.onerror = reject;
@@ -14,16 +14,30 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Criar instância com a chave atual do ambiente
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Obtemos a chave no momento exato da chamada para evitar problemas de sincronização
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    throw new Error("AUTH_REQUIRED");
+  }
+
+  // Inicialização obrigatória conforme as diretrizes (sempre nova instância)
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um analista de dados. Analise esta fatura da HAVI Logistics e extraia os dados da tabela 'TOTAL POR GRUPO PRODUTO'.
-      Identifique o Nº Documento, Data, e os valores totais de cada grupo de produtos, além do Ponto Verde.
-      Retorne exclusivamente um objeto JSON.
+      Aja como um analista de dados especializado em logística. Analise esta fatura da HAVI Logistics.
+      Extraia os dados da tabela intitulada 'TOTAL POR GRUPO PRODUTO'.
+      Identifique obrigatoriamente:
+      1. Nº DO DOCUMENTO (fatura)
+      2. DATA DO DOCUMENTO
+      3. Grupos (Código e Nome) e os respetivos Valores Totais.
+      4. Valor do Ponto Verde (contribuição).
+      5. Valor Total Final da fatura.
+
+      Retorne exclusivamente um objeto JSON seguindo o esquema definido.
     `;
 
     const response = await ai.models.generateContent({
@@ -45,7 +59,7 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
           type: Type.OBJECT,
           properties: {
             documento: { type: Type.STRING },
-            data: { type: Type.STRING },
+            data: { type: Type.STRING, description: 'Data no formato DD/MM/YYYY' },
             grupos: {
               type: Type.ARRAY,
               items: {
@@ -66,14 +80,20 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API não retornou dados.");
+    if (!textOutput) throw new Error("A API não retornou conteúdo.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    // Se falhar por falta de chave ou permissão, sinalizamos para o componente abrir o seletor
-    if (error.message?.includes("API Key") || error.status === 403 || error.status === 401) {
+    // Verificação de erro de permissão ou chave não encontrada
+    if (
+      error.message?.includes("API key") || 
+      error.message?.includes("API_KEY") ||
+      error.status === 403 || 
+      error.status === 401 ||
+      error.message?.includes("Requested entity was not found")
+    ) {
       throw new Error("AUTH_REQUIRED");
     }
     throw error;

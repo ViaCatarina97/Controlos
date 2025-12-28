@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
@@ -164,25 +163,31 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Verificar se existe chave selecionada antes de processar
+  const triggerApiKeySelection = async () => {
     // @ts-ignore
     if (window.aistudio) {
       // @ts-ignore
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        alert("Para utilizar a extração automática de faturas, é necessário selecionar uma API Key paga (GCP Project com faturação ativa).");
-        return;
-      }
+      await window.aistudio.openSelectKey();
+      return true;
     }
+    return false;
+  };
+
+  const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     
     setIsProcessingPdf(true);
     try {
+      // Verificação preventiva de chave
+      // @ts-ignore
+      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
+          await triggerApiKeySelection();
+          setIsProcessingPdf(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+      }
+
       const result = await processInvoicePdf(file);
       
       if (result) {
@@ -215,11 +220,10 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
-          // @ts-ignore
-          if (window.aistudio) await window.aistudio.openSelectKey();
-          alert("É necessário selecionar uma API Key de um projeto com faturação ativa para utilizar este recurso.");
+          await triggerApiKeySelection();
+          alert("Por favor, selecione uma API Key válida do seu projeto Google Cloud com faturação ativa.");
       } else {
-          alert("Erro ao processar fatura: " + (err instanceof Error ? err.message : "Erro desconhecido"));
+          alert("Erro no processamento da fatura: " + (err instanceof Error ? err.message : "Tente novamente mais tarde."));
       }
     } finally {
       setIsProcessingPdf(false);
@@ -237,7 +241,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
            <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "A processar..." : "Carregar Fatura"}
+              {isProcessingPdf ? "A analisar..." : "Importar Fatura PDF"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
@@ -256,7 +260,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                 onClick={() => window.aistudio.openSelectKey()} 
                 className="flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors"
                >
-                 <Key size={12} /> Alterar Chave API
+                 <Key size={12} /> Configurar Chave API
                </button>
              )}
              <div>
