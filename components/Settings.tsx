@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppSettings, Employee, RoleType, StationConfig, RestaurantTypology } from '../types';
 import { AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS, STATIONS } from '../constants';
 import { 
-  Save, Plus, Trash2, User, Edit2, Store, Briefcase, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, Cloud, RefreshCw, Key
+  Save, Plus, Trash2, User, Edit2, Store, Briefcase, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, Download, Upload, Cloud
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -11,9 +11,8 @@ interface SettingsProps {
   onSaveSettings: (settings: AppSettings[]) => void;
   employees: Employee[];
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
-  syncKey: string;
-  setSyncKey: (key: string) => void;
-  onRefresh: () => void;
+  onExport: () => void;
+  onImport: (data: any) => void;
 }
 
 const getStationCategory = (label: string) => {
@@ -30,10 +29,9 @@ const getStationCategory = (label: string) => {
     return { key: 'other', icon: Briefcase, color: 'bg-gray-100 text-gray-700' };
 };
 
-export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees, syncKey, setSyncKey, onRefresh }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'stations' | 'cloud'>('staff');
+export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees, onExport, onImport }) => {
+  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'stations' | 'sync'>('staff');
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
-  const [newKey, setNewKey] = useState(syncKey);
 
   const groupedStations = useMemo(() => {
     const groups: Record<string, { label: string, icon: any, color: string, stations: StationConfig[] }> = {};
@@ -51,17 +49,24 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
     return Object.values(groups);
   }, [localSettings.customStations]);
 
-  const handleUpdateSyncKey = () => {
-    if (!newKey.trim()) return;
-    setSyncKey(newKey);
-    localStorage.setItem('app_sync_key', newKey);
-    alert("Chave de sincronização atualizada. O sistema irá sincronizar agora.");
-    onRefresh();
-  };
-
   const handleSaveGeneral = () => {
     onSaveSettings([localSettings]);
     alert("Configurações locais guardadas com sucesso!");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        try {
+            const data = JSON.parse(ev.target?.result as string);
+            onImport(data);
+        } catch (err) {
+            alert("Ficheiro de backup inválido.");
+        }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -69,49 +74,37 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
       <div className="flex border-b border-gray-100 bg-gray-50/50 p-1">
         <button onClick={() => setActiveTab('staff')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Staff</button>
         <button onClick={() => setActiveTab('stations')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'stations' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Postos</button>
-        <button onClick={() => setActiveTab('cloud')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'cloud' ? 'bg-blue-600 text-white shadow-md' : 'text-emerald-600 hover:bg-emerald-50'}`}>Nuvem Online</button>
+        <button onClick={() => setActiveTab('sync')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'sync' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-emerald-600'}`}>Sincronização</button>
         <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Restaurante</button>
       </div>
 
       <div className="p-8 overflow-auto flex-1">
-        {activeTab === 'cloud' && (
-          <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+        {activeTab === 'sync' && (
+          <div className="max-w-2xl mx-auto space-y-8 animate-fade-in py-8">
             <div className="text-center">
-              <div className="inline-flex p-4 bg-blue-50 text-blue-600 rounded-full mb-4"><Cloud size={48} /></div>
-              <h3 className="text-2xl font-black text-gray-800">Sincronização Online Automática</h3>
-              <p className="text-gray-500 mt-2">Defina uma chave única para o seu restaurante. Ao usar a mesma chave noutro computador, todos os dados (staff, faturas, vendas) serão carregados automaticamente.</p>
+              <div className="inline-flex p-4 bg-emerald-50 text-emerald-600 rounded-full mb-4"><Cloud size={48} /></div>
+              <h3 className="text-2xl font-black text-gray-800">Portabilidade de Dados</h3>
+              <p className="text-gray-500 mt-2">Use esta funcionalidade para mover todas as suas definições, histórico e equipas entre diferentes computadores ou para fazer cópias de segurança.</p>
             </div>
 
-            <div className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-sm">
-               <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Chave de Sincronização do Restaurante</label>
-               <div className="flex gap-3">
-                  <div className="relative flex-1">
-                    <Key className="absolute left-3 top-3.5 text-blue-400" size={18} />
-                    <input 
-                      type="text" 
-                      value={newKey} 
-                      onChange={e => setNewKey(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold text-blue-700"
-                      placeholder="ex: restaurante-chiado-2024"
-                    />
-                  </div>
-                  <button onClick={handleUpdateSyncKey} className="bg-blue-600 text-white px-8 rounded-xl font-black hover:bg-blue-700 transition-all flex items-center gap-2">
-                    <Save size={18} /> Ativar Nuvem
-                  </button>
-               </div>
-               <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100">
-                  <RefreshCw size={14} />
-                  NOTA: Qualquer alteração feita neste computador será refletida em todos os outros que usem esta chave.
-               </div>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
+                    <Download size={32} className="text-blue-500 mb-4" />
+                    <h4 className="font-bold text-gray-800 mb-1">Exportar Backup</h4>
+                    <p className="text-xs text-gray-400 mb-6">Descarregue um ficheiro com todos os dados atuais do restaurante.</p>
+                    <button onClick={onExport} className="w-full py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">Guardar Ficheiro</button>
+                </div>
 
-            {syncKey && (
-              <div className="flex justify-center gap-4">
-                 <button onClick={onRefresh} className="flex items-center gap-2 text-blue-600 font-bold hover:underline">
-                    <RefreshCw size={16} /> Forçar Sincronização Agora
-                 </button>
-              </div>
-            )}
+                <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
+                    <Upload size={32} className="text-emerald-500 mb-4" />
+                    <h4 className="font-bold text-gray-800 mb-1">Importar Backup</h4>
+                    <p className="text-xs text-gray-400 mb-6">Carregue um ficheiro de backup para restaurar os dados neste PC.</p>
+                    <label className="w-full py-3 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer text-center">
+                        Selecionar Ficheiro
+                        <input type="file" accept=".json" className="hidden" onChange={handleFileUpload} />
+                    </label>
+                </div>
+            </div>
           </div>
         )}
 
