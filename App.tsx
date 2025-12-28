@@ -92,7 +92,7 @@ const App: React.FC = () => {
     setTimeout(() => setIsLoaded(true), 100);
   }, [authenticatedRestaurantId]);
 
-  // Sincronização automática para LocalStorage
+  // Sincronização automática para LocalStorage - Ponto Único de Verdade
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(allRestaurants));
   }, [allRestaurants]);
@@ -100,22 +100,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     localStorage.setItem(EMPLOYEES_KEY(authenticatedRestaurantId), JSON.stringify(currentEmployees));
-  }, [currentEmployees, authenticatedRestaurantId, isLoaded]);
-
-  useEffect(() => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
     localStorage.setItem(STAFFING_TABLE_KEY(authenticatedRestaurantId), JSON.stringify(currentStaffingTable));
-  }, [currentStaffingTable, authenticatedRestaurantId, isLoaded]);
-
-  useEffect(() => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
     localStorage.setItem(HISTORY_KEY(authenticatedRestaurantId), JSON.stringify(historyEntries));
-  }, [historyEntries, authenticatedRestaurantId, isLoaded]);
-
-  useEffect(() => {
-    if (!authenticatedRestaurantId || !isLoaded) return;
     localStorage.setItem(SCHEDULES_KEY(authenticatedRestaurantId), JSON.stringify(savedSchedules));
-  }, [savedSchedules, authenticatedRestaurantId, isLoaded]);
+  }, [isLoaded, authenticatedRestaurantId, currentEmployees, currentStaffingTable, historyEntries, savedSchedules]);
 
   useEffect(() => {
     const existingSchedule = savedSchedules.find(s => s.date === targetDate);
@@ -164,7 +152,7 @@ const App: React.FC = () => {
         return [...others, scheduleToSave];
     });
     setCurrentSchedule(scheduleToSave);
-    alert("Posicionamento guardado com sucesso!");
+    // Nota: O salvamento no localStorage acontece via useEffect
   };
 
   const handleLoadFromHistory = (date: string, shift?: ShiftType) => {
@@ -177,6 +165,48 @@ const App: React.FC = () => {
     if (confirm(`Tem a certeza que deseja eliminar o registo de ${date}?`)) {
       setSavedSchedules(prev => prev.filter(s => s.date !== date));
       if (targetDate === date) setCurrentSchedule({ date, shifts: {}, lockedShifts: [] });
+    }
+  };
+
+  // Funções de Import/Export Global
+  const exportAllData = () => {
+    if (!authenticatedRestaurantId) return;
+    
+    const data = {
+        restaurant: allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId),
+        employees: currentEmployees,
+        staffing: currentStaffingTable,
+        history: historyEntries,
+        schedules: savedSchedules
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_${data.restaurant?.restaurantName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importAllData = (jsonData: any) => {
+    try {
+        if (jsonData.restaurant) {
+            setAllRestaurants(prev => {
+                const filtered = prev.filter(r => r.restaurantId !== jsonData.restaurant.restaurantId);
+                return [...filtered, jsonData.restaurant];
+            });
+            setAuthenticatedRestaurantId(jsonData.restaurant.restaurantId);
+        }
+        if (jsonData.employees) setCurrentEmployees(jsonData.employees);
+        if (jsonData.staffing) setCurrentStaffingTable(jsonData.staffing);
+        if (jsonData.history) setHistoryEntries(jsonData.history);
+        if (jsonData.schedules) setSavedSchedules(jsonData.schedules);
+        
+        alert("Dados importados com sucesso! O sistema irá reiniciar a sessão.");
+        setActiveModule(null);
+    } catch (e) {
+        alert("Erro ao importar ficheiro. Formato inválido.");
     }
   };
 
@@ -235,17 +265,25 @@ const App: React.FC = () => {
       </aside>
       <main className="flex-1 overflow-auto flex flex-col">
         <header className="bg-white shadow-sm p-6 sticky top-0 z-10 print:hidden">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {activeModule === 'billing' ? 'Controlo de Faturação' : (
-              <>
-                {activeTab === 'positioning' && 'Posicionamento'}
-                {activeTab === 'staffing' && 'Staffing'}
-                {activeTab === 'sales_history' && 'Histórico de Vendas'}
-                {activeTab === 'schedule_history' && 'Histórico de Turnos'}
-                {activeTab === 'settings' && 'Definições & Staff'}
-              </>
-            )}
-          </h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-800">
+                {activeModule === 'billing' ? 'Controlo de Faturação' : (
+                <>
+                    {activeTab === 'positioning' && 'Posicionamento Diário'}
+                    {activeTab === 'staffing' && 'Matriz de Staffing'}
+                    {activeTab === 'sales_history' && 'Histórico & Previsão'}
+                    {activeTab === 'schedule_history' && 'Histórico de Turnos'}
+                    {activeTab === 'settings' && 'Definições & Staff'}
+                </>
+                )}
+            </h2>
+            <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 flex items-center gap-1">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    Sincronizado Localmente
+                </span>
+            </div>
+          </div>
         </header>
         <div className="p-6 flex-1">
           {!isLoaded ? (
@@ -255,7 +293,16 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
-              {activeTab === 'settings' && activeModule === 'positioning' && <Settings settings={activeRestaurant} onSaveSettings={handleUpdateSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} />}
+              {activeTab === 'settings' && activeModule === 'positioning' && (
+                <Settings 
+                  settings={activeRestaurant} 
+                  onSaveSettings={handleUpdateSettings} 
+                  employees={currentEmployees} 
+                  setEmployees={setCurrentEmployees}
+                  onExport={exportAllData}
+                  onImport={importAllData}
+                />
+              )}
               {activeTab === 'staffing' && activeModule === 'positioning' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
               {activeTab === 'sales_history' && activeModule === 'positioning' && (
                 <HistoryForecast 
