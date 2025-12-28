@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -14,30 +15,30 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Obtemos a chave no momento exato da chamada para evitar problemas de sincronização
+  // A chave de API é injetada no ambiente. 
+  // Devemos inicializar a instância SEMPRE dentro da função para captar a chave mais recente.
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
     throw new Error("AUTH_REQUIRED");
   }
 
-  // Inicialização obrigatória conforme as diretrizes (sempre nova instância)
   const ai = new GoogleGenAI({ apiKey });
 
   try {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um analista de dados especializado em logística. Analise esta fatura da HAVI Logistics.
-      Extraia os dados da tabela intitulada 'TOTAL POR GRUPO PRODUTO'.
-      Identifique obrigatoriamente:
-      1. Nº DO DOCUMENTO (fatura)
-      2. DATA DO DOCUMENTO
-      3. Grupos (Código e Nome) e os respetivos Valores Totais.
-      4. Valor do Ponto Verde (contribuição).
-      5. Valor Total Final da fatura.
+      Analise esta fatura da HAVI Logistics.
+      Extraia os dados da tabela 'TOTAL POR GRUPO PRODUTO'.
+      Campos necessários:
+      1. Nº do Documento
+      2. Data do Documento (DD/MM/YYYY)
+      3. Grupos e Valores (Coluna Valor Total)
+      4. Valor do Ponto Verde
+      5. Valor Final da Fatura
 
-      Retorne exclusivamente um objeto JSON seguindo o esquema definido.
+      Retorne estritamente um JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -59,7 +60,7 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
           type: Type.OBJECT,
           properties: {
             documento: { type: Type.STRING },
-            data: { type: Type.STRING, description: 'Data no formato DD/MM/YYYY' },
+            data: { type: Type.STRING },
             grupos: {
               type: Type.ARRAY,
               items: {
@@ -80,19 +81,21 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API não retornou conteúdo.");
+    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    // Verificação de erro de permissão ou chave não encontrada
+    const errorMessage = error.message || "";
+    console.error("Gemini SDK Error:", errorMessage);
+
+    // Conforme diretrizes: "Requested entity was not found" indica necessidade de re-seleção de chave
     if (
-      error.message?.includes("API key") || 
-      error.message?.includes("API_KEY") ||
+      errorMessage.includes("Requested entity was not found") || 
+      errorMessage.includes("API key") ||
+      errorMessage.includes("API_KEY") ||
       error.status === 403 || 
-      error.status === 401 ||
-      error.message?.includes("Requested entity was not found")
+      error.status === 401
     ) {
       throw new Error("AUTH_REQUIRED");
     }

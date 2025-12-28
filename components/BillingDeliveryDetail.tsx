@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
@@ -179,13 +180,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     
     setIsProcessingPdf(true);
     try {
-      // Verificação preventiva de chave
+      // Regra de Ouro: Se não houver chave, abra o diálogo mas PROCEDA.
       // @ts-ignore
       if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
           await triggerApiKeySelection();
-          setIsProcessingPdf(false);
-          if (fileInputRef.current) fileInputRef.current.value = '';
-          return;
+          // Não retornamos aqui. Procedemos para tentar a chamada, 
+          // que falhará com AUTH_REQUIRED se a injeção for lenta, ou terá sucesso.
       }
 
       const result = await processInvoicePdf(file);
@@ -220,10 +220,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
+          // Se a tentativa imediata falhar, explicamos ao usuário e abrimos o diálogo novamente
           await triggerApiKeySelection();
-          alert("Por favor, selecione uma API Key válida do seu projeto Google Cloud com faturação ativa.");
+          alert("A extração de faturas requer uma API Key válida de um projeto Google Cloud com faturação ativa. Por favor, selecione uma chave paga no diálogo.");
       } else {
-          alert("Erro no processamento da fatura: " + (err instanceof Error ? err.message : "Tente novamente mais tarde."));
+          alert("Erro no processamento da fatura: " + (err instanceof Error ? err.message : "Tente novamente."));
       }
     } finally {
       setIsProcessingPdf(false);
@@ -474,7 +475,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo</label>
-                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="Comida">Comida</option>
                         <option value="Papel">Papel</option>
                         <option value="Outros">Outros</option>
@@ -488,7 +489,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo</label>
-                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
                      {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                </div>
