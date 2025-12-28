@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
-import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-center';
 import { processInvoicePdf } from '../services/geminiService';
 
 interface BillingDeliveryDetailProps {
@@ -28,6 +28,7 @@ const MISSING_REASONS = [
   'Outros (descrever nos comentários)'
 ];
 
+// Mapeamento exaustivo baseado na imagem da fatura HAVI
 const GROUP_MAPPING: Record<string, string> = {
   'CONGELADOS': 'Congelados',
   'REFRIGERADOS': 'Refrigerados',
@@ -35,6 +36,7 @@ const GROUP_MAPPING: Record<string, string> = {
   'SECOS PAPEL': 'Secos Papel',
   'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
   'MANUTENÇÃO LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
+  'MANUTENÇÃO & LIMPEZA': 'Manutenção Limpeza',
   'MANUTENÇÃO LIMPEZA': 'Manutenção Limpeza',
   'MARKETING IPL': 'Marketing IPL',
   'MARKETING GERAL': 'Marketing Geral',
@@ -175,7 +177,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
           // @ts-ignore
           await window.aistudio.openSelectKey();
-          // Proceder imediatamente para mitigar a condição de corrida
       }
 
       const result = await processInvoicePdf(file);
@@ -183,11 +184,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       if (result) {
         setLocal(prev => {
           const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
+            // Normalizar o nome vindo do PDF para busca no mapeamento
             const pdfMatch = result.grupos.find((pg: any) => {
                 const normalizedPdfName = pg.nome.toUpperCase().replace(/\s+/g, ' ').trim();
-                const mappedName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
-                return mappedName.toLowerCase() === internalGroup.description.toLowerCase();
+                const mappedInternalName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
+                return mappedInternalName.toLowerCase() === internalGroup.description.toLowerCase();
             });
+            
+            // Se encontrar o valor, preenche o total
             return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
           });
 
@@ -204,7 +208,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             haviGroups: updatedHaviGroups, 
             pontoVerde: result.ponto_verde_total || 0,
             date: formattedDate,
-            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nTotal: ${result.total_geral_fatura}€\n${prev.comments}`
+            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nTotal Extraído: ${result.total_geral_fatura}€\n${prev.comments}`
           };
         });
       }
@@ -213,7 +217,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
       } else {
-          alert("Erro ao ler fatura. Verifique a chave de API e o ficheiro.");
+          alert("Não foi possível processar a fatura. Verifique se o ficheiro é um PDF válido e se a chave API está configurada.");
       }
     } finally {
       setIsProcessingPdf(false);
@@ -229,9 +233,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </button>
         <div className="flex items-center gap-3">
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50">
+           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "Extraindo..." : "Importar PDF"}
+              {isProcessingPdf ? "Extraindo dados..." : "Extrair de PDF"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
@@ -262,7 +266,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Fatura HAVI</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">Fatura HAVI (Resumo)</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
                <div className="grid grid-cols-12 gap-1 text-[9px] font-black uppercase text-purple-600 px-2 py-1">
                  <div className="col-span-1">GRP</div>
@@ -407,12 +411,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários</h3>
+           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários e Notas da Conferência</h3>
            <textarea 
              value={local.comments} 
              onChange={(e) => setLocal({...local, comments: e.target.value})} 
-             placeholder="Notas adicionais..."
-             className="w-full h-20 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
+             placeholder="Notas adicionais sobre a entrega..."
+             className="w-full h-24 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
            />
         </div>
       </div>

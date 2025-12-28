@@ -15,7 +15,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Sempre obter a chave do ambiente no momento da chamada
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -28,15 +27,18 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Analise o documento PDF da HAVI Logistics.
-      Localize a tabela "TOTAL POR GRUPO PRODUTO".
-      Extraia:
-      1. Nº DOCUMENTO e DATA DOCUMENTO do cabeçalho.
-      2. Para cada linha da tabela de grupos (ex: CONGELADOS, SECOS COMIDA), extraia o nome do grupo e o "VALOR TOTAL" (última coluna).
-      3. O valor do "PTO VERDE" (Ponto Verde) da linha de total.
-      4. O valor final absoluto da fatura (TOTAL da coluna VALOR TOTAL).
+      Aja como um especialista em conferência de faturas HAVI Logistics.
+      Analise o PDF e foque EXCLUSIVAMENTE na tabela intitulada "TOTAL POR GRUPO PRODUTO".
+      
+      INSTRUÇÕES TÉCNICAS:
+      1. Localize a tabela de resumo de grupos (conforme a imagem de exemplo).
+      2. Para cada linha (ex: CONGELADOS, REFRIGERADOS, etc.), ignore as colunas do meio e extraia APENAS o valor da ÚLTIMA coluna à direita, intitulada "VALOR TOTAL".
+      3. Na linha final "TOTAL", extraia o valor da coluna "PTO VERDE".
+      4. Extraia também o número do documento (ex: ZF2 BW1X/...) e a data da fatura.
 
-      Retorne estritamente JSON.
+      REGRAS DE FORMATAÇÃO:
+      - Remova "EUR" ou "€" dos valores.
+      - Retorne estritamente um JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -64,8 +66,8 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  nome: { type: Type.STRING },
-                  valor_total: { type: Type.NUMBER }
+                  nome: { type: Type.STRING, description: "O nome do grupo exatamente como escrito na primeira coluna." },
+                  valor_total: { type: Type.NUMBER, description: "O valor da última coluna da direita." }
                 },
                 required: ["nome", "valor_total"]
               }
@@ -87,7 +89,6 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const errorMessage = error.message || "";
     console.error("Gemini Error:", errorMessage);
 
-    // Mapear erros de permissão ou chave inválida para AUTH_REQUIRED
     if (
       errorMessage.includes("Requested entity was not found") || 
       errorMessage.includes("API key") ||
