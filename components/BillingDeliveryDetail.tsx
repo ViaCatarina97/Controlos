@@ -166,15 +166,15 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   // Função para garantir que a API Key existe antes de processar
   const ensureApiKey = async (): Promise<boolean> => {
-    const key = process.env.API_KEY;
-    if (!key || key === "undefined") {
+    // @ts-ignore
+    if (window.aistudio) {
       // @ts-ignore
-      if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
         // @ts-ignore
         await window.aistudio.openSelectKey();
-        return true; // Prosseguimos assumindo sucesso após abertura do diálogo
+        return true; // Continuamos, o valor será injetado no process.env.API_KEY
       }
-      return false;
     }
     return true;
   };
@@ -187,11 +187,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       return;
     }
 
-    const hasKey = await ensureApiKey();
-    if (!hasKey) {
-      alert("É necessário selecionar uma API Key para processar faturas.");
-      return;
-    }
+    // Tentar garantir a chave antes da chamada
+    await ensureApiKey();
     
     setIsProcessingPdf(true);
     try {
@@ -227,6 +224,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
+          alert("É necessário selecionar uma API Key paga para processar faturas.");
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
       } else {

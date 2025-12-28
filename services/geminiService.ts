@@ -19,29 +19,29 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
-  // Verificação rigorosa da API Key antes da inicialização
+  // Obter a chave diretamente do ambiente no momento da chamada
   const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+  
+  // Verificação robusta: se a chave for nula, vazia ou a string "undefined"
+  if (!apiKey || apiKey === "" || apiKey === "undefined") {
     throw new Error("AUTH_REQUIRED");
   }
 
-  // Inicialização obrigatória conforme as diretrizes
+  // Inicialização obrigatória conforme as diretrizes (sempre novo instance)
   const ai = new GoogleGenAI({ apiKey });
 
   try {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um especialista em análise de faturas da HAVI Logistics. 
-      Analise o PDF e identifique a tabela 'TOTAL POR GRUPO PRODUTO'.
-      Extraia:
-      1. Nº da Fatura (Documento)
-      2. Data da Fatura
-      3. Grupos e seus valores totais (Coluna Valor Total)
-      4. Valor do Ponto Verde
-      5. Valor Final da Fatura
+      Aja como um analista financeiro. Analise este PDF da HAVI Logistics e extraia os dados da tabela 'TOTAL POR GRUPO PRODUTO'.
+      Regras de extração:
+      1. Extraia o 'Nº DOCUMENTO' e a 'DATA DOCUMENTO'.
+      2. Mapeie cada linha da tabela para o formato JSON.
+      3. Extraia o valor do 'PTO VERDE' (Ponto Verde).
+      4. O valor final da fatura.
 
-      Retorne APENAS um objeto JSON.
+      Retorne APENAS o JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -84,13 +84,14 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API não retornou dados legíveis.");
+    if (!textOutput) throw new Error("Resposta da API vazia.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
-    console.error("Gemini Process Error:", error);
-    if (error.message?.includes("Requested entity was not found") || error.message?.includes("API key")) {
+    console.error("Gemini Critical Error:", error);
+    // Erros de permissão ou chave inválida/ausente
+    if (error.message?.includes("API key") || error.status === 403 || error.status === 401) {
       throw new Error("AUTH_REQUIRED");
     }
     throw error;
