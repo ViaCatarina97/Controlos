@@ -17,7 +17,7 @@ type ModuleType = 'positioning' | 'finance' | 'billing';
 const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
-  const [activeTab, setActiveTab] = useState<'positioning' | 'staffing' | 'sales_history' | 'schedule_history' | 'settings' | 'billing_main'>('positioning');
+  const [activeTab, setActiveTab] = useState<string>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
@@ -83,18 +83,25 @@ const App: React.FC = () => {
   const handleRegister = (newRest: AppSettings) => {
     setAllRestaurants(prev => [...prev, { ...newRest, customStations: STATIONS }]);
     setAuthenticatedRestaurantId(newRest.restaurantId);
-    setActiveModule(null); 
+    handleModuleSelect(null); 
   };
 
   const handleLogin = (restaurant: AppSettings) => {
     setAuthenticatedRestaurantId(restaurant.restaurantId);
-    setActiveModule(null); 
+    handleModuleSelect(null); 
   };
 
   const handleLogout = () => {
     setAuthenticatedRestaurantId(null);
     setActiveModule(null);
     setIsLoaded(false);
+  };
+
+  const handleModuleSelect = (module: ModuleType | null) => {
+    setActiveModule(module);
+    if (module === 'positioning') setActiveTab('positioning');
+    else if (module === 'billing') setActiveTab('deliveries');
+    else if (module === 'finance') setActiveTab('finance_summary');
   };
 
   const handleSaveRestaurantSettings = (updated: AppSettings) => {
@@ -109,11 +116,9 @@ const App: React.FC = () => {
     setCurrentSchedule(scheduleToSave);
   };
 
-  // Funções de Portabilidade (Exportar tudo do restaurante atual)
   const exportFullStoreData = () => {
     const restaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
     if (!restaurant) return;
-
     const exportData = {
         restaurant,
         employees: currentEmployees,
@@ -122,7 +127,6 @@ const App: React.FC = () => {
         schedules: savedSchedules,
         exportTimestamp: new Date().toISOString()
     };
-
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -137,21 +141,16 @@ const App: React.FC = () => {
         alert("Ficheiro de importação inválido.");
         return;
     }
-
     if (confirm("Isto irá substituir TODOS os dados locais deste restaurante pelos do ficheiro. Continuar?")) {
-        // Atualizar lista global de lojas
         setAllRestaurants(prev => {
             const others = prev.filter(r => r.restaurantId !== data.restaurant.restaurantId);
             return [...others, data.restaurant];
         });
-
-        // Atualizar estados locais
         setAuthenticatedRestaurantId(data.restaurant.restaurantId);
         setCurrentEmployees(data.employees);
         setCurrentStaffingTable(data.staffingTable || DEFAULT_STAFFING_TABLE);
         setHistoryEntries(data.history || []);
         setSavedSchedules(data.schedules || []);
-        
         alert("Dados restaurados com sucesso neste dispositivo.");
     }
   };
@@ -163,7 +162,7 @@ const App: React.FC = () => {
   }
 
   if (!activeModule) {
-    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={setActiveModule} onLogout={handleLogout} />;
+    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={handleModuleSelect} onLogout={handleLogout} />;
   }
 
   return (
@@ -179,7 +178,7 @@ const App: React.FC = () => {
           )}
         </div>
         <nav className="flex-1 p-4 space-y-1">
-           <button onClick={() => setActiveModule(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white mb-6 border border-slate-700/50">
+           <button onClick={() => handleModuleSelect(null)} className="w-full flex items-center gap-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white mb-6 border border-slate-700/50">
              <ArrowLeft size={20} />
              {sidebarOpen && <span className="font-medium">Menu Principal</span>}
            </button>
@@ -205,9 +204,14 @@ const App: React.FC = () => {
           )}
 
           {activeModule === 'billing' && (
-            <button onClick={() => setActiveTab('billing_main')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'billing_main' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <FileText size={20} /> {sidebarOpen && <span>Faturação</span>}
-            </button>
+            <>
+              <button onClick={() => setActiveTab('deliveries')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${['deliveries', 'credits', 'summary'].includes(activeTab) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <FileText size={20} /> {sidebarOpen && <span>Controlo Entregas</span>}
+              </button>
+              <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <SettingsIcon size={20} /> {sidebarOpen && <span>Definições Loja</span>}
+              </button>
+            </>
           )}
         </nav>
         <div className="p-4 border-t border-slate-700">
@@ -218,31 +222,44 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-auto flex flex-col">
         <header className="bg-white shadow-sm px-6 py-4 sticky top-0 z-10 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">
-            {activeTab === 'positioning' ? 'Posicionamento Diário' : 
-             activeTab === 'staffing' ? 'Matriz de Staffing' :
-             activeTab === 'sales_history' ? 'Histórico & Previsão' :
-             activeTab === 'settings' ? 'Definições do Restaurante' : 'Controlo de Faturação'}
+          <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
+            {activeModule === 'billing' ? 'Módulo Financeiro / Faturação' : 'Módulo Operacional / Posicionamento'}
           </h2>
           <div className="flex items-center gap-4">
             <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
                 <CloudCheck size={12} className="text-emerald-500" />
-                Dados Gravados: {lastSync}
-            </div>
-            <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
-                <CheckCircle2 size={12} className="text-emerald-500" />
-                Sincronização Local Ativa
+                Dados Locais: {lastSync}
             </div>
           </div>
         </header>
 
         <div className="p-6 flex-1">
+          {/* Definições (Comum aos módulos) */}
           {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveRestaurantSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} onExportFullData={exportFullStoreData} onImportFullData={importFullStoreData} />}
-          {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
-          {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
-          {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
-          {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
-          {activeTab === 'billing_main' && <BillingControl restaurantId={activeRestaurant.restaurantId} employees={currentEmployees} />}
+          
+          {/* Subpáginas do Módulo de Posicionamento */}
+          {activeModule === 'positioning' && (
+            <>
+              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
+              {activeTab === 'staffing' && <Criteria staffingTable={currentStaffingTable} setStaffingTable={setCurrentStaffingTable} />}
+              {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
+              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
+            </>
+          )}
+
+          {/* Subpáginas do Módulo de Faturação */}
+          {activeModule === 'billing' && (
+            <>
+              {(['deliveries', 'credits', 'summary'].includes(activeTab)) && (
+                <BillingControl 
+                  restaurantId={activeRestaurant.restaurantId} 
+                  employees={currentEmployees} 
+                  activeSubTab={activeTab as any}
+                  onTabChange={setActiveTab}
+                />
+              )}
+            </>
+          )}
         </div>
       </main>
     </div>
