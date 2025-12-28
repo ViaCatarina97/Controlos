@@ -19,6 +19,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
+  // Inicialização obrigatória conforme as diretrizes
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
@@ -46,6 +47,7 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
       }
     `;
 
+    // Utiliza generateContent diretamente conforme as novas diretrizes
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -85,10 +87,18 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
       }
     });
 
-    return JSON.parse(response.text || '{}');
+    // Acessa .text como propriedade conforme diretriz
+    const textOutput = response.text;
+    if (!textOutput) throw new Error("A API não retornou texto.");
+    
+    return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
     console.error("Gemini Invoice Error:", error);
+    // Verifica se é erro de falta de API Key ou entidade não encontrada para resetar
+    if (error.message?.includes("Requested entity was not found") || error.message?.includes("API Key")) {
+        throw new Error("AUTH_REQUIRED");
+    }
     throw new Error("Erro na extração de dados da fatura. Por favor, tente novamente.");
   }
 };

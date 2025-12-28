@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
-import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
 import { processInvoicePdf } from '../services/geminiService';
 
 interface BillingDeliveryDetailProps {
@@ -167,6 +167,20 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
+  const checkApiKey = async () => {
+    // @ts-ignore
+    if (window.aistudio) {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+            // @ts-ignore
+            await window.aistudio.openSelectKey();
+            return true; // Assume sucesso após abrir o diálogo conforme diretriz
+        }
+    }
+    return true;
+  };
+
   const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -174,6 +188,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       alert("Por favor, selecione um ficheiro PDF.");
       return;
     }
+
+    // Primeiro garante que temos uma chave selecionada
+    await checkApiKey();
     
     setIsProcessingPdf(true);
     try {
@@ -208,9 +225,15 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         });
         alert("Fatura HAVI processada com sucesso!");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro ao processar PDF: " + (err instanceof Error ? err.message : "Desconhecido"));
+      if (err.message === "AUTH_REQUIRED") {
+          // @ts-ignore
+          if (window.aistudio) await window.aistudio.openSelectKey();
+          alert("Por favor, selecione uma chave API válida para continuar.");
+      } else {
+          alert("Erro ao processar PDF: " + (err instanceof Error ? err.message : "Desconhecido"));
+      }
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -238,9 +261,21 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 space-y-6 shadow-xl print:border-none print:shadow-none print:p-0">
         <div className="flex justify-between items-center border-b border-purple-100 pb-4">
           <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Conferência de Fatura HAVI</h2>
-          <div className="text-right">
-            <div className="text-[10px] font-bold text-purple-500 uppercase tracking-widest">ID Registo</div>
-            <div className="text-xs font-mono text-gray-400">{local.id.split('-')[0]}</div>
+          <div className="text-right flex items-center gap-4">
+             {/* @ts-ignore */}
+             {window.aistudio && (
+               <button 
+                // @ts-ignore
+                onClick={() => window.aistudio.openSelectKey()} 
+                className="flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors"
+               >
+                 <Key size={12} /> Alterar Chave API
+               </button>
+             )}
+             <div>
+                <div className="text-[10px] font-bold text-purple-500 uppercase tracking-widest">ID Registo</div>
+                <div className="text-xs font-mono text-gray-400">{local.id.split('-')[0]}</div>
+             </div>
           </div>
         </div>
         
