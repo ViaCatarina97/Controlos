@@ -15,7 +15,7 @@ export type ShiftType = 'ABERTURA' | 'INTERMEDIO' | 'FECHO' | 'MADRUGADA';
 export interface StationConfig {
   id: string;
   label: string;
-  designation?: string; // Short code/name
+  designation?: string;
   icon: string;
   defaultSlots: number;
   area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries' | 'counter'; 
@@ -26,10 +26,8 @@ export interface AppSettings {
   restaurantId: string;
   restaurantName: string;
   restaurantType: RestaurantTypology;
-  // Auth
   username: string; 
   password: string;
-  // Configs
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
   deliveryProviders: string[];
@@ -42,12 +40,6 @@ export interface StaffingTableEntry {
   maxSales: number;
   staffCount: number;
   stationLabel: string; 
-}
-
-export interface SalesData {
-  date: string; 
-  amount: number;
-  isForecast: boolean;
 }
 
 export interface HourlyProjection {
@@ -103,15 +95,17 @@ export interface DailySchedule {
   lockedShifts?: ShiftType[]; 
 }
 
-export interface AISuggestion {
-  rationale: string;
-  recommendedCounts: {
-    [key in RoleType]: number;
-  };
+// --- Sync Types ---
+export interface RestaurantDataSnapshot {
+  settings: AppSettings;
+  employees: Employee[];
+  staffingTable: StaffingTableEntry[];
+  history: HistoryEntry[];
+  schedules: DailySchedule[];
+  lastUpdated: string;
 }
 
 // --- Billing Types ---
-
 export interface HaviInvoiceGroup {
   group: string;
   description: string;
@@ -161,9 +155,10 @@ export interface CreditNoteRecord {
   status: 'Pendente' | 'Recebido';
 }
 
+// --- Operational Summary Types ---
 export interface OtherSupplierEntry {
   id: string;
-  supplier: 'Air Liquide' | 'MaiaPapper';
+  supplier: string;
   date: string;
   quantity: number;
   invoiceValue: number;
@@ -172,7 +167,7 @@ export interface OtherSupplierEntry {
 }
 
 export interface MonthlyOperationalData {
-  month: string; // YYYY-MM
+  month: string;
   vendasMes: number;
   comprasComida: number;
   comprasPapel: number;

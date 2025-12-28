@@ -2,17 +2,19 @@
 import React, { useState } from 'react';
 import { AppSettings, RestaurantTypology } from '../types';
 import { AVAILABLE_TYPOLOGIES, DEFAULT_SETTINGS } from '../constants';
-import { Lock, User, Building2, ArrowRight, Store, AlertCircle } from 'lucide-react';
+import { Lock, User, Building2, ArrowRight, Store, AlertCircle, Cloud, Key } from 'lucide-react';
 
 interface LoginProps {
   restaurants: AppSettings[];
   onLogin: (restaurant: AppSettings) => void;
   onRegister: (restaurant: AppSettings) => void;
+  onCloudLogin: (key: string) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
+export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister, onCloudLogin }) => {
+  const [mode, setMode] = useState<'login' | 'register' | 'cloud'>('login');
   const [error, setError] = useState('');
+  const [cloudKey, setCloudKey] = useState('');
 
   // Form State
   const [username, setUsername] = useState('');
@@ -22,157 +24,77 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
     const found = restaurants.find(r => r.username === username && r.password === password);
-    if (found) {
-      onLogin(found);
-    } else {
-      setError('Credenciais inválidas.');
-    }
+    if (found) onLogin(found);
+    else setError('Credenciais inválidas.');
   };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    if (!username || !password || !restName) { setError('Campos obrigatórios em falta.'); return; }
+    onRegister({ ...DEFAULT_SETTINGS, restaurantId: crypto.randomUUID(), restaurantName: restName, restaurantType: restType, username, password });
+  };
 
-    if (!username || !password || !restName) {
-      setError('Todos os campos são obrigatórios.');
-      return;
-    }
-
-    if (restaurants.some(r => r.username === username)) {
-      setError('Este nome de utilizador já existe.');
-      return;
-    }
-
-    const newRest: AppSettings = {
-      ...DEFAULT_SETTINGS,
-      restaurantId: crypto.randomUUID(),
-      restaurantName: restName,
-      restaurantType: restType,
-      username,
-      password,
-    };
-
-    onRegister(newRest);
+  const handleCloud = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cloudKey.trim()) return;
+    onCloudLogin(cloudKey);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in">
-        
-        {/* Header */}
-        <div className="bg-blue-600 p-8 text-center relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-full bg-white opacity-5 transform rotate-12 scale-150"></div>
-          <div className="relative z-10">
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Controlos de Gestão</h1>
-          </div>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade-in border border-slate-700">
+        <div className="bg-blue-600 p-8 text-center text-white">
+          <h1 className="text-3xl font-black uppercase tracking-tighter">TeamPos Cloud</h1>
+          <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">Gestão Operacional Online</p>
         </div>
 
-        {/* Form Container */}
         <div className="p-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 text-center">
-            {isRegistering ? 'Registar Restaurante' : 'Login de Acesso'}
-          </h2>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2 mb-4 border border-red-100">
-              <AlertCircle size={16} />
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-            
-            {isRegistering && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nome do Restaurante</label>
-                  <div className="relative">
-                    <Store className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      placeholder="Ex: McDonald's Chiado"
-                      value={restName}
-                      onChange={e => setRestName(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                   <label className="block text-sm font-medium text-gray-600 mb-1">Tipologia</label>
-                   <select 
-                      className="w-full pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      value={restType}
-                      onChange={e => setRestType(e.target.value as RestaurantTypology)}
-                   >
-                     {AVAILABLE_TYPOLOGIES.map(t => <option key={t} value={t}>{t}</option>)}
-                   </select>
-                </div>
-              </>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Utilizador</label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Seu username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Palavra-passe</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
-                <input
-                  type="password"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 mt-6"
-            >
-              {isRegistering ? 'Criar Conta' : 'Entrar'}
-              <ArrowRight size={18} />
-            </button>
-          </form>
-
-          <div className="mt-6 text-center pt-6 border-t border-gray-100">
-            <p className="text-sm text-gray-500 mb-2">
-              {isRegistering ? 'Já tem uma conta?' : 'Novo no sistema?'}
-            </p>
-            <button
-              onClick={() => {
-                setIsRegistering(!isRegistering);
-                setError('');
-                setUsername('');
-                setPassword('');
-              }}
-              className="text-blue-600 font-bold hover:underline"
-            >
-              {isRegistering ? 'Voltar ao Login' : 'Registar novo restaurante'}
-            </button>
+          <div className="flex bg-gray-100 p-1 rounded-2xl mb-8">
+             <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'login' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Login</button>
+             <button onClick={() => setMode('cloud')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'cloud' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400'}`}>Cloud</button>
+             <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase transition-all ${mode === 'register' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Criar</button>
           </div>
+
+          {error && <div className="bg-red-50 text-red-600 text-xs p-3 rounded-xl flex items-center gap-2 mb-6 border border-red-100 font-bold"><AlertCircle size={16}/>{error}</div>}
+
+          {mode === 'cloud' ? (
+            <form onSubmit={handleCloud} className="space-y-6">
+               <div className="text-center mb-4">
+                  <div className="inline-flex p-3 bg-blue-50 text-blue-600 rounded-full mb-2"><Cloud size={32}/></div>
+                  <h3 className="font-bold text-gray-800">Aceder a partir da Nuvem</h3>
+                  <p className="text-[10px] text-gray-400 uppercase font-black">Introduza a sua chave de sincronização</p>
+               </div>
+               <div className="relative">
+                  <Key className="absolute left-3 top-3.5 text-blue-400" size={18} />
+                  <input type="text" value={cloudKey} onChange={e => setCloudKey(e.target.value.toLowerCase())} placeholder="chave-do-restaurante" className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-blue-50 rounded-2xl focus:border-blue-500 focus:bg-white outline-none font-mono font-bold" />
+               </div>
+               <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">Carregar do Servidor <ArrowRight size={18}/></button>
+            </form>
+          ) : (
+            <form onSubmit={mode === 'register' ? handleRegister : handleLogin} className="space-y-4">
+              {mode === 'register' && (
+                <>
+                  <input type="text" placeholder="Nome do Restaurante" value={restName} onChange={e => setRestName(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                  <select value={restType} onChange={e => setRestType(e.target.value as RestaurantTypology)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                    {AVAILABLE_TYPOLOGIES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </>
+              )}
+              <div className="relative">
+                <User className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                <input type="text" placeholder="Utilizador" value={username} onChange={e => setUsername(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                <input type="password" placeholder="Palavra-passe" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-slate-800 shadow-xl flex items-center justify-center gap-2 mt-4">{mode === 'register' ? 'Criar Restaurante' : 'Entrar na Plataforma'} <ArrowRight size={18}/></button>
+            </form>
+          )}
         </div>
       </div>
-      
-      <div className="fixed bottom-4 text-slate-500 text-xs text-center w-full">
-         &copy; {new Date().getFullYear()} Controlos de Gestão. v2.1
-      </div>
+      <div className="fixed bottom-4 text-slate-500 text-[10px] font-black uppercase tracking-widest">© TeamPos Management Online • v3.0</div>
     </div>
   );
 };
