@@ -164,8 +164,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  // Função para garantir que a API Key existe antes de processar
-  const ensureApiKey = async (): Promise<boolean> => {
+  const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Verificar se existe chave selecionada antes de processar
     // @ts-ignore
     if (window.aistudio) {
       // @ts-ignore
@@ -173,22 +176,10 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       if (!hasKey) {
         // @ts-ignore
         await window.aistudio.openSelectKey();
-        return true; // Continuamos, o valor será injetado no process.env.API_KEY
+        alert("Para utilizar a extração automática de faturas, é necessário selecionar uma API Key paga (GCP Project com faturação ativa).");
+        return;
       }
     }
-    return true;
-  };
-
-  const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') {
-      alert("Por favor, selecione um ficheiro PDF.");
-      return;
-    }
-
-    // Tentar garantir a chave antes da chamada
-    await ensureApiKey();
     
     setIsProcessingPdf(true);
     try {
@@ -224,9 +215,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
-          alert("É necessário selecionar uma API Key paga para processar faturas.");
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
+          alert("É necessário selecionar uma API Key de um projeto com faturação ativa para utilizar este recurso.");
       } else {
           alert("Erro ao processar fatura: " + (err instanceof Error ? err.message : "Erro desconhecido"));
       }
