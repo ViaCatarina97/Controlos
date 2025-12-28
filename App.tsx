@@ -1,5 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Settings } from './components/Settings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
@@ -10,9 +10,15 @@ import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
-import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, CheckCircle2, CloudCheck } from 'lucide-react';
+import { Building2, LayoutDashboard, Sliders, TrendingUp, History, Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, Cloud, RefreshCw, CloudOff } from 'lucide-react';
+
+// --- CONFIGURAÇÃO SUPABASE (Definição Direta para evitar erros de ficheiro lib) ---
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
+type SyncStatus = 'synced' | 'syncing' | 'error';
 
 const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
@@ -20,13 +26,13 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('positioning');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+  const [lastSync, setLastSync] = useState<string>('');
+  
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(() => {
-    const saved = localStorage.getItem('app_all_restaurants');
-    return saved ? JSON.parse(saved) : INITIAL_RESTAURANTS;
-  });
-
+  // Estados Globais de Dados
+  const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>(INITIAL_RESTAURANTS);
   const [currentEmployees, setCurrentEmployees] = useState<Employee[]>([]);
   const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]); 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
@@ -39,39 +45,114 @@ const App: React.FC = () => {
 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({
     date: targetDate,
-    shifts: {}
+    shifts: {},
+    lockedShifts: []
   });
 
-  // Carregamento inicial local
+  // --- FUNÇÃO MESTRE: Gravar TUDO no Supabase ---
+  const saveToCloud = useCallback(async () => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+    
+    setSyncStatus('syncing');
+    const activeRest = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
+
+    const snapshot = {
+      settings: activeRest,
+      employees: currentEmployees,
+      staffingTable: currentStaffingTable,
+      history: historyEntries,
+      schedules: savedSchedules,
+      lastUpdated: new Date().toISOString()
+    };
+
+    try {
+      const { error } = await supabase
+        .from('restaurant_data')
+        .upsert({ 
+          restaurant_id: authenticatedRestaurantId, 
+          data: snapshot,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      setSyncStatus('synced');
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (e) {
+      setSyncStatus('error');
+      console.error("Erro na sincronização Cloud:", e);
+    }
+  }, [authenticatedRestaurantId, allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules, isLoaded]);
+
+  // --- FUNÇÃO MESTRE: Carregar TUDO do Supabase ---
+  const loadFromCloud = useCallback(async (id: string) => {
+    setSyncStatus('syncing');
+    try {
+      const { data, error } = await supabase
+        .from('restaurant_data')
+        .select('data')
+        .eq('restaurant_id', id)
+        .single();
+
+      if (error || !data) throw error;
+
+      const cloud = data.data;
+      if (cloud.settings) setAllRestaurants(prev => [cloud.settings, ...prev.filter(r => r.restaurantId !== id)]);
+      setCurrentEmployees(cloud.employees || []);
+      setCurrentStaffingTable(cloud.staffingTable || DEFAULT_STAFFING_TABLE);
+      setHistoryEntries(cloud.history || []);
+      setSavedSchedules(cloud.schedules || []);
+      
+      setSyncStatus('synced');
+      setLastSync(new Date().toLocaleTimeString());
+      return true;
+    } catch (e) {
+      setSyncStatus('error');
+      return false;
+    }
+  }, []);
+
+  // Monitor de Alterações para Auto-Save (2 segundos de debounce)
+  useEffect(() => {
+    if (!isLoaded || !authenticatedRestaurantId) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    
+    syncTimerRef.current = setTimeout(() => {
+      saveToCloud();
+    }, 2000);
+
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+  }, [currentEmployees, currentStaffingTable, historyEntries, savedSchedules, allRestaurants, saveToCloud, isLoaded, authenticatedRestaurantId]);
+
+  // Login Inicial
   useEffect(() => {
     if (!authenticatedRestaurantId) return;
     const id = authenticatedRestaurantId;
     
-    const empSaved = localStorage.getItem(`app_employees_${id}`);
-    setCurrentEmployees(empSaved ? JSON.parse(empSaved) : MOCK_EMPLOYEES);
-    const staffingSaved = localStorage.getItem(`app_staffing_table_${id}`);
-    setCurrentStaffingTable(staffingSaved ? JSON.parse(staffingSaved) : DEFAULT_STAFFING_TABLE);
-    const historySaved = localStorage.getItem(`app_history_detailed_${id}`);
-    setHistoryEntries(historySaved ? JSON.parse(historySaved) : MOCK_HISTORY);
-    const schedSaved = localStorage.getItem(`app_schedules_${id}`);
-    setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+    // Tenta carregar local para rapidez, depois Cloud para atualizar
+    const local = localStorage.getItem(`app_backup_${id}`);
+    if (local) {
+      const p = JSON.parse(local);
+      setCurrentEmployees(p.employees || MOCK_EMPLOYEES);
+      setCurrentStaffingTable(p.staffingTable || DEFAULT_STAFFING_TABLE);
+      setHistoryEntries(p.history || MOCK_HISTORY);
+      setSavedSchedules(p.schedules || []);
+    }
     
     setIsLoaded(true);
-  }, [authenticatedRestaurantId]);
+    loadFromCloud(id);
+  }, [authenticatedRestaurantId, loadFromCloud]);
 
-  // Persistência Local Automática Total
+  // Backup Local de Segurança (LocalStorage)
   useEffect(() => {
     if (!authenticatedRestaurantId || !isLoaded) return;
-    const id = authenticatedRestaurantId;
-    
-    localStorage.setItem('app_all_restaurants', JSON.stringify(allRestaurants));
-    localStorage.setItem(`app_employees_${id}`, JSON.stringify(currentEmployees));
-    localStorage.setItem(`app_staffing_table_${id}`, JSON.stringify(currentStaffingTable));
-    localStorage.setItem(`app_history_detailed_${id}`, JSON.stringify(historyEntries));
-    localStorage.setItem(`app_schedules_${id}`, JSON.stringify(savedSchedules));
-    
-    setLastSync(new Date().toLocaleTimeString());
-  }, [allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules, authenticatedRestaurantId, isLoaded]);
+    const backup = {
+      employees: currentEmployees,
+      staffingTable: currentStaffingTable,
+      history: historyEntries,
+      schedules: savedSchedules
+    };
+    localStorage.setItem(`app_backup_${authenticatedRestaurantId}`, JSON.stringify(backup));
+  }, [currentEmployees, currentStaffingTable, historyEntries, savedSchedules, authenticatedRestaurantId, isLoaded]);
 
   useEffect(() => {
     const existingSchedule = savedSchedules.find(s => s.date === targetDate);
@@ -79,12 +160,6 @@ const App: React.FC = () => {
     const known = historyEntries.find(s => s.date === targetDate);
     if(known) setTargetSales(known.totalSales);
   }, [targetDate, historyEntries, savedSchedules]);
-
-  const handleRegister = (newRest: AppSettings) => {
-    setAllRestaurants(prev => [...prev, { ...newRest, customStations: STATIONS }]);
-    setAuthenticatedRestaurantId(newRest.restaurantId);
-    handleModuleSelect(null); 
-  };
 
   const handleLogin = (restaurant: AppSettings) => {
     setAuthenticatedRestaurantId(restaurant.restaurantId);
@@ -116,49 +191,10 @@ const App: React.FC = () => {
     setCurrentSchedule(scheduleToSave);
   };
 
-  const exportFullStoreData = () => {
-    const restaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
-    if (!restaurant) return;
-    const exportData = {
-        restaurant,
-        employees: currentEmployees,
-        staffingTable: currentStaffingTable,
-        history: historyEntries,
-        schedules: savedSchedules,
-        exportTimestamp: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `BASE_DADOS_OPERACIONAL_${restaurant.restaurantName.replace(/\s+/g, '_')}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importFullStoreData = (data: any) => {
-    if (!data.restaurant || !data.employees) {
-        alert("Ficheiro de importação inválido.");
-        return;
-    }
-    if (confirm("Isto irá substituir TODOS os dados locais deste restaurante pelos do ficheiro. Continuar?")) {
-        setAllRestaurants(prev => {
-            const others = prev.filter(r => r.restaurantId !== data.restaurant.restaurantId);
-            return [...others, data.restaurant];
-        });
-        setAuthenticatedRestaurantId(data.restaurant.restaurantId);
-        setCurrentEmployees(data.employees);
-        setCurrentStaffingTable(data.staffingTable || DEFAULT_STAFFING_TABLE);
-        setHistoryEntries(data.history || []);
-        setSavedSchedules(data.schedules || []);
-        alert("Dados restaurados com sucesso neste dispositivo.");
-    }
-  };
-
   const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
 
   if (!authenticatedRestaurantId || !activeRestaurant) {
-    return <Login restaurants={allRestaurants} onLogin={handleLogin} onRegister={handleRegister} />;
+    return <Login restaurants={allRestaurants} onLogin={handleLogin} onRegister={(r) => setAllRestaurants(p => [...p, r])} />;
   }
 
   if (!activeModule) {
@@ -226,18 +262,19 @@ const App: React.FC = () => {
             {activeModule === 'billing' ? 'Módulo Financeiro / Faturação' : 'Módulo Operacional / Posicionamento'}
           </h2>
           <div className="flex items-center gap-4">
-            <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
-                <CloudCheck size={12} className="text-emerald-500" />
-                Dados Locais: {lastSync}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all border ${
+              syncStatus === 'synced' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+              syncStatus === 'syncing' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'
+            }`}>
+              {syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : syncStatus === 'synced' ? <Cloud size={12} /> : <CloudOff size={12} />}
+              {syncStatus === 'syncing' ? 'Sincronizar...' : syncStatus === 'synced' ? `Nuvem OK: ${lastSync}` : 'Erro Nuvem'}
             </div>
           </div>
         </header>
 
         <div className="p-6 flex-1">
-          {/* Definições (Comum aos módulos) */}
-          {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveRestaurantSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} onExportFullData={exportFullStoreData} onImportFullData={importFullStoreData} />}
+          {activeTab === 'settings' && <Settings settings={activeRestaurant} onSaveSettings={handleSaveRestaurantSettings} employees={currentEmployees} setEmployees={setCurrentEmployees} onExportFullData={() => {}} onImportFullData={() => {}} />}
           
-          {/* Subpáginas do Módulo de Posicionamento */}
           {activeModule === 'positioning' && (
             <>
               {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
@@ -247,18 +284,13 @@ const App: React.FC = () => {
             </>
           )}
 
-          {/* Subpáginas do Módulo de Faturação */}
           {activeModule === 'billing' && (
-            <>
-              {(['deliveries', 'credits', 'summary'].includes(activeTab)) && (
-                <BillingControl 
-                  restaurantId={activeRestaurant.restaurantId} 
-                  employees={currentEmployees} 
-                  activeSubTab={activeTab as any}
-                  onTabChange={setActiveTab}
-                />
-              )}
-            </>
+            <BillingControl 
+              restaurantId={activeRestaurant.restaurantId} 
+              employees={currentEmployees} 
+              activeSubTab={activeTab as any}
+              onTabChange={setActiveTab}
+            />
           )}
         </div>
       </main>
