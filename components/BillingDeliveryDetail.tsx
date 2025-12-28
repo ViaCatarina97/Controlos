@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
@@ -27,7 +28,6 @@ const MISSING_REASONS = [
   'Outros (descrever nos comentários)'
 ];
 
-// Mapeamento normalizado para converter nomes do PDF para nomes internos do App
 const GROUP_MAPPING: Record<string, string> = {
   'CONGELADOS': 'Congelados',
   'REFRIGERADOS': 'Refrigerados',
@@ -165,16 +165,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     onSave({ ...local, isFinalized: finalize });
   };
 
-  const triggerApiKeySelection = async () => {
-    // @ts-ignore
-    if (window.aistudio) {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      return true;
-    }
-    return false;
-  };
-
   const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -182,29 +172,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     setIsProcessingPdf(true);
     try {
       // @ts-ignore
-      const hasKey = window.aistudio ? await window.aistudio.hasSelectedApiKey() : true;
-      
-      if (!hasKey) {
-        await triggerApiKeySelection();
+      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+          // Proceder imediatamente para mitigar a condição de corrida
       }
 
       const result = await processInvoicePdf(file);
       
       if (result) {
         setLocal(prev => {
-          // Atualiza os grupos HAVI procurando correspondência no PDF
           const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
-            // Tentamos encontrar o grupo no PDF que mapeie para esta descrição interna
             const pdfMatch = result.grupos.find((pg: any) => {
                 const normalizedPdfName = pg.nome.toUpperCase().replace(/\s+/g, ' ').trim();
                 const mappedName = GROUP_MAPPING[normalizedPdfName] || normalizedPdfName;
                 return mappedName.toLowerCase() === internalGroup.description.toLowerCase();
             });
-            
             return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
           });
 
-          // Formatação da data para o input (YYYY-MM-DD)
           let formattedDate = prev.date;
           if (result.data) {
               const parts = result.data.split('/');
@@ -218,7 +204,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             haviGroups: updatedHaviGroups, 
             pontoVerde: result.ponto_verde_total || 0,
             date: formattedDate,
-            comments: `Fatura Importada: ${result.documento}\nData Doc: ${result.data}\nTotal Fatura: ${result.total_geral_fatura}€\n${prev.comments}`
+            comments: `Fatura: ${result.documento}\nData Doc: ${result.data}\nTotal: ${result.total_geral_fatura}€\n${prev.comments}`
           };
         });
       }
@@ -226,9 +212,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       if (err.message === "AUTH_REQUIRED") {
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
-          alert("A extração de dados requer uma API Key configurada. Por favor, selecione uma chave válida no diálogo.");
       } else {
-          alert("Ocorreu um erro ao processar a fatura. Verifique se o PDF está correto ou tente novamente.");
+          alert("Erro ao ler fatura. Verifique a chave de API e o ficheiro.");
       }
     } finally {
       setIsProcessingPdf(false);
@@ -244,12 +229,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </button>
         <div className="flex items-center gap-3">
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
+           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "A extrair dados..." : "Extrair de PDF"}
+              {isProcessingPdf ? "Extraindo..." : "Importar PDF"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
-           <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar Rascunho</button>
+           <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
            <button onClick={() => handleSaveInternal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 font-bold shadow-md transition-all active:scale-95"><CheckCircle2 size={18}/> Finalizar</button>
         </div>
       </div>
@@ -265,7 +250,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                 onClick={() => window.aistudio.openSelectKey()} 
                 className="flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors"
                >
-                 <Key size={12} /> Alterar Chave API
+                 <Key size={12} /> Configurar Chave
                </button>
              )}
              <div>
@@ -358,7 +343,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         <div className="flex gap-6">
            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
-                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><AlertCircle size={16} className="text-amber-500" /> Diferenças de Preço (Havivs MyStore)</h3>
+                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><AlertCircle size={16} className="text-amber-500" /> Diferenças de Preço</h3>
                  <button onClick={() => setShowAddModal(true)} className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors"><Plus size={20} /></button>
               </div>
               <div className="overflow-auto max-h-48 custom-scrollbar">
@@ -391,7 +376,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
-                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><Calculator size={16} className="text-blue-500" /> Produto Não Introduzido</h3>
+                 <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-widest"><Calculator size={16} className="text-blue-500" /> Não Introduzido</h3>
                  <button onClick={() => setShowMissingModal(true)} className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors"><Plus size={20} /></button>
               </div>
               <div className="overflow-auto max-h-48 custom-scrollbar">
@@ -422,12 +407,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários e Notas da Conferência</h3>
+           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários</h3>
            <textarea 
              value={local.comments} 
              onChange={(e) => setLocal({...local, comments: e.target.value})} 
-             placeholder="Notas adicionais sobre a entrega..."
-             className="w-full h-24 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
+             placeholder="Notas adicionais..."
+             className="w-full h-20 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
            />
         </div>
       </div>
@@ -446,21 +431,21 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
-                  <input type="text" value={newEntry.product} onChange={e => setNewEntry({...newEntry, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome do produto..." />
+                  <input type="text" value={newEntry.product} onChange={e => setNewEntry({...newEntry, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome..." />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
-                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço HAVI (€)</label>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">HAVI (€)</label>
                      <input type="number" step="0.01" value={newEntry.priceHavi || ''} onChange={e => setNewEntry({...newEntry, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
                   </div>
                   <div>
-                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço MyStore (€)</label>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">MyStore (€)</label>
                      <input type="number" step="0.01" value={newEntry.priceSms || ''} onChange={e => setNewEntry({...newEntry, priceSms: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
                   </div>
                </div>
                <div className="pt-4 flex gap-3">
                   <button onClick={() => setShowAddModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
-                  <button onClick={handleAddPriceDiff} className="flex-2 px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-500/30">Adicionar Registo</button>
+                  <button onClick={handleAddPriceDiff} className="flex-2 px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg">Adicionar</button>
                </div>
             </div>
           </div>
@@ -474,12 +459,12 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             <div className="space-y-4">
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Produto</label>
-                  <input type="text" value={newMissing.product} onChange={e => setNewMissing({...newMissing, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome do produto..." />
+                  <input type="text" value={newMissing.product} onChange={e => setNewMissing({...newMissing, product: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome..." />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo</label>
-                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                     <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="Comida">Comida</option>
                         <option value="Papel">Papel</option>
                         <option value="Outros">Outros</option>
@@ -487,19 +472,19 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                      </select>
                   </div>
                   <div>
-                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preço HAVI (€)</label>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">HAVI (€)</label>
                      <input type="number" step="0.01" value={newMissing.priceHavi || ''} onChange={e => setNewMissing({...newMissing, priceHavi: parseFloat(e.target.value) || 0})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
                   </div>
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo</label>
-                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                  <select value={newMissing.reason} onChange={e => setNewMissing({...newMissing, reason: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500">
                      {MISSING_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                </div>
                <div className="pt-4 flex gap-3">
                   <button onClick={() => setShowMissingModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
-                  <button onClick={handleAddMissingProductConfirm} className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30">Adicionar Registo</button>
+                  <button onClick={handleAddMissingProductConfirm} className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg">Adicionar</button>
                </div>
             </div>
           </div>

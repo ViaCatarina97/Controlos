@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -14,6 +15,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const processInvoicePdf = async (file: File): Promise<any> => {
+  // Sempre obter a chave do ambiente no momento da chamada
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -26,28 +28,15 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     const base64Data = await fileToBase64(file);
 
     const prompt = `
-      Aja como um assistente de faturação. Analise o documento PDF anexado.
-      
-      FOCO PRINCIPAL: Tabela "TOTAL POR GRUPO PRODUTO" (geralmente nas páginas finais).
-      
-      INSTRUÇÕES DE EXTRAÇÃO:
-      1. Localize a tabela intitulada "TOTAL POR GRUPO PRODUTO".
-      2. Para cada linha (ex: CONGELADOS, SECOS COMIDA, etc.), extraia o NOME do grupo e o "VALOR TOTAL" (é a ÚLTIMA coluna da direita).
-      3. Na linha final de "TOTAL", extraia o valor da coluna "PTO VERDE" (Ponto Verde).
-      4. Extraia o "Nº DOCUMENTO" e a "DATA DOCUMENTO" encontrados no cabeçalho da fatura.
+      Analise o documento PDF da HAVI Logistics.
+      Localize a tabela "TOTAL POR GRUPO PRODUTO".
+      Extraia:
+      1. Nº DOCUMENTO e DATA DOCUMENTO do cabeçalho.
+      2. Para cada linha da tabela de grupos (ex: CONGELADOS, SECOS COMIDA), extraia o nome do grupo e o "VALOR TOTAL" (última coluna).
+      3. O valor do "PTO VERDE" (Ponto Verde) da linha de total.
+      4. O valor final absoluto da fatura (TOTAL da coluna VALOR TOTAL).
 
-      REGRAS DE VALORES:
-      - Use apenas números. Remova símbolos de moeda (EUR, €).
-      - Certifique-se de que os decimais estão corretos.
-
-      Retorne estritamente um objeto JSON com esta estrutura:
-      {
-        "documento": "string",
-        "data": "string (DD/MM/YYYY)",
-        "grupos": [{"nome": "string", "valor_total": number}],
-        "ponto_verde_total": number,
-        "total_geral_fatura": number
-      }
+      Retorne estritamente JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -90,18 +79,19 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
     });
 
     const textOutput = response.text;
-    if (!textOutput) throw new Error("A API não retornou conteúdo legível.");
+    if (!textOutput) throw new Error("A API retornou uma resposta vazia.");
     
     return JSON.parse(textOutput.trim());
 
   } catch (error: any) {
     const errorMessage = error.message || "";
-    console.error("Gemini Extraction Error:", errorMessage);
+    console.error("Gemini Error:", errorMessage);
 
+    // Mapear erros de permissão ou chave inválida para AUTH_REQUIRED
     if (
       errorMessage.includes("Requested entity was not found") || 
       errorMessage.includes("API key") ||
-      errorMessage.includes("API_KEY") ||
+      errorMessage.includes("unauthorized") ||
       error.status === 403 || 
       error.status === 401
     ) {
