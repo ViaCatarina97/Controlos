@@ -297,12 +297,18 @@ export const Positioning: React.FC<PositioningProps> = ({
   const currentAssignedCount = useMemo(() => {
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
      const uniqueIds = new Set<string>();
+     
+     // CORREÇÃO CRÍTICA: Garantir que o ID do gerente seja válido antes de adicionar
+     const managerId = schedule.shiftManagers?.[selectedShift];
+     if (managerId && typeof managerId === 'string' && managerId.trim() !== "") {
+        uniqueIds.add(managerId.trim());
+     }
+
      Object.values(shiftData).forEach((ids) => {
         if (Array.isArray(ids)) {
           ids.forEach((id: string) => {
-            // CORREÇÃO: Filtra IDs vazios para evitar o bug do "+1"
-            if (id && id.trim() !== "") {
-              uniqueIds.add(id);
+            if (id && typeof id === 'string' && id.trim() !== "") {
+              uniqueIds.add(id.trim());
             }
           });
         }
@@ -413,8 +419,13 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         if (showAllStations) return true;
-        const assigned = (schedule.shifts[selectedShift]?.[s.id] || []).length > 0;
-        const assignedTrainees = (schedule.trainees?.[selectedShift]?.[s.id] || []).length > 0;
+        
+        // CORREÇÃO: Verificar se há staff REALMENTE atribuído (não IDs vazios)
+        const currentAssignments = schedule.shifts[selectedShift]?.[s.id] || [];
+        const assigned = currentAssignments.some(id => id && id.trim() !== "");
+        const traineeAssignments = schedule.trainees?.[selectedShift]?.[s.id] || [];
+        const assignedTrainees = traineeAssignments.some(id => id && id.trim() !== "");
+        
         return assigned || assignedTrainees || recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
