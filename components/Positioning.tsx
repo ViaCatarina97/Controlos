@@ -298,7 +298,7 @@ export const Positioning: React.FC<PositioningProps> = ({
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
      const uniqueIds = new Set<string>();
      
-     // CORREÇÃO CRÍTICA: Garantir que o ID do gerente seja válido antes de adicionar
+     // O gerente é a pessoa 1.
      const managerId = schedule.shiftManagers?.[selectedShift];
      if (managerId && typeof managerId === 'string' && managerId.trim() !== "") {
         uniqueIds.add(managerId.trim());
@@ -319,9 +319,31 @@ export const Positioning: React.FC<PositioningProps> = ({
   const gap = requirement.count - currentAssignedCount;
 
   const recommendedStationLabels = useMemo(() => {
+    // Ordenamos para garantir a progressividade
     const sortedTable = [...staffingTable].sort((a, b) => a.staffCount - b.staffCount);
-    const activeRows = sortedTable.filter(row => row.staffCount <= requirement.count);
-    return new Set(activeRows.map(r => r.stationLabel));
+    
+    // CORREÇÃO CRÍTICA: Se precisamos de 21 pessoas, a primeira pessoa é o Gerente (dropdown).
+    // Logo, precisamos de 20 cartões de postos. Se mostrarmos 21 cartões + gerente, teremos 22 visíveis.
+    const stationsNeeded = Math.max(0, requirement.count - 1);
+    
+    const labels = new Set<string>();
+    let count = 0;
+    
+    for (const row of sortedTable) {
+        // Ignoramos postos que sejam explicitamente para o Gerente nos cartões recomendados
+        const isManagerPost = row.stationLabel.toLowerCase().includes('gerente') || 
+                             row.stationLabel.toLowerCase().includes('manager');
+                             
+        if (isManagerPost) continue;
+
+        if (count < stationsNeeded) {
+            labels.add(row.stationLabel);
+            count++;
+        } else {
+            break;
+        }
+    }
+    return labels;
   }, [staffingTable, requirement.count]);
 
   const handleManagerChange = (empId: string) => {
@@ -420,12 +442,12 @@ export const Positioning: React.FC<PositioningProps> = ({
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         if (showAllStations) return true;
         
-        // CORREÇÃO: Verificar se há staff REALMENTE atribuído (não IDs vazios)
         const currentAssignments = schedule.shifts[selectedShift]?.[s.id] || [];
         const assigned = currentAssignments.some(id => id && id.trim() !== "");
         const traineeAssignments = schedule.trainees?.[selectedShift]?.[s.id] || [];
         const assignedTrainees = traineeAssignments.some(id => id && id.trim() !== "");
         
+        // CORREÇÃO: Visível se estiver preenchido OU se estiver nos recomendados exatos
         return assigned || assignedTrainees || recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
