@@ -298,7 +298,14 @@ export const Positioning: React.FC<PositioningProps> = ({
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
      const uniqueIds = new Set<string>();
      Object.values(shiftData).forEach((ids) => {
-        if (Array.isArray(ids)) ids.forEach((id: string) => uniqueIds.add(id));
+        if (Array.isArray(ids)) {
+          ids.forEach((id: string) => {
+            // CORREÇÃO: Filtra IDs vazios para evitar o bug do "+1"
+            if (id && id.trim() !== "") {
+              uniqueIds.add(id);
+            }
+          });
+        }
      });
      return uniqueIds.size;
   }, [schedule, selectedShift]);
@@ -603,10 +610,11 @@ export const Positioning: React.FC<PositioningProps> = ({
               <div className="bg-slate-950 text-white px-3 py-1 rounded-sm text-[13px] font-black uppercase tracking-wider leading-none">{getShiftLabel(selectedShift).toUpperCase()}</div>
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-1 mb-2">
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftManagerName}</div></div>
+          <div className="grid grid-cols-6 gap-1 mb-2">
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px] col-span-1"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftManagerName}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Staff</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
+              <div className="bg-blue-50 border border-blue-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-blue-500 block">Sugerido</span><div className="font-black text-[14px] text-blue-900 leading-none">{requirement.count}</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Real</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
               <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-blue-600 block">Obj. Turno</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.turnObjective || '-'}</div></div>
               <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-orange-600 block">Obj. Produção</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.productionObjective || '-'}</div></div>
           </div>
