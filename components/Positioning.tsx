@@ -298,12 +298,8 @@ export const Positioning: React.FC<PositioningProps> = ({
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
      const uniqueIds = new Set<string>();
      
-     // O gerente é a pessoa 1.
-     const managerId = schedule.shiftManagers?.[selectedShift];
-     if (managerId && typeof managerId === 'string' && managerId.trim() !== "") {
-        uniqueIds.add(managerId.trim());
-     }
-
+     // CORREÇÃO: O gerente NÃO conta para a soma "Real" dos posicionados em postos.
+     // Se a tabela diz 15, queremos ver 15 pessoas em postos reais.
      Object.values(shiftData).forEach((ids) => {
         if (Array.isArray(ids)) {
           ids.forEach((id: string) => {
@@ -322,15 +318,14 @@ export const Positioning: React.FC<PositioningProps> = ({
     // Ordenamos para garantir a progressividade
     const sortedTable = [...staffingTable].sort((a, b) => a.staffCount - b.staffCount);
     
-    // CORREÇÃO CRÍTICA: Se precisamos de 21 pessoas, a primeira pessoa é o Gerente (dropdown).
-    // Logo, precisamos de 20 cartões de postos. Se mostrarmos 21 cartões + gerente, teremos 22 visíveis.
-    const stationsNeeded = Math.max(0, requirement.count - 1);
+    // CORREÇÃO: Se a tabela diz que precisamos de 15 pessoas, mostramos exatamente 15 postos.
+    const stationsNeeded = Math.max(0, requirement.count);
     
     const labels = new Set<string>();
     let count = 0;
     
     for (const row of sortedTable) {
-        // Ignoramos postos que sejam explicitamente para o Gerente nos cartões recomendados
+        // Ignoramos postos que sejam "Gerente" se existirem na tabela, pois o gerente está no seletor topo.
         const isManagerPost = row.stationLabel.toLowerCase().includes('gerente') || 
                              row.stationLabel.toLowerCase().includes('manager');
                              
@@ -447,7 +442,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         const traineeAssignments = schedule.trainees?.[selectedShift]?.[s.id] || [];
         const assignedTrainees = traineeAssignments.some(id => id && id.trim() !== "");
         
-        // CORREÇÃO: Visível se estiver preenchido OU se estiver nos recomendados exatos
+        // Visível se estiver preenchido OU se estiver nos recomendados exatos
         return assigned || assignedTrainees || recommendedStationLabels.has(s.label);
     });
   }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
