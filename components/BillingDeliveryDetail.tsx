@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee } from '../types';
-import { ArrowLeft, Save, Plus, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Plus, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Trash2, X } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -28,7 +28,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Totais (Ponto Verde removido do cálculo)
+  // Totais (Ponto Verde removido da visualização e cálculo conforme solicitado)
   const totalHaviFinal = useMemo(() => 
     local.haviGroups.reduce((s, g) => s + g.total, 0)
   , [local.haviGroups]);
@@ -66,20 +66,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         fullText += content.items.map((item: any) => item.str).join(" ") + " \n ";
       }
 
-      const extractVal = (name: string) => {
-        const regex = new RegExp(`${name}[^\\n]*?([\\d.]+,\\d{2})\\s*EUR`, 'i');
+      // Função para extrair da coluna VALOR TOTAL (última coluna da tabela)
+      const extractValTotal = (name: string) => {
+        // Regex procura o nome e ignora as colunas intermédias para chegar ao VALOR TOTAL
+        const regex = new RegExp(`${name}[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?([\\d.]+,\\d{2})\\s*EUR`, 'i');
         const match = fullText.match(regex);
         return match ? parseFloat(match[1].replace(/\./g, '').replace(',', '.')) : 0;
       };
 
       const updatedGroups = local.haviGroups.map(g => {
-        if (g.description.includes('Congelados')) return { ...g, total: extractVal('CONGELADOS') };
-        if (g.description.includes('Refrigerados')) return { ...g, total: extractVal('REFRIGERADOS') };
-        if (g.description.includes('Secos Comida')) return { ...g, total: extractVal('SECOS COMIDA') };
-        if (g.description.includes('Secos Papel')) return { ...g, total: extractVal('SECOS PAPEL') };
-        if (g.description.includes('Produtos Frescos')) return { ...g, total: extractVal('PRODUTOS FRESCOS') };
-        if (g.description.includes('Ferramentas')) return { ...g, total: extractVal('FERRAMENTAS') };
-        if (g.description.includes('Limpeza')) return { ...g, total: extractVal('LIMPEZA') };
+        // Nomes correspondentes à imagem da fatura
+        if (g.description.includes('Congelados')) return { ...g, total: extractValTotal('CONGELADOS') };
+        if (g.description.includes('Ferramentas')) return { ...g, total: extractValTotal('FERRAMENTAS & UTENSÍLIOS') };
+        if (g.description.includes('Bulk Alimentar')) return { ...g, total: extractValTotal('BULK ALIMENTAR') };
+        if (g.description.includes('Refrigerados')) return { ...g, total: extractValTotal('REFRIGERADOS') };
+        if (g.description.includes('Bulk Papel')) return { ...g, total: extractValTotal('BULK PAPEL') };
+        if (g.description.includes('Secos Comida')) return { ...g, total: extractValTotal('SECOS COMIDA') };
+        if (g.description.includes('Secos Papel')) return { ...g, total: extractValTotal('SECOS PAPEL') };
+        if (g.description.includes('Produtos Frescos')) return { ...g, total: extractValTotal('PRODUTOS FRESCOS') };
+        if (g.description.includes('Manutenção')) return { ...g, total: extractValTotal('MANUTENÇÃO & LIMPEZA COMPRAS') };
         return g;
       });
 
@@ -88,19 +93,20 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   };
 
   return (
-    <div className="flex flex-col h-full space-y-4 animate-fade-in print:p-0">
+    <div className="flex flex-col h-full space-y-4 animate-fade-in">
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
         <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold italic"><ArrowLeft size={18} /> Voltar</button>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Importar PDF</button>
-          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Finalizar</button>
+          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Importar Fatura PDF</button>
+          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Finalizar e Gravar</button>
         </div>
       </div>
 
+      {/* PAINEL PRINCIPAL: HAVI | MYSTORE | DIFERENÇAS */}
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 space-y-6 shadow-xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* HAVI */}
+          {/* COLUNA HAVI */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-[10px]">HAVI</div>
             <div className="p-1 flex-1 divide-y divide-purple-100">
@@ -114,7 +120,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
 
-          {/* MYSTORE */}
+          {/* COLUNA MYSTORE */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-[10px]">MYSTORE</div>
             <div className="p-1 flex-1 divide-y divide-purple-100">
@@ -125,70 +131,81 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  </div>
                ))}
                <div className="mt-auto p-6 bg-purple-50/30 text-center border-t border-purple-500">
-                  <div className="text-3xl font-black text-purple-900 italic">{totalMyStore.toFixed(2)} €</div>
+                  <div className="text-3xl font-black text-purple-900 italic leading-none">{totalMyStore.toFixed(2)} €</div>
+                  <div className="text-[8px] font-bold text-purple-400 uppercase mt-2 text-center">TOTAL MYSTORE CONSOLIDADO</div>
                </div>
             </div>
           </div>
 
-          {/* DIFERENÇAS */}
+          {/* COLUNA DIFERENÇAS */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col bg-slate-50/30 text-center p-8 justify-center">
              <div className={`text-5xl font-black italic tracking-tighter ${Math.abs(finalDifference) > 0.05 ? 'text-red-600' : 'text-emerald-600'}`}>{finalDifference.toFixed(2)} €</div>
-             <div className="text-[10px] font-black text-gray-400 uppercase mt-2">DIFERENÇA TOTAL FINAL</div>
+             <div className="text-[10px] font-black text-gray-400 uppercase mt-4">DIFERENÇA TOTAL FINAL</div>
           </div>
         </div>
 
-        {/* SECÇÃO DE DIFERENÇAS DE PREÇO ATUALIZADA */}
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="flex justify-between items-center mb-4 border-b pb-2">
-              <h3 className="text-[10px] font-black text-slate-800 uppercase italic flex items-center gap-2">
-                <AlertCircle size={14} className="text-amber-500"/> DIFERENÇAS DE PREÇO (PRODUTO)
-              </h3>
-              <button onClick={() => setShowAddDiff(true)} className="p-1 hover:bg-purple-100 rounded text-purple-600"><Plus size={20} /></button>
-            </div>
-
-            {showAddDiff && (
-              <div className="mb-4 p-3 bg-purple-50 rounded-lg grid grid-cols-1 md:grid-cols-4 gap-2 items-end border border-purple-100">
-                <div><label className="text-[8px] font-black text-purple-400 uppercase">Produto</label>
-                <input type="text" value={newDiff.product} onChange={e => setNewDiff({...newDiff, product: e.target.value})} className="w-full border-none bg-white rounded p-1 text-xs focus:ring-1 focus:ring-purple-500" /></div>
-                <div><label className="text-[8px] font-black text-purple-400 uppercase">Preço Havi</label>
-                <input type="number" value={newDiff.havi || ''} onChange={e => setNewDiff({...newDiff, havi: parseFloat(e.target.value)})} className="w-full border-none bg-white rounded p-1 text-xs focus:ring-1 focus:ring-purple-500" /></div>
-                <div><label className="text-[8px] font-black text-purple-400 uppercase">Preço MyStore</label>
-                <input type="number" value={newDiff.mystore || ''} onChange={e => setNewDiff({...newDiff, mystore: parseFloat(e.target.value)})} className="w-full border-none bg-white rounded p-1 text-xs focus:ring-1 focus:ring-purple-500" /></div>
-                <div className="flex gap-1">
-                  <button onClick={handleAddPriceDiff} className="bg-purple-600 text-white p-1.5 rounded flex-1 text-[10px] font-black uppercase">Adicionar</button>
-                  <button onClick={() => setShowAddDiff(false)} className="bg-slate-200 text-slate-600 p-1.5 rounded"><X size={14}/></button>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <div className="grid grid-cols-12 text-[8px] font-black text-slate-400 uppercase px-2">
-                <div className="col-span-5">Produto</div>
-                <div className="col-span-2 text-right">Havi</div>
-                <div className="col-span-2 text-right">MyStore</div>
-                <div className="col-span-2 text-right text-purple-600">Diferença</div>
-                <div className="col-span-1"></div>
-              </div>
-              {priceDiffs.length === 0 ? (
-                <div className="h-10 flex items-center justify-center text-[10px] text-slate-300 font-black uppercase italic">Sem registos</div>
-              ) : (
-                priceDiffs.map(item => (
-                  <div key={item.id} className="grid grid-cols-12 px-2 py-1.5 bg-slate-50 rounded items-center text-[10px] font-bold">
-                    <div className="col-span-5 text-slate-700 uppercase">{item.product}</div>
-                    <div className="col-span-2 text-right">{item.haviPrice.toFixed(4)}</div>
-                    <div className="col-span-2 text-right">{item.myStorePrice.toFixed(4)}</div>
-                    <div className={`col-span-2 text-right font-black ${(item.haviPrice - item.myStorePrice) !== 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                      {(item.haviPrice - item.myStorePrice).toFixed(4)}
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <button onClick={() => setPriceDiffs(priceDiffs.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 size={12}/></button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+        {/* SECÇÃO DIFERENÇAS DE PREÇO (COM BOTÃO + FUNCIONAL) */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 className="text-[10px] font-black text-slate-800 uppercase italic flex items-center gap-2">
+              <AlertCircle size={14} className="text-amber-500"/> DIFERENÇAS DE PREÇO
+            </h3>
+            <button onClick={() => setShowAddDiff(true)} className="p-1 hover:bg-purple-100 rounded text-purple-600"><Plus size={18} /></button>
           </div>
+
+          {showAddDiff && (
+            <div className="mb-4 p-4 bg-purple-50 rounded-lg grid grid-cols-1 md:grid-cols-4 gap-4 items-end border border-purple-200 shadow-inner">
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black text-purple-400 uppercase">Produto</label>
+                <input type="text" value={newDiff.product} onChange={e => setNewDiff({...newDiff, product: e.target.value})} className="w-full border-2 border-purple-200 rounded p-1.5 text-xs focus:ring-0 focus:border-purple-500 bg-white" placeholder="Nome do item..." />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black text-purple-400 uppercase">Preço Havi (€)</label>
+                <input type="number" step="0.0001" value={newDiff.havi || ''} onChange={e => setNewDiff({...newDiff, havi: parseFloat(e.target.value)})} className="w-full border-2 border-purple-200 rounded p-1.5 text-xs focus:ring-0 focus:border-purple-500 bg-white" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black text-purple-400 uppercase">Preço MyStore (€)</label>
+                <input type="number" step="0.0001" value={newDiff.mystore || ''} onChange={e => setNewDiff({...newDiff, mystore: parseFloat(e.target.value)})} className="w-full border-2 border-purple-200 rounded p-1.5 text-xs focus:ring-0 focus:border-purple-500 bg-white" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleAddPriceDiff} className="bg-purple-600 text-white px-4 py-2 rounded font-black flex-1 text-[10px] uppercase hover:bg-purple-700 transition-colors">Adicionar</button>
+                <button onClick={() => setShowAddDiff(false)} className="bg-slate-200 text-slate-600 px-3 py-2 rounded hover:bg-slate-300 transition-colors"><X size={16}/></button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <div className="grid grid-cols-12 text-[9px] font-black text-slate-400 uppercase px-3 py-1 border-b">
+              <div className="col-span-5">CATEGORIA / PRODUTO</div>
+              <div className="col-span-2 text-right">HAVI</div>
+              <div className="col-span-2 text-right">MYSTORE</div>
+              <div className="col-span-2 text-right text-purple-600">DIFF</div>
+              <div className="col-span-1"></div>
+            </div>
+            {priceDiffs.length === 0 ? (
+              <div className="h-10 flex items-center justify-center text-[10px] text-slate-300 font-black uppercase italic">Sem registos introduzidos</div>
+            ) : (
+              priceDiffs.map(item => (
+                <div key={item.id} className="grid grid-cols-12 px-3 py-2 bg-slate-50/50 rounded items-center text-[10px] font-bold border-b border-white hover:bg-purple-50 transition-colors">
+                  <div className="col-span-5 text-slate-700 uppercase">{item.product}</div>
+                  <div className="col-span-2 text-right">{item.haviPrice.toFixed(4)} €</div>
+                  <div className="col-span-2 text-right">{item.myStorePrice.toFixed(4)} €</div>
+                  <div className={`col-span-2 text-right font-black ${Math.abs(item.haviPrice - item.myStorePrice) > 0.0001 ? 'text-red-500' : 'text-slate-400'}`}>
+                    {(item.haviPrice - item.myStorePrice).toFixed(4)} €
+                  </div>
+                  <div className="col-span-1 text-right">
+                    <button onClick={() => setPriceDiffs(priceDiffs.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* COMENTÁRIOS GERAIS */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <h3 className="text-[10px] font-black text-slate-800 uppercase mb-2 italic tracking-widest">COMENTÁRIOS E NOTAS DA CONFERÊNCIA</h3>
+          <textarea className="w-full h-24 bg-slate-50 rounded p-3 text-sm focus:ring-1 focus:ring-purple-200 border-none resize-none" placeholder="Observações importantes..."></textarea>
         </div>
       </div>
     </div>
