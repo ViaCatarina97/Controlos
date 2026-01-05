@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
@@ -56,6 +55,7 @@ const HAVI_MAPPING: Record<string, string> = {
   'SECOS COMIDA': 'Secos Comida',
   'SECOS PAPEL': 'Secos Papel',
   'FERRAMENTAS & UTENSÍLIOS': 'Ferramentas Utensilios',
+  'FERRAMENTAS UTENSILIOS': 'Ferramentas Utensilios',
   'BULK ALIMENTAR': 'Bulk Alimentar',
   'BULK PAPEL': 'Bulk Papel',
   'PRODUTOS FRESCOS': 'Produtos Frescos',
@@ -194,21 +194,36 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       
       if (result && result.grupos) {
         setLocal(prev => {
-          const updatedHaviGroups = prev.haviGroups.map(internal => {
+          // Atualiza os grupos HAVI mapeando os nomes vindos do PDF para as descrições internas
+          const updatedHaviGroups = prev.haviGroups.map(internalGroup => {
             const pdfMatch = result.grupos.find((pg: any) => {
                 const pdfName = pg.nome.toUpperCase().trim();
-                const internalName = internal.description.toUpperCase().trim();
+                const internalDesc = internalGroup.description.toUpperCase().trim();
+                
+                // Verifica mapeamento explícito ou correspondência parcial de nomes
                 const mappedName = (HAVI_MAPPING[pdfName] || pdfName).toUpperCase();
-                return mappedName === internalName || pdfName.includes(internalName) || internalName.includes(pdfName);
+                return mappedName === internalDesc || 
+                       pdfName.includes(internalDesc) || 
+                       internalDesc.includes(pdfName);
             });
-            return pdfMatch ? { ...internal, total: pdfMatch.valor_total } : internal;
+
+            // Se encontrou no PDF, usa o valor_total extraído
+            return pdfMatch ? { ...internalGroup, total: pdfMatch.valor_total } : internalGroup;
           });
+
+          // Atualiza também a data se vier no PDF e for válida
+          let updatedDate = prev.date;
+          if (result.data && result.data.includes('/')) {
+             const [d, m, y] = result.data.split('/');
+             updatedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          }
 
           return { 
             ...prev, 
             haviGroups: updatedHaviGroups, 
             pontoVerde: result.ponto_verde_total || 0,
-            comments: `Importado: ${result.documento || 'Fatura'}\nTotal Fatura: ${result.total_geral_fatura.toFixed(2).replace('.', ',')}€\n${prev.comments}`
+            date: updatedDate,
+            comments: `Importado: ${result.documento || 'Fatura'} (${result.data || ''})\nTotal Extraído: ${result.total_geral_fatura.toFixed(2).replace('.', ',')}€\n${prev.comments}`
           };
         });
       }
