@@ -84,6 +84,7 @@ export interface DailySchedule {
   shiftManagers?: {
     [key in ShiftType]?: string; 
   };
+  shiftManagersCounted?: boolean;
   shiftObjectives?: {
     [key in ShiftType]?: {
        turnObjective?: string;
@@ -118,10 +119,11 @@ export interface SmsValue {
 
 export interface PriceDifferenceItem {
   id: string;
-  category: 'Comida' | 'Papel' | 'F. Operacionais' | 'Mat. Adm.' | 'Outros' | 'H.M.';
+  category: string;
   product: string;
   priceHavi: number;
   priceSms: number;
+  haviGroup?: string;
 }
 
 export interface MissingProduct {
