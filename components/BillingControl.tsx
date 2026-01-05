@@ -90,6 +90,8 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
     }
   };
 
+  const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in print:bg-white">
       {selectedDelivery ? (
@@ -166,6 +168,8 @@ const DeliveriesTab: React.FC<{
   onDelete: (id: string) => void,
   onOpenCreate: () => void
 }> = ({ records, employees, onSelect, onDelete, onOpenCreate }) => {
+  const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
@@ -223,7 +227,7 @@ const DeliveriesTab: React.FC<{
                       )}
                     </td>
                     <td className={`px-6 py-4 font-black text-sm ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      {diff.toFixed(2)} €
+                      {formatEuro(diff)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
