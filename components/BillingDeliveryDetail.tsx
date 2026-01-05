@@ -21,8 +21,6 @@ interface BillingDeliveryDetailProps {
   onBack: () => void;
 }
 
-const SMS_GROUPS = ['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Outros', 'Happy Meal'];
-
 const GRUPOS_ORDER = [
   "Congelados", "Refrigerados", "Secos Comida", "Secos Papel", "Manutenção Limpeza",
   "Marketing IPL", "Marketing Geral", "Produtos Frescos", "MANUTENÇÃO & LIMPEZA COMPRAS",
@@ -38,8 +36,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   const [newDiff, setNewDiff] = useState({ group: GRUPOS_ORDER[0], product: '', havi: 0, mystore: 0 });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   const totalHaviFinal = useMemo(() => local.haviGroups.reduce((s, g) => s + g.total, 0), [local.haviGroups]);
   const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
@@ -75,24 +71,36 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         fullText += content.items.map((item: any) => item.str).join(" ") + " \n ";
       }
 
-      const extractVal = (name: string) => {
-        const regex = new RegExp(`${name}[^\\n]*?([\\d.]+,\\d{2})\\s*EUR`, 'i');
+      // Função para extrair especificamente a última coluna (VALOR TOTAL)
+      const extractValorTotal = (name: string) => {
+        // Esta Regex procura o nome, ignora 3 blocos de valores (Liq, Verde, Plastico) e apanha o 4º (Total)
+        const regex = new RegExp(`${name}[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?[\\d.]+,\\d{2}\\s*EUR[^\\n]*?([\\d.]+,\\d{2})\\s*EUR`, 'i');
         const match = fullText.match(regex);
-        return match ? parseFloat(match[1].replace(/\./g, '').replace(',', '.')) : 0;
+        if (match) {
+          return parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+        }
+        return 0;
       };
 
       const updatedGroups = local.haviGroups.map(g => {
-        const desc = g.description.toUpperCase();
-        if (desc.includes('CONGELADOS')) return { ...g, total: extractVal('CONGELADOS') };
-        if (desc.includes('REFRIGERADOS')) return { ...g, total: extractVal('REFRIGERADOS') };
-        if (desc.includes('SECOS COMIDA')) return { ...g, total: extractVal('SECOS COMIDA') };
-        if (desc.includes('SECOS PAPEL')) return { ...g, total: extractVal('SECOS PAPEL') };
-        if (desc.includes('PRODUTOS FRESCOS')) return { ...g, total: extractVal('PRODUTOS FRESCOS') };
-        if (desc.includes('MANUTENÇÃO & LIMPEZA COMPRAS')) return { ...g, total: extractVal('MANUTENÇÃO & LIMPEZA COMPRAS') };
+        const desc = g.description.toUpperCase().trim();
+        
+        if (desc.includes('CONGELADOS')) return { ...g, total: extractValorTotal('CONGELADOS') };
+        if (desc.includes('REFRIGERADOS')) return { ...g, total: extractValorTotal('REFRIGERADOS') };
+        if (desc.includes('SECOS COMIDA')) return { ...g, total: extractValorTotal('SECOS COMIDA') };
+        if (desc.includes('SECOS PAPEL')) return { ...g, total: extractValorTotal('SECOS PAPEL') };
+        if (desc.includes('PRODUTOS FRESCOS')) return { ...g, total: extractValorTotal('PRODUTOS FRESCOS') };
+        if (desc.includes('MANUTENÇÃO & LIMPEZA COMPRAS')) return { ...g, total: extractValorTotal('MANUTENÇÃO & LIMPEZA COMPRAS') };
+        if (desc.includes('FERRAMENTAS')) return { ...g, total: extractValorTotal('FERRAMENTAS & UTENSÍLIOS') };
+        // Captura de Bulk Alimentar e Bulk Papel (Grupos 19 e 20)
+        if (desc.includes('BULK ALIMENTAR')) return { ...g, total: extractValorTotal('BULK ALIMENTAR') };
+        if (desc.includes('BULK PAPEL')) return { ...g, total: extractValorTotal('BULK PAPEL') };
+        
         return g;
       });
 
       setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
+      alert("Importação concluída com sucesso!");
     } catch (err) {
       alert("Erro ao processar PDF localmente.");
     } finally {
@@ -138,7 +146,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
           <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2">
-            {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar PDF
+            {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Fatura PDF
           </button>
           <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Finalizar</button>
         </div>
@@ -151,7 +159,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">HAVI</div>
             <div className="p-1 divide-y divide-purple-100">
                {GRUPOS_ORDER.map(desc => {
-                 const group = local.haviGroups.find(g => g.description.toLowerCase().includes(desc.toLowerCase().replace('&', ''))) || { total: 0 };
+                 const group = local.haviGroups.find(g => g.description.toLowerCase().trim() === desc.toLowerCase().trim()) || { total: 0 };
                  return (
                    <div key={desc} className="grid grid-cols-12 px-2 py-1 items-center">
                       <div className="col-span-9 text-[9px] font-bold text-gray-700 uppercase">{desc}</div>
@@ -165,7 +173,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
           <div className="border border-purple-500 rounded-lg overflow-hidden">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">MYSTORE</div>
-            <div className="p-1 divide-y divide-purple-100">
+            <div className="p-1 divide-y divide-purple-100 h-full">
                {local.smsValues.map(v => (
                  <div key={v.description} className="grid grid-cols-12 px-2 py-2 items-center">
                     <div className="col-span-8 text-[10px] font-bold text-gray-700 uppercase">{v.description}</div>
@@ -185,9 +193,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </div>
 
         {/* DIFERENÇAS DE PREÇO */}
-        <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
+        <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 className="text-[10px] font-black text-slate-800 uppercase italic">Diferenças por Artigo</h3>
+            <h3 className="text-[10px] font-black text-slate-800 uppercase italic flex items-center gap-2"><AlertCircle size={14} className="text-amber-500"/> Diferenças por Artigo</h3>
             <button onClick={() => setIsModalOpen(true)} className="text-purple-600 p-1.5 rounded-lg hover:bg-purple-100"><Plus size={18} /></button>
           </div>
           <div className="space-y-1">
@@ -196,7 +204,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                   <div className="col-span-3 text-purple-600 truncate">{item.group}</div>
                   <div className="col-span-4 text-slate-700 uppercase truncate">{item.product}</div>
                   <div className="col-span-2 text-right">{item.haviPrice.toFixed(4)}</div>
-                  <div className="col-span-2 text-right text-red-500">{(item.haviPrice - item.myStorePrice).toFixed(4)}</div>
+                  <div className={`col-span-2 text-right font-black ${Math.abs(item.haviPrice - item.myStorePrice) > 0.0001 ? 'text-red-500' : 'text-slate-400'}`}>{(item.haviPrice - item.myStorePrice).toFixed(4)}</div>
                   <div className="col-span-1 text-right"><button onClick={() => setPriceDiffs(priceDiffs.filter(i => i.id !== item.id))}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button></div>
                 </div>
              ))}
