@@ -303,7 +303,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="p-6 flex-1">
-          {/* Definições (Protegido - movido para fora do bloco específico para garantir proteção total) */}
+          {/* Definições (Protegido) */}
           {activeTab === 'settings' && renderProtectedTab(
              <Settings 
                 settings={activeRestaurant} 

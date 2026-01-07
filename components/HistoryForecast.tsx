@@ -255,24 +255,29 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         </div>
       </div>
 
+      {/* Tabela com cabeçalho fixo (sticky) */}
       <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
-        <table className="w-full text-sm text-center border-collapse">
+        <table className="w-full text-sm text-center border-separate border-spacing-0">
            <thead className="text-[11px] font-black text-gray-700 uppercase tracking-tighter">
              <tr>
-               <th className="p-3 sticky left-0 top-0 bg-white z-40 border-r border-gray-200 min-w-[140px] text-left shadow-[1px_0_0_0_rgba(0,0,0,0.1)]">
+               {/* 
+                 DATA column sticky both vertically and horizontally. 
+                 Using z-40 to stay above other headers. 
+               */}
+               <th className="p-3 sticky left-0 top-0 bg-white z-40 border-r border-b border-gray-200 min-w-[140px] text-left shadow-[1px_1px_0_0_rgba(0,0,0,0.1)]">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onChange={(e) => handleSelectAll(e.target.checked)} checked={filteredHistory.length > 0 && selectedIds.size === filteredHistory.length} />
                     <span>DATA</span>
                   </div>
                </th>
-               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-yellow-200 text-yellow-800 w-24 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">DIA SEM.</th>
-               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-yellow-200 text-yellow-800 w-32 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">VENDAS TOTAIS</th>
+               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-24 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">DIA SEM.</th>
+               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-32 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">VENDAS TOTAIS</th>
                {TIME_SLOTS_KEYS.map(slot => (
-                 <th key={slot} className={`p-2 sticky top-0 z-30 border-r border-white/20 text-white min-w-[120px] shadow-[0_1px_0_0_rgba(0,0,0,0.05)] ${parseInt(slot) >= 19 ? 'bg-[#f97316]' : 'bg-[#475569]'}`}>
+                 <th key={slot} className={`p-2 sticky top-0 z-30 border-r border-b border-white/20 text-white min-w-[120px] shadow-[0_1px_0_0_rgba(0,0,0,0.05)] ${parseInt(slot) >= 19 ? 'bg-[#f97316]' : 'bg-[#475569]'}`}>
                     {slot}
                  </th>
                ))}
-               <th className="p-3 sticky top-0 bg-gray-50 z-30 text-gray-400 w-16 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">AÇÕES</th>
+               <th className="p-3 sticky top-0 bg-gray-50 z-30 text-gray-400 w-16 border-b border-gray-200 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">AÇÕES</th>
              </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
