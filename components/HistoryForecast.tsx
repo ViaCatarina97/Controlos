@@ -26,14 +26,16 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   onNavigateToPositioning
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [dayFilter, setDayFilter] = useState<number | null>(null);
+  // Agora suporta múltiplos dias selecionados
+  const [dayFilters, setDayFilters] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredHistory = useMemo(() => {
-    return history.filter(entry => dayFilter === null || entry.dayOfWeek === dayFilter);
-  }, [dayFilter, history]);
+    // Se nenhum filtro estiver selecionado, mostra todos. Caso contrário, filtra pelos dias incluídos no array.
+    return history.filter(entry => dayFilters.length === 0 || dayFilters.includes(entry.dayOfWeek));
+  }, [dayFilters, history]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -50,6 +52,19 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     setSelectedIds(newSet);
   };
 
+  const toggleDayFilter = (day: number) => {
+    setDayFilters(prev => {
+      const isAlreadySelected = prev.includes(day);
+      if (isAlreadySelected) {
+        return prev.filter(d => d !== day);
+      } else {
+        return [...prev, day];
+      }
+    });
+    // Limpar seleção individual ao mudar o filtro global para evitar confusão na média
+    setSelectedIds(new Set());
+  };
+
   const handleDeleteEntry = (id: string) => {
     if (confirm('Tem a certeza que deseja eliminar este registo histórico?')) {
       setHistory(prev => prev.filter(h => h.id !== id));
@@ -64,6 +79,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     if (confirm('AVISO: Deseja eliminar TODO o histórico deste restaurante? Esta ação não pode ser revertida.')) {
         setHistory([]);
         setSelectedIds(new Set());
+        setDayFilters([]);
         setLastSaved(new Date().toLocaleTimeString());
     }
   };
@@ -226,14 +242,26 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
             <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dia</span>
-                    <div className="flex gap-1 mt-1">
-                        {[1,2,3,4,5,6,0].map(d => (
-                        <button key={d} onClick={() => { setDayFilter(d === dayFilter ? null : d); setSelectedIds(new Set()); }}
-                            className={`w-7 h-7 rounded text-[10px] font-bold flex items-center justify-center transition-colors ${dayFilter === d ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
-                            {getDayName(d)}
-                        </button>
-                        ))}
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Dias (Acumulativo)</span>
+                        {dayFilters.length > 0 && (
+                            <button onClick={() => setDayFilters([])} className="text-[9px] text-blue-600 font-black uppercase hover:underline">Limpar</button>
+                        )}
+                    </div>
+                    <div className="flex gap-1">
+                        {/* Ordem: 2ª, 3ª, 4ª, 5ª, 6ª, Sáb, Dom */}
+                        {[1,2,3,4,5,6,0].map(d => {
+                            const isSelected = dayFilters.includes(d);
+                            return (
+                                <button 
+                                    key={d} 
+                                    onClick={() => toggleDayFilter(d)}
+                                    className={`w-8 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    {getDayName(d)}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -308,8 +336,8 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                  <tr>
                     <td colSpan={TIME_SLOTS_KEYS.length + 4} className="py-20 text-center text-gray-400">
                         <Database size={48} className="mx-auto mb-4 opacity-10" />
-                        <p className="font-medium text-lg italic">Sem dados históricos importados para este filtro.</p>
-                        <p className="text-xs">Importe um ficheiro Excel para começar.</p>
+                        <p className="font-medium text-lg italic">Sem dados históricos correspondentes aos filtros selecionados.</p>
+                        <p className="text-xs">Altere os filtros ou importe um ficheiro Excel para começar.</p>
                     </td>
                  </tr>
              )}
