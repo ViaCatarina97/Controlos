@@ -26,7 +26,8 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   onNavigateToPositioning
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [dayFilter, setDayFilter] = useState<number | null>(5);
+  // Removida a predefinição de 6ª feira (5) para null
+  const [dayFilter, setDayFilter] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -257,21 +258,21 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-collapse">
            <thead className="text-xs font-bold text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm">
-             <tr>
-               <th className="p-3 sticky left-0 bg-gray-50 z-20 border-r border-gray-200 min-w-[140px] text-left">
+             <tr className="bg-gray-50">
+               <th className="p-3 sticky left-0 top-0 bg-gray-50 z-30 border-r border-gray-200 min-w-[140px] text-left">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onChange={(e) => handleSelectAll(e.target.checked)} checked={filteredHistory.length > 0 && selectedIds.size === filteredHistory.length} />
                     <span>Data</span>
                   </div>
                </th>
-               <th className="p-3 bg-yellow-100/50 border-r border-yellow-200 text-yellow-800 w-24">Dia Sem.</th>
-               <th className="p-3 bg-yellow-100/50 border-r border-yellow-200 text-yellow-800 font-extrabold w-32">Vendas Totais</th>
+               <th className="p-3 sticky top-0 bg-yellow-100/80 z-20 border-r border-yellow-200 text-yellow-800 w-24">Dia Sem.</th>
+               <th className="p-3 sticky top-0 bg-yellow-100/80 z-20 border-r border-yellow-200 text-yellow-800 font-extrabold w-32">Vendas Totais</th>
                {TIME_SLOTS_KEYS.map(slot => (
-                 <th key={slot} className={`p-2 border-r border-white/50 text-white min-w-[120px] ${parseInt(slot) >= 19 ? 'bg-orange-500' : 'bg-slate-600'}`}>
+                 <th key={slot} className={`p-2 sticky top-0 z-20 border-r border-white/50 text-white min-w-[120px] ${parseInt(slot) >= 19 ? 'bg-orange-500' : 'bg-slate-600'}`}>
                     {slot}
                  </th>
                ))}
-               <th className="p-3 bg-gray-50 text-gray-400 w-16">Ações</th>
+               <th className="p-3 sticky top-0 bg-gray-50 z-20 text-gray-400 w-16">Ações</th>
              </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
