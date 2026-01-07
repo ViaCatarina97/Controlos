@@ -7,14 +7,13 @@ import { Login } from './components/Login';
 import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
-// Added missing import for Positioning component
 import { Positioning } from './components/Positioning';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
-  CheckCircle2, CloudCheck, Lock, ShieldAlert, KeyRound
+  CloudCheck, Lock, ShieldAlert, KeyRound
 } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
@@ -29,7 +28,6 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
   
-  // Admin Protection State
   const [isAdminAuthorized, setIsAdminAuthorized] = useState(false);
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState(false);
@@ -54,7 +52,6 @@ const App: React.FC = () => {
     shifts: {}
   });
 
-  // Carregamento inicial local
   useEffect(() => {
     if (!authenticatedRestaurantId) return;
     const id = authenticatedRestaurantId;
@@ -71,7 +68,6 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, [authenticatedRestaurantId]);
 
-  // Persistência Local Automática Total
   useEffect(() => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     const id = authenticatedRestaurantId;
@@ -278,7 +274,7 @@ const App: React.FC = () => {
                 <FileText size={20} /> {sidebarOpen && <span>Controlo Entregas</span>}
               </button>
               <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <SettingsIcon size={20} /> {sidebarOpen && <span>Definições Loja</span>}
+                <SettingsIcon size={20} /> {sidebarOpen && <span>Definições</span>}
               </button>
             </>
           )}
@@ -303,7 +299,6 @@ const App: React.FC = () => {
         </header>
 
         <div className="p-6 flex-1">
-          {/* Definições (Protegido) */}
           {activeTab === 'settings' && renderProtectedTab(
              <Settings 
                 settings={activeRestaurant} 
@@ -315,12 +310,10 @@ const App: React.FC = () => {
              />
           )}
           
-          {/* Subpáginas do Módulo de Posicionamento */}
           {activeModule === 'positioning' && (
             <>
               {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
               
-              {/* Staffing (Protegido) */}
               {activeTab === 'staffing' && renderProtectedTab(
                 <Criteria 
                     staffingTable={currentStaffingTable} 
@@ -333,7 +326,6 @@ const App: React.FC = () => {
             </>
           )}
 
-          {/* Subpáginas do Módulo de Faturação */}
           {activeModule === 'billing' && (
             <>
               {(['deliveries', 'credits', 'summary'].includes(activeTab)) && (

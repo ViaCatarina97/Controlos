@@ -353,11 +353,35 @@ export const Positioning: React.FC<PositioningProps> = ({
       setSchedule({ ...schedule, shiftObjectives: { ...currentObjs, [selectedShift]: { ...shiftObjs, [field]: value } } });
   };
 
+  // Verifica se o colaborador já está atribuído a algum posto (staff ou formando) no turno atual
+  const checkDuplicateAssignment = (employeeId: string): boolean => {
+    const shiftData = schedule.shifts[selectedShift] || {};
+    const traineeData = schedule.trainees?.[selectedShift] || {};
+    
+    // Procurar em staff normal
+    // Fix: cast Object.values to string[][] to avoid "Property 'includes' does not exist on type 'unknown'"
+    const alreadyAsStaff = (Object.values(shiftData) as string[][]).some(ids => ids.includes(employeeId));
+    // Procurar em formandos
+    // Fix: cast Object.values to string[][] to avoid "Property 'includes' does not exist on type 'unknown'"
+    const alreadyAsTrainee = (Object.values(traineeData) as string[][]).some(ids => ids.includes(employeeId));
+
+    if (alreadyAsStaff || alreadyAsTrainee) {
+      const emp = employees.find(e => e.id === employeeId);
+      const name = emp ? emp.name : 'Este colaborador';
+      alert(`${name} já está posicionado(a) neste turno!`);
+      return true;
+    }
+    return false;
+  };
+
   const handleAssign = (stationId: string, employeeId: string) => {
     if (isShiftLocked) return;
+    if (checkDuplicateAssignment(employeeId)) return;
+
     const shiftData = schedule.shifts[selectedShift] || {};
     const stationAssignments = shiftData[stationId] || [];
     if (stationAssignments.includes(employeeId)) return;
+    
     setSchedule({ ...schedule, shifts: { ...schedule.shifts, [selectedShift]: { ...shiftData, [stationId]: [...stationAssignments, employeeId] } } });
   };
 
@@ -370,9 +394,12 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const handleAssignTrainee = (stationId: string, employeeId: string) => {
     if (isShiftLocked) return;
+    if (checkDuplicateAssignment(employeeId)) return;
+
     const shiftTrainees = schedule.trainees?.[selectedShift] || {};
     const stationTrainees = shiftTrainees[stationId] || [];
     if (stationTrainees.includes(employeeId)) return;
+    
     setSchedule({ ...schedule, trainees: { ...schedule.trainees, [selectedShift]: { ...shiftTrainees, [stationId]: [...stationTrainees, employeeId] } } });
   };
 

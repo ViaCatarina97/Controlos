@@ -26,7 +26,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   onNavigateToPositioning
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Filtro de dia inicia como null (todos os dias)
   const [dayFilter, setDayFilter] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
@@ -209,7 +208,8 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
   return (
     <div className="space-y-6 h-full flex flex-col animate-fade-in">
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4">
+      {/* Área de Controlos Sticky */}
+      <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4 sticky top-[-24px] z-30">
         <div className="flex flex-col">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <TrendingUp className="text-blue-600" /> Histórico & Previsão
@@ -255,29 +255,25 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         </div>
       </div>
 
-      {/* Tabela com cabeçalho fixo (sticky) */}
-      <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
+      {/* Tabela com Cabeçalho Sticky Offset */}
+      <div className="flex-1 overflow-visible bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-separate border-spacing-0">
            <thead className="text-[11px] font-black text-gray-700 uppercase tracking-tighter">
              <tr>
-               {/* 
-                 DATA column sticky both vertically and horizontally. 
-                 Using z-40 to stay above other headers. 
-               */}
-               <th className="p-3 sticky left-0 top-0 bg-white z-40 border-r border-b border-gray-200 min-w-[140px] text-left shadow-[1px_1px_0_0_rgba(0,0,0,0.1)]">
+               <th className="p-3 sticky left-0 top-[116px] bg-white z-40 border-r border-b border-gray-200 min-w-[140px] text-left shadow-[1px_1px_0_0_rgba(0,0,0,0.1)]">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onChange={(e) => handleSelectAll(e.target.checked)} checked={filteredHistory.length > 0 && selectedIds.size === filteredHistory.length} />
                     <span>DATA</span>
                   </div>
                </th>
-               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-24 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">DIA SEM.</th>
-               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-32 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">VENDAS TOTAIS</th>
+               <th className="p-3 sticky top-[116px] bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-24 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">DIA SEM.</th>
+               <th className="p-3 sticky top-[116px] bg-[#fffbeb] z-30 border-r border-b border-yellow-200 text-yellow-800 w-32 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">VENDAS TOTAIS</th>
                {TIME_SLOTS_KEYS.map(slot => (
-                 <th key={slot} className={`p-2 sticky top-0 z-30 border-r border-b border-white/20 text-white min-w-[120px] shadow-[0_1px_0_0_rgba(0,0,0,0.05)] ${parseInt(slot) >= 19 ? 'bg-[#f97316]' : 'bg-[#475569]'}`}>
+                 <th key={slot} className={`p-2 sticky top-[116px] z-30 border-r border-b border-white/20 text-white min-w-[120px] shadow-[0_1px_0_0_rgba(0,0,0,0.05)] ${parseInt(slot) >= 19 ? 'bg-[#f97316]' : 'bg-[#475569]'}`}>
                     {slot}
                  </th>
                ))}
-               <th className="p-3 sticky top-0 bg-gray-50 z-30 text-gray-400 w-16 border-b border-gray-200 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">AÇÕES</th>
+               <th className="p-3 sticky top-[116px] bg-gray-50 z-30 text-gray-400 w-16 border-b border-gray-200 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">AÇÕES</th>
              </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
