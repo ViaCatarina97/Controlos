@@ -196,7 +196,7 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
                         <div key={station.id} className={`bg-white border border-slate-100 rounded-md overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
                              <div className={`bg-slate-950 px-1 flex justify-between items-center h-4 shrink-0`}>
                                 <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
-                                    {station.label.toUpperCase()}
+                                    {`${station.label}${station.designation ? ` - ${station.designation}` : ''}`.toUpperCase()}
                                 </span>
                                 <span className="bg-yellow-400 text-slate-900 font-black text-[7px] px-1 rounded-sm leading-none py-0.5">
                                     {station.defaultSlots}
