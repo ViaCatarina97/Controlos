@@ -26,7 +26,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   onNavigateToPositioning
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Removida a predefinição de 6ª feira (5) para null
+  // Filtro de dia inicia como null (todos os dias)
   const [dayFilter, setDayFilter] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
@@ -257,22 +257,22 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
       <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-collapse">
-           <thead className="text-xs font-bold text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm">
-             <tr className="bg-gray-50">
-               <th className="p-3 sticky left-0 top-0 bg-gray-50 z-30 border-r border-gray-200 min-w-[140px] text-left">
+           <thead className="text-[11px] font-black text-gray-700 uppercase tracking-tighter">
+             <tr>
+               <th className="p-3 sticky left-0 top-0 bg-white z-40 border-r border-gray-200 min-w-[140px] text-left shadow-[1px_0_0_0_rgba(0,0,0,0.1)]">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" onChange={(e) => handleSelectAll(e.target.checked)} checked={filteredHistory.length > 0 && selectedIds.size === filteredHistory.length} />
-                    <span>Data</span>
+                    <span>DATA</span>
                   </div>
                </th>
-               <th className="p-3 sticky top-0 bg-yellow-100/80 z-20 border-r border-yellow-200 text-yellow-800 w-24">Dia Sem.</th>
-               <th className="p-3 sticky top-0 bg-yellow-100/80 z-20 border-r border-yellow-200 text-yellow-800 font-extrabold w-32">Vendas Totais</th>
+               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-yellow-200 text-yellow-800 w-24 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">DIA SEM.</th>
+               <th className="p-3 sticky top-0 bg-[#fffbeb] z-30 border-r border-yellow-200 text-yellow-800 w-32 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">VENDAS TOTAIS</th>
                {TIME_SLOTS_KEYS.map(slot => (
-                 <th key={slot} className={`p-2 sticky top-0 z-20 border-r border-white/50 text-white min-w-[120px] ${parseInt(slot) >= 19 ? 'bg-orange-500' : 'bg-slate-600'}`}>
+                 <th key={slot} className={`p-2 sticky top-0 z-30 border-r border-white/20 text-white min-w-[120px] shadow-[0_1px_0_0_rgba(0,0,0,0.05)] ${parseInt(slot) >= 19 ? 'bg-[#f97316]' : 'bg-[#475569]'}`}>
                     {slot}
                  </th>
                ))}
-               <th className="p-3 sticky top-0 bg-gray-50 z-20 text-gray-400 w-16">Ações</th>
+               <th className="p-3 sticky top-0 bg-gray-50 z-30 text-gray-400 w-16 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">AÇÕES</th>
              </tr>
            </thead>
            <tbody className="divide-y divide-gray-100">
@@ -281,19 +281,19 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                const [y, m, d] = entry.date.split('-');
                return (
                  <tr key={entry.id} className={`hover:bg-blue-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
-                   <td className="p-3 sticky left-0 bg-white border-r border-gray-100 text-left font-medium text-gray-900 z-10">
+                   <td className="p-3 sticky left-0 bg-white border-r border-gray-100 text-left font-medium text-gray-900 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
                       <div className="flex items-center gap-3">
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelection(entry.id)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
                         {`${d}/${m}/${y}`}
                       </div>
                    </td>
-                   <td className="p-2 border-r border-gray-100 text-gray-500">{getDayName(entry.dayOfWeek)}</td>
-                   <td className="p-2 border-r border-gray-100 font-bold bg-yellow-50 text-gray-800">{formatCurrency(entry.totalSales)}</td>
+                   <td className="p-2 border-r border-gray-100 text-gray-500 font-bold">{getDayName(entry.dayOfWeek)}</td>
+                   <td className="p-2 border-r border-gray-100 font-black bg-[#fffef3] text-gray-800">{formatCurrency(entry.totalSales)}</td>
                    {TIME_SLOTS_KEYS.map(slot => (
                      <td key={slot} className="p-2 border-r border-gray-100">
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                           <span className="font-semibold text-gray-700">{Math.round(entry.slots[slot]?.sales || 0)}€</span>
-                           <span className="text-gray-400">{entry.slots[slot]?.gc || 0}</span>
+                           <span className="font-bold text-slate-800">{Math.round(entry.slots[slot]?.sales || 0)}€</span>
+                           <span className="text-slate-400 font-medium">{entry.slots[slot]?.gc || 0} GC</span>
                         </div>
                      </td>
                    ))}
