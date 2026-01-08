@@ -5,7 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TeamPos - Gestão de Equipas</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
       body {
@@ -25,27 +28,25 @@
           width: 100%;
           height: 100%;
         }
-        /* Hide scrollbars in print */
         ::-webkit-scrollbar {
             display: none;
         }
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
-    "recharts": "https://esm.sh/recharts@^3.5.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs",
-    "@google/generative-ai": "https://esm.sh/@google/generative-ai@^0.24.1"
-  }
-}
-</script>
-</head>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+        "recharts": "https://esm.sh/recharts@^3.5.1",
+        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs"
+      }
+    }
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
