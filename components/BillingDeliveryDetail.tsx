@@ -17,17 +17,17 @@ interface BillingDeliveryDetailProps {
   onBack: () => void;
 }
 
-const GRUPOS_HAVI = [
-  { id: '1', name: 'Congelados', search: 'Congelados' },
-  { id: '2', name: 'Refrigerados', search: 'Refrigerados' },
-  { id: '3', name: 'Secos Comida', search: 'Secos Comida' },
-  { id: '4', name: 'Secos Papel', search: 'Secos Papel' },
-  { id: '5', name: 'Manutenção Limpeza', search: 'Manutenção Limpeza' },
-  { id: '8', name: 'Produtos Frescos', search: 'Produtos Frescos' },
-  { id: '9', name: 'MANUTENÇÃO & LIMPEZA COMPRAS', search: 'LIMPEZA COMPRAS' },
-  { id: '14', name: 'Ferramentas & Utensílios', search: 'Ferramentas' },
-  { id: '19', name: 'Bulk Alimentar', search: 'Bulk Alimentar' },
-  { id: '20', name: 'Bulk Papel', search: 'Bulk Papel' }
+const HAVI_GROUPS_CONFIG = [
+  { id: '1', name: 'Congelados' },
+  { id: '2', name: 'Refrigerados' },
+  { id: '3', name: 'Secos Comida' },
+  { id: '4', name: 'Secos Papel' },
+  { id: '5', name: 'Manutenção Limpeza' },
+  { id: '8', name: 'Produtos Frescos' },
+  { id: '9', name: 'MANUTENÇÃO & LIMPEZA COMPRAS' },
+  { id: '14', name: 'Ferramentas & Utensílios' },
+  { id: '19', name: 'Bulk Alimentar' },
+  { id: '20', name: 'Bulk Papel' }
 ];
 
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
@@ -36,13 +36,15 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   const [priceDiffs, setPriceDiffs] = useState<PriceDiffItem[]>([]);
   const [missingProducts, setMissingProducts] = useState<MissingProduct[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newDiff, setNewDiff] = useState({ group: GRUPOS_HAVI[0].name, product: '', havi: 0, mystore: 0 });
+  const [newDiff, setNewDiff] = useState({ group: HAVI_GROUPS_CONFIG[0].name, product: '', havi: 0, mystore: 0 });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatNumeric = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const totalHaviFinal = useMemo(() => local.haviGroups.reduce((s, g) => s + g.total, 0) + local.pontoVerde, [local.haviGroups, local.pontoVerde]);
+  // CÁLCULO TOTAL: Agora o total é um estado independente alimentado diretamente pelo PDF
+  const [totalHaviFinal, setTotalHaviFinal] = useState(record.haviGroups.reduce((s, g) => s + g.total, 0));
+  
   const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
   const finalDifference = totalHaviFinal - totalMyStore;
 
@@ -52,11 +54,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
     setIsProcessingPdf(true);
     try {
-      const pdfjsLib = (window as any)['pdfjs-dist/build/pdf'] || (window as any).pdfjsLib;
-      if (!pdfjsLib) throw new Error("Motor PDF não carregado. Verifique o index.html.");
-      
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
-
+      const pdfjsLib = (window as any).pdfjsLib;
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = "";
@@ -67,49 +65,36 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         fullText += content.items.map((item: any) => item.str).join(" ") + " \n";
       }
 
-      // Normalização agressiva para lidar com quebras de linha e caracteres especiais
-      const cleanText = fullText.replace(/\s+/g, ' ');
+      const normalizedText = fullText.replace(/\s+/g, ' ');
 
-      const extractValue = (searchName: string) => {
-        // Regex que procura o nome e ignora tudo até encontrar o padrão de moeda 0,00 EUR
-        // Como a fatura tem 4 colunas, procuramos o padrão de valor total (o mais à direita)
-        const escaped = searchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`${escaped}.*?(\\d[\\d.]*,\\d{2})\\s*EUR`, 'i');
-        const match = cleanText.match(regex);
-        
-        if (match) {
-          // Tentamos capturar se existem múltiplos valores EUR na sequência para pegar o último (Total)
-          const multiMatch = cleanText.match(new RegExp(`${escaped}(?:.*?\\d[\\d.]*,\\d{2}\\s*EUR){1,4}`, 'i'));
-          if (multiMatch) {
-            const allValues = multiMatch[0].match(/\d[\d.]*,\d{2}/g);
-            if (allValues) {
-              const lastVal = allValues[allValues.length - 1];
-              return parseFloat(lastVal.replace(/\./g, '').replace(',', '.'));
-            }
-          }
-          return parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-        }
-        return 0;
+      // Função para extrair o 4º valor (Valor Total) de uma linha específica
+      const extractSpecificTotal = (anchor: string) => {
+        const escaped = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Procura a âncora e captura o 4º valor antes de "EUR"
+        const regex = new RegExp(`${escaped}.*?\\d[\\d.]*,\\d{2}\\s*EUR\\s+\\d[\\d.]*,\\d{2}\\s*EUR\\s+\\d[\\d.]*,\\d{2}\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
+        const match = normalizedText.match(regex);
+        return match ? parseFloat(match[1].replace(/\./g, '').replace(',', '.')) : 0;
       };
 
+      // 1. Importar as rubricas individuais
       const updatedGroups = local.haviGroups.map(g => {
-        const config = GRUPOS_HAVI.find(c => c.name === g.description);
-        if (config) {
-          const val = extractValue(config.search);
-          return val > 0 ? { ...g, total: val } : { ...g, total: 0 };
-        }
-        return { ...g, total: 0 }; // Limpa campos que não estão no mapeamento
+        const config = HAVI_GROUPS_CONFIG.find(c => c.name.toUpperCase() === g.description.toUpperCase());
+        const val = config ? extractSpecificTotal(config.id) : 0;
+        return { ...g, total: val };
       });
 
-      setLocal(prev => ({ 
-        ...prev, 
-        haviGroups: updatedGroups,
-        pontoVerde: extractValue("TOTAL") || prev.pontoVerde 
-      }));
+      // 2. IMPORTAR O TOTAL DIRETAMENTE DA LINHA "TOTAL" (O VALOR QUE PEDIU: 9412,00)
+      const importedTotal = extractSpecificTotal("TOTAL");
 
-      alert("Importação concluída! Verifique se os valores estão nas colunas corretas.");
+      setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
+      if (importedTotal > 0) {
+        setTotalHaviFinal(importedTotal);
+      }
+
+      alert(`Importação concluída! Total extraído da fatura: ${formatNumeric(importedTotal)} €`);
+
     } catch (err: any) {
-      alert("Erro: " + err.message);
+      alert("Erro ao ler PDF: " + err.message);
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -118,19 +103,17 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in pb-10">
-      {/* HEADER */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
         <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic hover:text-gray-800 transition-colors"><ArrowLeft size={18} /> Voltar</button>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg hover:bg-amber-600">
+          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg">
             {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Fatura
           </button>
-          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs shadow-md shadow-purple-200">Finalizar</button>
+          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Gravar</button>
         </div>
       </div>
 
-      {/* 3 COLUNAS */}
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 shadow-xl print:border-none">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* HAVI */}
@@ -143,6 +126,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                     <div className="col-span-3 text-right text-[10px] font-black">{formatNumeric(g.total)}</div>
                  </div>
                ))}
+               {/* ESTE VALOR VEM AGORA DIRETAMENTE DA LINHA "TOTAL" DO PDF */}
                <div className="p-4 bg-purple-100/50 text-right font-black text-purple-900 text-2xl border-t border-purple-500 italic">{formatNumeric(totalHaviFinal)} €</div>
             </div>
           </div>
@@ -167,7 +151,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  </div>
                ))}
                <div className="mt-auto p-6 bg-purple-50/30 text-center border-t border-purple-500">
-                  <div className="text-3xl font-black text-purple-900 italic leading-none">{formatNumeric(totalMyStore)} €</div>
+                  <div className="text-3xl font-black text-purple-900 italic">{formatNumeric(totalMyStore)} €</div>
                </div>
             </div>
           </div>
