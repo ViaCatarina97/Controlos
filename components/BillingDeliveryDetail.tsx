@@ -2,14 +2,6 @@ import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, MissingProduct } from '../types';
 import { ArrowLeft, Plus, Trash2, UploadCloud, Loader2, AlertCircle, X, PackageX } from 'lucide-react';
 
-interface PriceDiffItem {
-  id: string;
-  group: string;
-  product: string;
-  haviPrice: number;
-  myStorePrice: number;
-}
-
 interface BillingDeliveryDetailProps {
   record: DeliveryRecord;
   employees: Employee[];
@@ -33,20 +25,10 @@ const HAVI_GROUPS_CONFIG = [
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
-  const [priceDiffs, setPriceDiffs] = useState<PriceDiffItem[]>([]);
-  const [missingProducts, setMissingProducts] = useState<MissingProduct[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newDiff, setNewDiff] = useState({ group: HAVI_GROUPS_CONFIG[0].name, product: '', havi: 0, mystore: 0 });
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const formatNumeric = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  // CÁLCULO TOTAL: Agora o total é um estado independente alimentado diretamente pelo PDF
   const [totalHaviFinal, setTotalHaviFinal] = useState(record.haviGroups.reduce((s, g) => s + g.total, 0));
   
-  const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
-  const finalDifference = totalHaviFinal - totalMyStore;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const formatNumeric = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleLoadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,6 +37,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     setIsProcessingPdf(true);
     try {
       const pdfjsLib = (window as any).pdfjsLib;
+      if (!pdfjsLib) throw new Error("Motor PDF não inicializado. Recarregue a página.");
+
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = "";
@@ -67,100 +51,93 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
       const normalizedText = fullText.replace(/\s+/g, ' ');
 
-      // Função para extrair o 4º valor (Valor Total) de uma linha específica
-      const extractSpecificTotal = (anchor: string) => {
+      // Regex para capturar o 4º valor numérico (VALOR TOTAL) após uma palavra-chave (ID ou "TOTAL")
+      const extractFourthValue = (anchor: string) => {
         const escaped = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Procura a âncora e captura o 4º valor antes de "EUR"
-        const regex = new RegExp(`${escaped}.*?\\d[\\d.]*,\\d{2}\\s*EUR\\s+\\d[\\d.]*,\\d{2}\\s*EUR\\s+\\d[\\d.]*,\\d{2}\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
+        // Procura a âncora e captura o 4º grupo de números antes de EUR
+        const regex = new RegExp(`${escaped}.*?(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
         const match = normalizedText.match(regex);
-        return match ? parseFloat(match[1].replace(/\./g, '').replace(',', '.')) : 0;
+        return match ? parseFloat(match[4].replace(/\./g, '').replace(',', '.')) : 0;
       };
 
-      // 1. Importar as rubricas individuais
+      // 1. Atualizar grupos individuais
       const updatedGroups = local.haviGroups.map(g => {
         const config = HAVI_GROUPS_CONFIG.find(c => c.name.toUpperCase() === g.description.toUpperCase());
-        const val = config ? extractSpecificTotal(config.id) : 0;
+        const val = config ? extractFourthValue(config.id) : 0;
         return { ...g, total: val };
       });
 
-      // 2. IMPORTAR O TOTAL DIRETAMENTE DA LINHA "TOTAL" (O VALOR QUE PEDIU: 9412,00)
-      const importedTotal = extractSpecificTotal("TOTAL");
+      // 2. Extrair o TOTAL diretamente da linha "TOTAL" do PDF (Ex: 9412,00)
+      const importedTotal = extractFourthValue("TOTAL");
 
       setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
-      if (importedTotal > 0) {
-        setTotalHaviFinal(importedTotal);
-      }
+      if (importedTotal > 0) setTotalHaviFinal(importedTotal);
 
-      alert(`Importação concluída! Total extraído da fatura: ${formatNumeric(importedTotal)} €`);
+      alert(`Importação concluída! Total Fatura: ${formatNumeric(importedTotal)} €`);
 
     } catch (err: any) {
-      alert("Erro ao ler PDF: " + err.message);
+      alert("Erro: " + err.message);
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
+  const finalDifference = totalHaviFinal - totalMyStore;
+
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in pb-10">
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic hover:text-gray-800 transition-colors"><ArrowLeft size={18} /> Voltar</button>
+        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic"><ArrowLeft size={18} /> Voltar</button>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg">
+          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2">
             {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Fatura
           </button>
           <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Gravar</button>
         </div>
       </div>
 
-      <div className="bg-white border-2 border-purple-500 rounded-lg p-6 shadow-xl print:border-none">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* HAVI */}
-          <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase">HAVI (Valor Total)</div>
-            <div className="p-1 divide-y divide-purple-100 flex-1">
-               {local.haviGroups.map(g => (
-                 <div key={g.description} className="grid grid-cols-12 px-2 py-1 items-center hover:bg-purple-50 transition-colors">
-                    <div className="col-span-9 text-[9px] font-bold text-gray-700 uppercase">{g.description}</div>
-                    <div className="col-span-3 text-right text-[10px] font-black">{formatNumeric(g.total)}</div>
-                 </div>
-               ))}
-               {/* ESTE VALOR VEM AGORA DIRETAMENTE DA LINHA "TOTAL" DO PDF */}
-               <div className="p-4 bg-purple-100/50 text-right font-black text-purple-900 text-2xl border-t border-purple-500 italic">{formatNumeric(totalHaviFinal)} €</div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col shadow-xl">
+          <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-xs">HAVI (VALOR TOTAL)</div>
+          <div className="p-2 divide-y divide-purple-100 flex-1">
+            {local.haviGroups.map(g => (
+              <div key={g.description} className="grid grid-cols-12 py-1 px-2 items-center">
+                <div className="col-span-9 text-[10px] font-bold text-gray-600 uppercase">{g.description}</div>
+                <div className="col-span-3 text-right text-[11px] font-black">{formatNumeric(g.total)}</div>
+              </div>
+            ))}
+            <div className="p-4 bg-purple-100/50 text-right font-black text-purple-900 text-2xl border-t-2 border-purple-500 italic mt-2">
+              {formatNumeric(totalHaviFinal)} €
             </div>
           </div>
+        </div>
 
-          {/* MYSTORE */}
-          <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase">MYSTORE</div>
-            <div className="p-1 divide-y divide-purple-100 flex-1">
-               {local.smsValues.map(v => (
-                 <div key={v.description} className="grid grid-cols-12 px-2 py-2 items-center hover:bg-slate-50 transition-colors">
-                    <div className="col-span-8 text-[10px] font-bold text-gray-700 uppercase">{v.description}</div>
-                    <div className="col-span-4 text-right">
-                      <input 
-                        type="number" step="0.01" value={v.amount || ''} 
-                        onChange={(e) => setLocal({
-                          ...local, 
-                          smsValues: local.smsValues.map(x => x.description === v.description ? {...x, amount: parseFloat(e.target.value) || 0} : x)
-                        })} 
-                        className="w-full text-right bg-white border border-slate-200 rounded px-1 text-[11px] font-black outline-none focus:ring-1 focus:ring-purple-500" 
-                      />
+        {/* Colunas MyStore e Diferença mantidas aqui... */}
+        <div className="bg-white border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col shadow-xl">
+            <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-xs">MYSTORE</div>
+            <div className="p-2 flex-1 divide-y divide-purple-100">
+                {local.smsValues.map(v => (
+                    <div key={v.description} className="grid grid-cols-12 py-2 px-2 items-center">
+                        <div className="col-span-8 text-[10px] font-bold text-gray-600 uppercase">{v.description}</div>
+                        <input type="number" step="0.01" value={v.amount || ''} 
+                            onChange={(e) => setLocal({...local, smsValues: local.smsValues.map(x => x.description === v.description ? {...x, amount: parseFloat(e.target.value) || 0} : x)})}
+                            className="col-span-4 text-right bg-slate-50 border border-slate-200 rounded text-[11px] font-black p-1" />
                     </div>
-                 </div>
-               ))}
-               <div className="mt-auto p-6 bg-purple-50/30 text-center border-t border-purple-500">
-                  <div className="text-3xl font-black text-purple-900 italic">{formatNumeric(totalMyStore)} €</div>
-               </div>
+                ))}
+                <div className="mt-auto p-6 text-center text-3xl font-black text-purple-900 italic border-t border-purple-500">
+                    {formatNumeric(totalMyStore)} €
+                </div>
             </div>
-          </div>
+        </div>
 
-          {/* DIFERENÇA */}
-          <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col bg-slate-50/30 text-center p-8 justify-center">
-             <div className={`text-5xl font-black italic tracking-tighter ${Math.abs(finalDifference) > 0.05 ? 'text-red-600' : 'text-emerald-600'}`}>{formatNumeric(finalDifference)} €</div>
-             <div className="text-[10px] font-black text-gray-400 uppercase mt-4 italic">Diferença Total</div>
-          </div>
+        <div className={`border-2 border-purple-500 rounded-lg flex flex-col items-center justify-center p-8 shadow-xl bg-slate-50`}>
+            <div className={`text-5xl font-black italic ${Math.abs(finalDifference) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {formatNumeric(finalDifference)} €
+            </div>
+            <div className="text-[10px] font-black text-gray-400 uppercase mt-4 tracking-widest">Diferença Final Real</div>
         </div>
       </div>
     </div>
