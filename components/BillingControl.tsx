@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
@@ -11,6 +10,29 @@ interface BillingControlProps {
   activeSubTab: 'deliveries' | 'credits' | 'summary';
   onTabChange: (tab: string) => void;
 }
+
+// Definição centralizada dos grupos para evitar erros de digitação
+const INITIAL_HAVI_GROUPS = [
+  { group: '1', description: 'Congelados', total: 0 },
+  { group: '2', description: 'Refrigerados', total: 0 },
+  { group: '3', description: 'Secos Comida', total: 0 },
+  { group: '4', description: 'Secos Papel', total: 0 },
+  { group: '5', description: 'Manutenção Limpeza', total: 0 },
+  { group: '6', description: 'Marketing IPL', total: 0 },
+  { group: '7', description: 'Marketing Geral', total: 0 },
+  { group: '8', description: 'Produtos Frescos', total: 0 },
+  { group: '9', description: 'MANUTENÇÃO & LIMPEZA COMPRAS', total: 0 },
+  { group: '10', description: 'Condimentos', total: 0 },
+  { group: '11', description: 'Condimentos Cozinha', total: 0 },
+  { group: '12', description: 'Material Adm', total: 0 },
+  { group: '13', description: 'Manuais', total: 0 },
+  { group: '14', description: 'Ferramentas & Utensílios', total: 0 },
+  { group: '15', description: 'Marketing Geral Custo', total: 0 },
+  { group: '16', description: 'Fardas', total: 0 },
+  { group: '17', description: 'Distribuição de Marketing', total: 0 },
+  { group: '19', description: 'Bulk Alimentar', total: 0 },
+  { group: '20', description: 'Bulk Papel', total: 0 },
+];
 
 export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, employees, activeSubTab, onTabChange }) => {
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
@@ -39,27 +61,7 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
       id: crypto.randomUUID(),
       date,
       managerId,
-      haviGroups: [
-        { group: 'A', description: 'Congelados', total: 0 },
-        { group: 'B', description: 'Refrigerados', total: 0 },
-        { group: 'C', description: 'Secos Comida', total: 0 },
-        { group: 'D', description: 'Secos Papel', total: 0 },
-        { group: 'E', description: 'Manutenção Limpeza', total: 0 },
-        { group: 'F', description: 'Marketing IPL', total: 0 },
-        { group: 'G', description: 'Marketing Geral', total: 0 },
-        { group: 'H', description: 'Produtos Frescos', total: 0 },
-        { group: 'I', description: 'Manutenção Limpeza Compras', total: 0 },
-        { group: 'J', description: 'Condimentos', total: 0 },
-        { group: 'L', description: 'Condimentos Cozinha', total: 0 },
-        { group: 'M', description: 'Material Adm', total: 0 },
-        { group: 'N', description: 'Manuais', total: 0 },
-        { group: 'O', description: 'Ferramentas Utensilios', total: 0 },
-        { group: 'P', description: 'Marketing Geral Custo', total: 0 },
-        { group: 'R', description: 'Fardas', total: 0 },
-        { group: 'S', description: 'Distribuição de Marketing', total: 0 },
-        { group: 'T', description: 'Bulk Alimentar', total: 0 },
-        { group: 'U', description: 'Bulk Papel', total: 0 },
-      ],
+      haviGroups: INITIAL_HAVI_GROUPS,
       pontoVerde: 0,
       smsValues: [
         { description: 'Comida', amount: 0 },
@@ -89,8 +91,6 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
       setDeliveries(prev => prev.filter(d => d.id !== id));
     }
   };
-
-  const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in print:bg-white">
@@ -198,15 +198,20 @@ const DeliveriesTab: React.FC<{
                 <th className="px-6 py-4">Data Fatura</th>
                 <th className="px-6 py-4">Responsável</th>
                 <th className="px-6 py-4">Estado</th>
-                <th className="px-6 py-4">Diff. Acumulada</th>
+                <th className="px-6 py-4">Diff. Final Real</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {records.map(record => {
+                // Cálculo corrigido: HAVI - SMS - (Diferenças de Preço)
                 const haviTotal = record.haviGroups.reduce((s, g) => s + g.total, 0) + record.pontoVerde;
                 const smsTotal = record.smsValues.reduce((s, v) => s + v.amount, 0);
-                const diff = haviTotal - smsTotal;
+                
+                // Calcula a soma das diferenças de preço registadas por artigo
+                const priceAdj = record.priceDifferences?.reduce((s, item) => s + (item.priceHavi - item.priceSms), 0) || 0;
+                
+                const diff = haviTotal - smsTotal - priceAdj;
                 const manager = employees.find(e => e.id === record.managerId)?.name || '-';
 
                 return (
@@ -268,6 +273,7 @@ const NewDeliveryModal: React.FC<{ employees: Employee[], onClose: () => void, o
             <input 
                 type="date" 
                 value={date} 
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setDate(e.target.value)} 
                 className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700"
             />
