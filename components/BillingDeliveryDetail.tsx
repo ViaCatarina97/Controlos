@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, MissingProduct } from '../types';
-import { ArrowLeft, Plus, Trash2, UploadCloud, Loader2, AlertCircle, X, PackageX, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, UploadCloud, Loader2, AlertCircle, X, PackageX } from 'lucide-react';
 
 interface PriceDiffItem {
   id: string;
@@ -35,6 +35,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatNumeric = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatLongNumeric = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
   const totalHaviFinal = useMemo(() => local.haviGroups.reduce((s, g) => s + g.total, 0), [local.haviGroups]);
   const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
@@ -54,7 +55,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     setIsProcessingPdf(true);
     try {
       const pdfjsLib = (window as any)['pdfjs-dist/build/pdf'] || (window as any).pdfjsLib;
-      if (!pdfjsLib) throw new Error("Motor PDF não carregado");
+      if (!pdfjsLib) throw new Error("Motor PDF não carregado. Verifique o index.html.");
       
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
@@ -68,16 +69,13 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         fullText += content.items.map((item: any) => item.str).join(" ") + " \n ";
       }
 
-      // FUNÇÃO DE EXTRAÇÃO CORRIGIDA PARA A COLUNA VALOR TOTAL
+      // EXTRAÇÃO ROBUSTA: Foca na coluna VALOR TOTAL e ignora espaços/caracteres especiais
       const extractValorTotal = (name: string) => {
-        // Escapa caracteres especiais como & e cria regex para espaços flexíveis
-        const cleanName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+        // Normaliza o nome para a busca: remove espaços extras e escapa o &
+        const searchName = name.replace(/&/g, '.?&.?').replace(/\s+/g, '.?');
+        const regex = new RegExp(`${searchName}.*?([\\d.]+,\\d{2})\\s*EUR`, 'gi');
         
-        // Procura o nome e captura o ÚLTIMO valor da linha (Valor Total) antes de "EUR"
-        // A fatura HAVI tem: Valor Liq | Pto Verde | Plastico | Valor Total
-        const regex = new RegExp(`${cleanName}.*?([\\d.]+,\\d{2})\\s*EUR`, 'gi');
         const matches = fullText.match(regex);
-        
         if (matches) {
           const lastMatch = matches[matches.length - 1];
           const valMatch = lastMatch.match(/([\d.]+,\d{2})\s*EUR/i);
@@ -89,20 +87,13 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       const updatedGroups = local.haviGroups.map(g => {
         const desc = g.description.toUpperCase().trim();
         const val = extractValorTotal(desc);
-        // Se o valor extraído for > 0, atualiza. Caso contrário mantém o anterior.
         return val > 0 ? { ...g, total: val } : g;
       });
 
-      setLocal(prev => ({ 
-        ...prev, 
-        haviGroups: updatedGroups,
-        pontoVerde: extractValorTotal('TOTAL') || prev.pontoVerde 
-      }));
-
-      alert("Importação concluída com sucesso!");
-    } catch (err) {
-      alert("Erro ao processar PDF.");
-      console.error(err);
+      setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
+      alert("Importação concluída!");
+    } catch (err: any) {
+      alert(err.message || "Erro ao processar PDF.");
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -111,23 +102,47 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in relative pb-10">
-      {/* (Restante do layout mantido conforme as fotos anteriores) */}
-      {/* ... Código de Header, Tabela e Modais ... */}
+      {/* MODAL DIFERENÇA PREÇO */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-purple-100 overflow-hidden">
+            <div className="bg-purple-600 p-4 flex justify-between items-center text-white">
+              <h3 className="font-black uppercase text-xs italic">Nova Diferença de Preço</h3>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <select value={newDiff.group} onChange={e => setNewDiff({...newDiff, group: e.target.value})} className="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold bg-slate-50">
+                {GRUPOS_ORDER.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <input type="text" placeholder="Produto" value={newDiff.product} onChange={e => setNewDiff({...newDiff, product: e.target.value})} className="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold bg-slate-50" />
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" placeholder="Havi" step="0.0001" onChange={e => setNewDiff({...newDiff, havi: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
+                <input type="number" placeholder="MyStore" step="0.0001" onChange={e => setNewDiff({...newDiff, mystore: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
+              </div>
+              <button onClick={handleAddPriceDiff} className="w-full bg-purple-600 text-white font-black py-4 rounded-xl uppercase text-xs shadow-lg">Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic hover:text-gray-800"><ArrowLeft size={18} /> Voltar</button>
+        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic"><ArrowLeft size={18} /> Voltar</button>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg hover:bg-amber-600 transition-all">
+          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg">
             {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Fatura
           </button>
-          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs shadow-md shadow-purple-200 hover:bg-purple-700 transition-all">Finalizar</button>
+          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Finalizar</button>
         </div>
       </div>
 
+      {/* PAINEL PRINCIPAL 3 COLUNAS */}
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 shadow-xl print:border-none">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* COLUNA HAVI */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase">HAVI</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">HAVI</div>
             <div className="p-1 divide-y divide-purple-100 flex-1">
                {GRUPOS_ORDER.map(desc => {
                  const group = local.haviGroups.find(g => g.description.toUpperCase().trim() === desc.toUpperCase().trim()) || { total: 0 };
@@ -138,10 +153,77 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                    </div>
                  );
                })}
-               <div className="p-4 bg-purple-100/50 text-right font-black text-purple-900 text-2xl border-t border-purple-500 italic">{formatNumeric(totalHaviFinal)} €</div>
+               <div className="p-4 bg-purple-100/50 text-right font-black text-purple-900 text-2xl italic border-t border-purple-500">{formatNumeric(totalHaviFinal)} €</div>
             </div>
           </div>
-          {/* ... Restante das colunas MyStore e Diferenças ... */}
+
+          {/* COLUNA MYSTORE EDITÁVEL */}
+          <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">MYSTORE</div>
+            <div className="p-1 divide-y divide-purple-100 flex-1">
+               {local.smsValues.map(v => (
+                 <div key={v.description} className="grid grid-cols-12 px-2 py-2 items-center hover:bg-slate-50 transition-colors">
+                    <div className="col-span-8 text-[10px] font-bold text-gray-700 uppercase">{v.description}</div>
+                    <div className="col-span-4">
+                      <input 
+                        type="number" step="0.01" value={v.amount || ''} 
+                        onChange={(e) => setLocal({
+                          ...local, 
+                          smsValues: local.smsValues.map(x => x.description === v.description ? {...x, amount: parseFloat(e.target.value) || 0} : x)
+                        })} 
+                        className="w-full text-right bg-white border border-slate-200 rounded px-1 text-[11px] font-black outline-none focus:ring-1 focus:ring-purple-500" 
+                      />
+                    </div>
+                 </div>
+               ))}
+               <div className="mt-auto p-6 bg-purple-50/30 text-center border-t border-purple-500">
+                  <div className="text-3xl font-black text-purple-900 italic">{formatNumeric(totalMyStore)} €</div>
+               </div>
+            </div>
+          </div>
+
+          {/* COLUNA DIFERENÇA TOTAL */}
+          <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col bg-slate-50/30 text-center p-8 justify-center">
+             <div className={`text-5xl font-black italic tracking-tighter ${Math.abs(finalDifference) > 0.05 ? 'text-red-600' : 'text-emerald-600'}`}>{formatNumeric(finalDifference)} €</div>
+             <div className="text-[10px] font-black text-gray-400 uppercase mt-4 italic">Diferença Total</div>
+          </div>
+        </div>
+      </div>
+
+      {/* SECÇÕES INFERIORES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* DIFERENÇAS POR ARTIGO */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-h-[150px]">
+          <div className="flex justify-between items-center mb-4 border-b pb-2 text-[10px] font-black text-slate-800 uppercase italic">
+            <span className="flex items-center gap-2"><AlertCircle size={14} className="text-amber-500"/> Diferenças Artigo</span>
+            <button onClick={() => setIsModalOpen(true)} className="text-purple-600 p-1 hover:bg-purple-50 rounded"><Plus size={18} /></button>
+          </div>
+          <div className="space-y-1">
+             {priceDiffs.map(item => (
+                <div key={item.id} className="grid grid-cols-12 px-3 py-2 bg-slate-50/50 rounded items-center text-[10px] font-bold border-b border-white">
+                  <div className="col-span-5 text-slate-700 uppercase truncate mr-1">{item.product}</div>
+                  <div className="col-span-3 text-right text-slate-400 font-normal">H: {formatLongNumeric(item.haviPrice)}</div>
+                  <div className="col-span-3 text-right text-red-500 font-black">Dif: {formatNumeric(item.haviPrice - item.myStorePrice)}</div>
+                  <div className="col-span-1 text-right"><button onClick={() => setPriceDiffs(priceDiffs.filter(i => i.id !== item.id))}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button></div>
+                </div>
+             ))}
+          </div>
+        </div>
+
+        {/* PRODUTOS NÃO INSERIDOS */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-h-[150px]">
+          <div className="flex justify-between items-center mb-4 border-b pb-2 text-[10px] font-black text-slate-800 uppercase italic">
+            <span className="flex items-center gap-2"><PackageX size={14} className="text-red-500"/> Não Inseridos</span>
+            <button onClick={() => setMissingProducts([...missingProducts, { id: crypto.randomUUID(), product: '', quantity: 0, reason: 'Falta' }])} className="text-red-600 p-1 hover:bg-red-50 rounded"><Plus size={18} /></button>
+          </div>
+          <div className="space-y-2">
+            {missingProducts.map(p => (
+              <div key={p.id} className="flex gap-2 items-center bg-red-50/50 p-2 rounded-lg">
+                <input type="text" placeholder="Produto" className="flex-1 bg-transparent border-none text-[10px] font-bold uppercase focus:ring-0" value={p.product} onChange={e => setMissingProducts(missingProducts.map(x => x.id === p.id ? {...x, product: e.target.value} : x))} />
+                <button onClick={() => setMissingProducts(missingProducts.filter(x => x.id !== p.id))}><Trash2 size={14} className="text-red-300"/></button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
