@@ -17,7 +17,6 @@ interface BillingDeliveryDetailProps {
   onBack: () => void;
 }
 
-// Configuração ID -> Nome baseada estritamente na imagem da fatura
 const HAVI_GROUPS_CONFIG = [
   { id: '1', name: 'Congelados' },
   { id: '2', name: 'Refrigerados' },
@@ -69,8 +68,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
     setIsProcessingPdf(true);
     try {
-      const pdfjsLib = (window as any)['pdfjs-dist/build/pdf'] || (window as any).pdfjsLib;
-      if (!pdfjsLib) throw new Error("Motor PDF não carregado. Verifique o index.html.");
+      const pdfjsLib = (window as any)['pdfjs-dist/build/pdf'] || (window as any).jsPDF;
+      if (!pdfjsLib) throw new Error("Motor PDF não carregado.");
       
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
@@ -81,42 +80,43 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        fullText += content.items.map((item: any) => item.str).join(" ") + " \n ";
+        fullText += content.items.map((item: any) => item.str).join(" ") + " ";
       }
 
-      // EXTRAÇÃO RIGOROSA: Exige o ID no início da linha e captura a 4ª coluna (Valor Total)
-      const extractValorTotal = (id: string) => {
-        // Regex: Início de linha -> ID -> Qualquer texto -> Captura o 4º valor EUR da linha
-        const regex = new RegExp(`(?:\\n|^)${id}\\s+.*?[\\d.]+,\\d{2}\\s*EUR\\s+[\\d.]+,\\d{2}\\s*EUR\\s+[\\d.]+,\\d{2}\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
+      // Função de extração otimizada: busca o ID e o VALOR TOTAL (4ª coluna)
+      const extractById = (id: string) => {
+        // Regex simplificada: Procura o número do grupo e captura blocos de números seguidos de EUR
+        // Captura o 4º bloco (Valor Total)
+        const regex = new RegExp(`(?:\\s|^)${id}\\s+[^\\d]+([\\d.]+,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
         const match = fullText.match(regex);
-        return match ? parseFloat(match[1].replace(/\./g, '').replace(',', '.')) : 0;
+        
+        // Se encontrar a linha com os 4 valores, o [4] é o VALOR TOTAL
+        if (match && match[4]) {
+          return parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
+        }
+        
+        // Fallback: Se a linha for curta e só tiver 1 valor (como faturas simplificadas)
+        const singleMatch = new RegExp(`(?:\\s|^)${id}\\s+[^\\d]+([\\d.]+,\\d{2})\\s*EUR`, 'i');
+        const match2 = fullText.match(singleMatch);
+        return match2 ? parseFloat(match2[1].replace(/\./g, '').replace(',', '.')) : 0;
       };
 
       const updatedGroups = local.haviGroups.map(g => {
         const config = HAVI_GROUPS_CONFIG.find(c => c.name.toUpperCase() === g.description.toUpperCase());
         if (config) {
-          const val = extractValorTotal(config.id);
-          // Se não encontrar o ID na fatura, o valor será 0 (evita repetir valores de outros grupos)
+          const val = extractById(config.id);
           return { ...g, total: val };
         }
         return g;
       });
 
-      setLocal(prev => ({ 
-        ...prev, 
-        haviGroups: updatedGroups,
-        // Captura o Ponto Verde Total da linha final "TOTAL" (coluna 2)
-        pontoVerde: (fullText.match(/TOTAL\s+[\\d.]+,\\d{2}\s*EUR\s+([\\d.]+,\\d{2})\s*EUR/i)?.[1]) 
-          ? parseFloat(fullText.match(/TOTAL\s+[\\d.]+,\\d{2}\s*EUR\s+([\\d.]+,\\d{2})\s*EUR/i)![1].replace(/\./g, '').replace(',', '.')) 
-          : prev.pontoVerde
-      }));
+      setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
+      alert("Valores importados com sucesso!");
 
-      alert("Importação da coluna 'Valor Total' concluída com sucesso!");
     } catch (err: any) {
-      alert(err.message || "Erro ao processar PDF.");
+      alert("Erro ao ler PDF: " + err.message);
     } finally {
       setIsProcessingPdf(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -131,13 +131,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
               <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
+              <label className="block text-[10px] font-black text-gray-400 uppercase">Grupo</label>
               <select value={newDiff.group} onChange={e => setNewDiff({...newDiff, group: e.target.value})} className="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold bg-slate-50">
                 {HAVI_GROUPS_CONFIG.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
               </select>
               <input type="text" placeholder="Nome do Produto" value={newDiff.product} onChange={e => setNewDiff({...newDiff, product: e.target.value})} className="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold bg-slate-50" />
               <div className="grid grid-cols-2 gap-4">
-                <input type="number" placeholder="Havi" step="0.0001" onChange={e => setNewDiff({...newDiff, havi: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
-                <input type="number" placeholder="MyStore" step="0.0001" onChange={e => setNewDiff({...newDiff, mystore: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
+                <input type="number" placeholder="Havi (€)" step="0.0001" onChange={e => setNewDiff({...newDiff, havi: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
+                <input type="number" placeholder="MyStore (€)" step="0.0001" onChange={e => setNewDiff({...newDiff, mystore: parseFloat(e.target.value) || 0})} className="border-2 border-slate-100 rounded-xl p-3 text-sm font-black bg-slate-50" />
               </div>
               <button onClick={handleAddPriceDiff} className="w-full bg-purple-600 text-white font-black py-4 rounded-xl uppercase text-xs shadow-lg">Guardar</button>
             </div>
@@ -160,12 +161,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       {/* PAINEL PRINCIPAL 3 COLUNAS */}
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 shadow-xl print:border-none">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* COLUNA HAVI */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">HAVI (VALOR TOTAL)</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase">HAVI (Valor Total)</div>
             <div className="p-1 divide-y divide-purple-100 flex-1">
                {HAVI_GROUPS_CONFIG.map(config => {
-                 const group = local.haviGroups.find(g => g.description.toUpperCase().trim() === config.name.toUpperCase().trim()) || { total: 0 };
+                 const group = local.haviGroups.find(g => g.description.toUpperCase() === config.name.toUpperCase()) || { total: 0 };
                  return (
                    <div key={config.id} className="grid grid-cols-12 px-2 py-1 items-center hover:bg-purple-50 transition-colors">
                       <div className="col-span-9 text-[9px] font-bold text-gray-700 uppercase">{config.name}</div>
@@ -177,9 +177,8 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
 
-          {/* COLUNA MYSTORE EDITÁVEL */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px]">MYSTORE</div>
+            <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase">MYSTORE</div>
             <div className="p-1 divide-y divide-purple-100 flex-1">
                {local.smsValues.map(v => (
                  <div key={v.description} className="grid grid-cols-12 px-2 py-2 items-center hover:bg-slate-50 transition-colors">
@@ -202,34 +201,33 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
           </div>
 
-          {/* COLUNA DIFERENÇA TOTAL */}
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col bg-slate-50/30 text-center p-8 justify-center">
              <div className={`text-5xl font-black italic tracking-tighter ${Math.abs(finalDifference) > 0.05 ? 'text-red-600' : 'text-emerald-600'}`}>{formatNumeric(finalDifference)} €</div>
-             <div className="text-[10px] font-black text-gray-400 uppercase mt-4 italic">Diferença Total Final</div>
+             <div className="text-[10px] font-black text-gray-400 uppercase mt-4 italic">Diferença Total</div>
           </div>
         </div>
       </div>
 
-      {/* SECÇÕES INFERIORES */}
+      {/* TABELAS DE DIFERENÇA E NÃO INSERIDOS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-h-[150px]">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div className="flex justify-between items-center mb-4 border-b pb-2 text-[10px] font-black text-slate-800 uppercase italic">
-            <span className="flex items-center gap-2"><AlertCircle size={14} className="text-amber-500"/> Diferenças Artigo</span>
+            <span className="flex items-center gap-2"><AlertCircle size={14} className="text-amber-500"/> Diferenças por Artigo</span>
             <button onClick={() => setIsModalOpen(true)} className="text-purple-600 p-1 hover:bg-purple-50 rounded"><Plus size={18} /></button>
           </div>
           <div className="space-y-1">
              {priceDiffs.map(item => (
                 <div key={item.id} className="grid grid-cols-12 px-3 py-2 bg-slate-50/50 rounded items-center text-[10px] font-bold border-b border-white">
                   <div className="col-span-5 text-slate-700 uppercase truncate mr-1">{item.product}</div>
-                  <div className="col-span-3 text-right text-slate-400 font-normal">H: {formatLongNumeric(item.haviPrice)}</div>
-                  <div className="col-span-3 text-right text-red-500 font-black">Dif: {formatNumeric(item.haviPrice - item.myStorePrice)}</div>
+                  <div className="col-span-3 text-right text-slate-400 font-normal">{formatLongNumeric(item.haviPrice)}</div>
+                  <div className="col-span-3 text-right text-red-500 font-black">{formatLongNumeric(item.haviPrice - item.myStorePrice)}</div>
                   <div className="col-span-1 text-right"><button onClick={() => setPriceDiffs(priceDiffs.filter(i => i.id !== item.id))}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button></div>
                 </div>
              ))}
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-h-[150px]">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div className="flex justify-between items-center mb-4 border-b pb-2 text-[10px] font-black text-slate-800 uppercase italic">
             <span className="flex items-center gap-2"><PackageX size={14} className="text-red-500"/> Não Inseridos</span>
             <button onClick={() => setMissingProducts([...missingProducts, { id: crypto.randomUUID(), product: '', quantity: 0, reason: 'Falta' }])} className="text-red-600 p-1 hover:bg-red-50 rounded"><Plus size={18} /></button>
