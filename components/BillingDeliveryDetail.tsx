@@ -9,8 +9,7 @@ interface BillingDeliveryDetailProps {
   onBack: () => void;
 }
 
-// Mapeamento exato ID -> Descrição conforme a fatura HAVI
-const HAVI_GROUPS_MAP = [
+const HAVI_GROUPS_CONFIG = [
   { id: '1', name: 'Congelados' },
   { id: '2', name: 'Refrigerados' },
   { id: '3', name: 'Secos Comida' },
@@ -42,40 +41,52 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = "";
 
+      // Extração de texto preservando espaços para não colar números
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        fullText += content.items.map((item: any) => item.str).join(" ") + " \n";
+        fullText += content.items.map((item: any) => item.str).join("  ") + " \n ";
       }
 
-      const normalizedText = fullText.replace(/\s+/g, ' ');
+      // Limpeza de ruído: remove múltiplos espaços mas mantém a estrutura de blocos
+      const cleanText = fullText.replace(/\s+/g, ' ');
 
-      // FUNÇÃO CRÍTICA: Captura especificamente o 4º valor (VALOR TOTAL) de uma linha
-      const extractValorTotal = (anchor: string) => {
-        const escaped = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Procura a âncora e captura o 4º grupo de números (formato 0,00) antes de EUR
-        const regex = new RegExp(`${escaped}.*?(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
-        const match = normalizedText.match(regex);
-        return match ? parseFloat(match[4].replace(/\./g, '').replace(',', '.')) : 0;
+      // NOVA LÓGICA: Procura o ID e depois os 4 valores EUR subsequentes
+      const extractValue = (id: string) => {
+        // Esta Regex procura o número do grupo (ex: " 14 ") e depois captura sequências de números com vírgula seguidos de EUR
+        // Pegamos especificamente no 4º valor dessa sequência
+        const regex = new RegExp(`(?:\\s|^)${id}\\s+.*?(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+(\\d[\\d.]*,\\d{2})\\s*EUR\\s+([\\d.]+,\\d{2})\\s*EUR`, 'i');
+        const match = cleanText.match(regex);
+        
+        if (match && match[4]) {
+          return parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
+        }
+        return 0;
       };
 
-      // 1. Atualizar rubricas individuais limpando valores antigos para evitar duplicação
+      // 1. Atualiza os grupos (Ferramentas e Manutenção Limpeza Compras incluídos)
       const updatedGroups = local.haviGroups.map(g => {
-        const config = HAVI_GROUPS_MAP.find(c => c.name.toUpperCase() === g.description.toUpperCase());
-        const val = config ? extractValorTotal(config.id) : 0;
-        return { ...g, total: val };
+        const config = HAVI_GROUPS_CONFIG.find(c => c.name.toUpperCase() === g.description.toUpperCase());
+        if (config) {
+          const val = extractValue(config.id);
+          return { ...g, total: val };
+        }
+        return { ...g, total: 0 };
       });
 
-      // 2. Capturar o TOTAL GERAL diretamente da linha "TOTAL" (Evita erros de soma manual)
-      const importedTotal = extractValorTotal("TOTAL");
+      // 2. Extração do TOTAL REAL (Linha de rodapé da fatura)
+      // Na linha TOTAL, a HAVI coloca Liq, Pto Verde e Total. Capturamos o último valor antes do último EUR.
+      const totalRegex = /TOTAL\s+.*?\s+([\d.]+,[\d]{2})\s*EUR\s+([\d.]+,[\d]{2})\s*EUR/i;
+      const totalMatch = cleanText.match(totalRegex);
+      const finalVal = totalMatch ? parseFloat(totalMatch[2].replace(/\./g, '').replace(',', '.')) : 0;
 
       setLocal(prev => ({ ...prev, haviGroups: updatedGroups }));
-      if (importedTotal > 0) setTotalHaviFinal(importedTotal);
+      if (finalVal > 0) setTotalHaviFinal(finalVal);
 
-      alert(`Sucesso! Total Fatura: ${formatNumeric(importedTotal)} €`);
+      alert(`Leitura completa!\nTotal detetado: ${formatNumeric(finalVal)} €`);
 
     } catch (err: any) {
-      alert("Erro: " + err.message);
+      alert("Erro no processamento: " + err.message);
     } finally {
       setIsProcessingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -87,24 +98,25 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in pb-10">
+      {/* HEADER DE AÇÕES */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic"><ArrowLeft size={18} /> Voltar</button>
+        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 font-bold italic hover:text-gray-800 transition-colors"><ArrowLeft size={18} /> Voltar</button>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg">
-            {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Fatura
+          <button onClick={() => fileInputRef.current?.click()} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-black uppercase text-xs flex items-center gap-2 shadow-lg hover:bg-amber-600">
+            {isProcessingPdf ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16}/>} Importar Valor Total
           </button>
-          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs">Gravar</button>
+          <button onClick={() => onSave({...local, isFinalized: true})} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-black uppercase text-xs shadow-md shadow-purple-200">Guardar Dados</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* COLUNA HAVI */}
+        {/* COLUNA HAVI (VALOR TOTAL) */}
         <div className="bg-white border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col shadow-xl">
-          <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-xs">HAVI (VALOR TOTAL)</div>
+          <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase tracking-widest">HAVI (Valor Total)</div>
           <div className="p-2 divide-y divide-purple-100 flex-1">
             {local.haviGroups.map(g => (
-              <div key={g.description} className="grid grid-cols-12 py-1 px-2 items-center hover:bg-purple-50">
+              <div key={g.description} className="grid grid-cols-12 py-1.5 px-2 items-center hover:bg-purple-50">
                 <div className="col-span-9 text-[10px] font-bold text-gray-600 uppercase">{g.description}</div>
                 <div className="col-span-3 text-right text-[11px] font-black">{formatNumeric(g.total)}</div>
               </div>
@@ -117,7 +129,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
         {/* COLUNA MYSTORE */}
         <div className="bg-white border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col shadow-xl">
-            <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-xs">MYSTORE</div>
+            <div className="bg-purple-50 py-2 text-center font-black text-purple-800 border-b border-purple-500 text-[10px] uppercase tracking-widest">MYSTORE (Lançado)</div>
             <div className="p-2 flex-1 divide-y divide-purple-100">
                 {local.smsValues.map(v => (
                     <div key={v.description} className="grid grid-cols-12 py-2 px-2 items-center">
@@ -133,9 +145,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
             </div>
         </div>
 
-        {/* DIFERENÇA FINAL */}
+        {/* COLUNA DIFERENÇA FINAL */}
         <div className="border-2 border-purple-500 rounded-lg flex flex-col items-center justify-center p-8 shadow-xl bg-slate-50">
-            <div className={`text-5xl font-black italic ${Math.abs(finalDifference) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
+            <div className={`text-6xl font-black italic tracking-tighter ${Math.abs(finalDifference) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
                 {formatNumeric(finalDifference)} €
             </div>
             <div className="text-[10px] font-black text-gray-400 uppercase mt-4 tracking-widest">Diferença Final Real</div>
