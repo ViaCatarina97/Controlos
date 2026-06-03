@@ -9,6 +9,7 @@ import {
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData 
 } from '../types';
+import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
@@ -40,6 +41,47 @@ export interface FirestoreErrorInfo {
   }
 }
 
+// Quota and connection states
+let quotaExceeded = false;
+const quotaListeners = new Set<(status: boolean) => void>();
+
+export function getQuotaExceeded(): boolean {
+  return quotaExceeded;
+}
+
+export function subscribeToQuotaChange(listener: (status: boolean) => void) {
+  quotaListeners.add(listener);
+  listener(quotaExceeded);
+  return () => {
+    quotaListeners.delete(listener);
+  };
+}
+
+export function setQuotaExceeded(val: boolean) {
+  if (quotaExceeded !== val) {
+    quotaExceeded = val;
+    quotaListeners.forEach(l => {
+      try {
+        l(quotaExceeded);
+      } catch (err) {
+        console.error("Error in quota change subscriber:", err);
+      }
+    });
+  }
+}
+
+function isQuotaError(error: unknown): boolean {
+  if (!error) return false;
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    msg.toLowerCase().includes('quota exceeded') ||
+    msg.toLowerCase().includes('quota-exceeded') ||
+    msg.toLowerCase().includes('resource-exhausted') ||
+    msg.toLowerCase().includes('resource_exhausted') ||
+    (typeof error === 'object' && 'code' in error && (error as any).code === 'resource-exhausted')
+  );
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -58,13 +100,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  if (isQuotaError(error)) {
+    setQuotaExceeded(true);
+  }
 }
 
 export async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
+    if (isQuotaError(error)) {
+      setQuotaExceeded(true);
+    }
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error("Please check your Firebase configuration.");
     }
@@ -88,42 +135,133 @@ export async function ensureAuthenticated(): Promise<string | null> {
 // Tests connection on startup
 testConnection();
 
+// --- DB GENERIC RUNNER WRAPPERS ---
+
+async function runFirestoreOp<T>(
+  op: () => Promise<T>,
+  localFallback: () => T | Promise<T>,
+  operationType: OperationType,
+  path: string | null
+): Promise<T> {
+  if (quotaExceeded) {
+    console.warn(`[Quota Fallback Mode] Reading ${path} directly from localStorage`);
+    return await localFallback();
+  }
+  try {
+    return await op();
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn(`[Quota Limit Exceeded] Firestore quota error on ${operationType} ${path}. Switching dynamically to localStorage.`);
+      setQuotaExceeded(true);
+      return await localFallback();
+    }
+    handleFirestoreError(error, operationType, path);
+    console.warn(`[Firestore Read Error] Falling back to local storage for ${path}`);
+    return await localFallback();
+  }
+}
+
+async function runFirestoreWrite(
+  op: () => Promise<void>,
+  localFallback: () => void | Promise<void>,
+  operationType: OperationType,
+  path: string | null
+): Promise<void> {
+  if (quotaExceeded) {
+    await localFallback();
+    return;
+  }
+  try {
+    await op();
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn(`[Quota Limit Exceeded] Firestore write quota hit during ${operationType} on ${path}. Saving to localStorage.`);
+      setQuotaExceeded(true);
+      await localFallback();
+      return;
+    }
+    handleFirestoreError(error, operationType, path);
+    console.warn(`[Firestore Write Error] Swapping to local storage write: ${error}`);
+    await localFallback();
+  }
+}
+
 // --- RESTAURANTS OPERATIONS ---
 
 export async function getRestaurants(): Promise<AppSettings[]> {
   await ensureAuthenticated();
   const path = 'restaurants';
-  try {
-    const q = collection(db, path);
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as AppSettings);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<AppSettings[]>(
+    async () => {
+      const q = collection(db, 'restaurants');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as AppSettings);
+      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem('app_all_restaurants');
+      return saved ? JSON.parse(saved) : INITIAL_RESTAURANTS;
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function getRestaurant(restaurantId: string): Promise<AppSettings | null> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId);
-    const snap = await getDoc(dRef);
-    return snap.exists() ? (snap.data() as AppSettings) : null;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
-    return null;
-  }
+  return runFirestoreOp<AppSettings | null>(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId);
+      const snap = await getDoc(dRef);
+      const res = snap.exists() ? (snap.data() as AppSettings) : null;
+      if (res) {
+        // Sync local list
+        const saved = localStorage.getItem('app_all_restaurants');
+        let list: AppSettings[] = saved ? JSON.parse(saved) : [];
+        list = list.filter(r => r.restaurantId !== restaurantId);
+        list.push(res);
+        localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+      }
+      return res;
+    },
+    () => {
+      const saved = localStorage.getItem('app_all_restaurants');
+      if (saved) {
+        const list = JSON.parse(saved) as AppSettings[];
+        return list.find(r => r.restaurantId === restaurantId) || null;
+      }
+      return INITIAL_RESTAURANTS.find(r => r.restaurantId === restaurantId) || null;
+    },
+    OperationType.GET,
+    path
+  );
 }
 
 export async function saveRestaurant(restaurant: AppSettings): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurant.restaurantId}`;
-  try {
-    await setDoc(doc(db, 'restaurants', restaurant.restaurantId), restaurant);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      await setDoc(doc(db, 'restaurants', restaurant.restaurantId), restaurant);
+      // Mirror locally
+      const saved = localStorage.getItem('app_all_restaurants');
+      let list: AppSettings[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
+      list.push(restaurant);
+      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem('app_all_restaurants');
+      let list: AppSettings[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
+      list.push(restaurant);
+      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 // --- EMPLOYEES OPERATIONS ---
@@ -131,38 +269,49 @@ export async function saveRestaurant(restaurant: AppSettings): Promise<void> {
 export async function getEmployees(restaurantId: string): Promise<Employee[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/employees`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'employees');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as Employee);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<Employee[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'employees');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as Employee);
+      localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_employees_${restaurantId}`);
+      return saved ? JSON.parse(saved) : MOCK_EMPLOYEES;
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveEmployees(restaurantId: string, employees: Employee[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/employees`;
-  try {
-    const batch = writeBatch(db);
-    // Write new or updated employees
-    for (const emp of employees) {
-      const dRef = doc(db, 'restaurants', restaurantId, 'employees', emp.id);
-      batch.set(dRef, emp);
-    }
-    // Also fetch current from server to delete any not in local
-    const current = await getEmployees(restaurantId);
-    for (const cur of current) {
-      if (!employees.some(e => e.id === cur.id)) {
-        const dRef = doc(db, 'restaurants', restaurantId, 'employees', cur.id);
-        batch.delete(dRef);
+  return runFirestoreWrite(
+    async () => {
+      const batch = writeBatch(db);
+      for (const emp of employees) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'employees', emp.id);
+        batch.set(dRef, emp);
       }
-    }
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+      const current = await getEmployees(restaurantId);
+      for (const cur of current) {
+        if (!employees.some(e => e.id === cur.id)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'employees', cur.id);
+          batch.delete(dRef);
+        }
+      }
+      await batch.commit();
+      localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(employees));
+    },
+    () => {
+      localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(employees));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 // --- STAFFING TABLE OPERATIONS ---
@@ -170,36 +319,49 @@ export async function saveEmployees(restaurantId: string, employees: Employee[])
 export async function getStaffingTable(restaurantId: string): Promise<StaffingTableEntry[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/staffing_table`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'staffing_table');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as StaffingTableEntry);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<StaffingTableEntry[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'staffing_table');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as StaffingTableEntry);
+      localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_staffing_table_${restaurantId}`);
+      return saved ? JSON.parse(saved) : DEFAULT_STAFFING_TABLE;
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveStaffingTable(restaurantId: string, staffing: StaffingTableEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/staffing_table`;
-  try {
-    const batch = writeBatch(db);
-    for (const s of staffing) {
-      const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', s.id);
-      batch.set(dRef, s);
-    }
-    const current = await getStaffingTable(restaurantId);
-    for (const cur of current) {
-      if (!staffing.some(s => s.id === cur.id)) {
-        const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', cur.id);
-        batch.delete(dRef);
+  return runFirestoreWrite(
+    async () => {
+      const batch = writeBatch(db);
+      for (const s of staffing) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', s.id);
+        batch.set(dRef, s);
       }
-    }
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+      const current = await getStaffingTable(restaurantId);
+      for (const cur of current) {
+        if (!staffing.some(s => s.id === cur.id)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', cur.id);
+          batch.delete(dRef);
+        }
+      }
+      await batch.commit();
+      localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(staffing));
+    },
+    () => {
+      localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(staffing));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 // --- HISTORY OPERATIONS ---
@@ -207,36 +369,49 @@ export async function saveStaffingTable(restaurantId: string, staffing: Staffing
 export async function getHistory(restaurantId: string): Promise<HistoryEntry[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/history`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'history');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as HistoryEntry);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<HistoryEntry[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'history');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as HistoryEntry);
+      localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_history_detailed_${restaurantId}`);
+      return saved ? JSON.parse(saved) : MOCK_HISTORY;
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveHistory(restaurantId: string, history: HistoryEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/history`;
-  try {
-    const batch = writeBatch(db);
-    for (const h of history) {
-      const dRef = doc(db, 'restaurants', restaurantId, 'history', h.id);
-      batch.set(dRef, h);
-    }
-    const current = await getHistory(restaurantId);
-    for (const cur of current) {
-      if (!history.some(h => h.id === cur.id)) {
-        const dRef = doc(db, 'restaurants', restaurantId, 'history', cur.id);
-        batch.delete(dRef);
+  return runFirestoreWrite(
+    async () => {
+      const batch = writeBatch(db);
+      for (const h of history) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'history', h.id);
+        batch.set(dRef, h);
       }
-    }
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+      const current = await getHistory(restaurantId);
+      for (const cur of current) {
+        if (!history.some(h => h.id === cur.id)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'history', cur.id);
+          batch.delete(dRef);
+        }
+      }
+      await batch.commit();
+      localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(history));
+    },
+    () => {
+      localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(history));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 // --- SCHEDULES OPERATIONS ---
@@ -244,36 +419,75 @@ export async function saveHistory(restaurantId: string, history: HistoryEntry[])
 export async function getSchedules(restaurantId: string): Promise<DailySchedule[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/schedules`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'schedules');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as DailySchedule);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<DailySchedule[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'schedules');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as DailySchedule);
+      localStorage.setItem(`app_schedules_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_schedules_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveScheduleDoc(restaurantId: string, schedule: DailySchedule): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/schedules/${schedule.date}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'schedules', schedule.date);
-    await setDoc(dRef, schedule);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'schedules', schedule.date);
+      await setDoc(dRef, schedule);
+      
+      const saved = localStorage.getItem(`app_schedules_${restaurantId}`);
+      let list: DailySchedule[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(s => s.date !== schedule.date);
+      list.push(schedule);
+      localStorage.setItem(`app_schedules_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_schedules_${restaurantId}`);
+      let list: DailySchedule[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(s => s.date !== schedule.date);
+      list.push(schedule);
+      localStorage.setItem(`app_schedules_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 export async function deleteScheduleDoc(restaurantId: string, date: string): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/schedules/${date}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'schedules', date);
-    await deleteDoc(dRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'schedules', date);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_schedules_${restaurantId}`);
+      if (saved) {
+        let list: DailySchedule[] = JSON.parse(saved);
+        list = list.filter(s => s.date !== date);
+        localStorage.setItem(`app_schedules_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_schedules_${restaurantId}`);
+      if (saved) {
+        let list: DailySchedule[] = JSON.parse(saved);
+        list = list.filter(s => s.date !== date);
+        localStorage.setItem(`app_schedules_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
 }
 
 // --- DELIVERIES ---
@@ -281,36 +495,75 @@ export async function deleteScheduleDoc(restaurantId: string, date: string): Pro
 export async function getDeliveries(restaurantId: string): Promise<DeliveryRecord[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/deliveries`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'deliveries');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as DeliveryRecord);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<DeliveryRecord[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'deliveries');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as DeliveryRecord);
+      localStorage.setItem(`app_deliveries_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deliveries_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveDeliveryDoc(restaurantId: string, delivery: DeliveryRecord): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/deliveries/${delivery.id}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'deliveries', delivery.id);
-    await setDoc(dRef, delivery);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'deliveries', delivery.id);
+      await setDoc(dRef, delivery);
+      
+      const saved = localStorage.getItem(`app_deliveries_${restaurantId}`);
+      let list: DeliveryRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== delivery.id);
+      list.push(delivery);
+      localStorage.setItem(`app_deliveries_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deliveries_${restaurantId}`);
+      let list: DeliveryRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== delivery.id);
+      list.push(delivery);
+      localStorage.setItem(`app_deliveries_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 export async function deleteDeliveryDoc(restaurantId: string, id: string): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/deliveries/${id}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'deliveries', id);
-    await deleteDoc(dRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'deliveries', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_deliveries_${restaurantId}`);
+      if (saved) {
+        let list: DeliveryRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_deliveries_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deliveries_${restaurantId}`);
+      if (saved) {
+        let list: DeliveryRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_deliveries_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
 }
 
 // --- CREDIT NOTES ---
@@ -318,36 +571,75 @@ export async function deleteDeliveryDoc(restaurantId: string, id: string): Promi
 export async function getCredits(restaurantId: string): Promise<CreditNoteRecord[]> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/credits`;
-  try {
-    const q = collection(db, 'restaurants', restaurantId, 'credits');
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as CreditNoteRecord);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
+  return runFirestoreOp<CreditNoteRecord[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'credits');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as CreditNoteRecord);
+      localStorage.setItem(`app_credits_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_credits_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
 }
 
 export async function saveCreditDoc(restaurantId: string, credit: CreditNoteRecord): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/credits/${credit.id}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'credits', credit.id);
-    await setDoc(dRef, credit);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'credits', credit.id);
+      await setDoc(dRef, credit);
+      
+      const saved = localStorage.getItem(`app_credits_${restaurantId}`);
+      let list: CreditNoteRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== credit.id);
+      list.push(credit);
+      localStorage.setItem(`app_credits_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_credits_${restaurantId}`);
+      let list: CreditNoteRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== credit.id);
+      list.push(credit);
+      localStorage.setItem(`app_credits_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
 }
 
 export async function deleteCreditDoc(restaurantId: string, id: string): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/credits/${id}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'credits', id);
-    await deleteDoc(dRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'credits', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_credits_${restaurantId}`);
+      if (saved) {
+        let list: CreditNoteRecord[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_credits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_credits_${restaurantId}`);
+      if (saved) {
+        let list: CreditNoteRecord[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_credits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
 }
 
 // --- MONTHLY OPTIONS ---
@@ -355,23 +647,38 @@ export async function deleteCreditDoc(restaurantId: string, id: string): Promise
 export async function getMonthlyOps(restaurantId: string, month: string): Promise<MonthlyOperationalData | null> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/monthly_ops/${month}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'monthly_ops', month);
-    const snap = await getDoc(dRef);
-    return snap.exists() ? (snap.data() as MonthlyOperationalData) : null;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
-    return null;
-  }
+  return runFirestoreOp<MonthlyOperationalData | null>(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'monthly_ops', month);
+      const snap = await getDoc(dRef);
+      const data = snap.exists() ? (snap.data() as MonthlyOperationalData) : null;
+      if (data) {
+        localStorage.setItem(`app_monthly_ops_${restaurantId}_${month}`, JSON.stringify(data));
+      }
+      return data;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_monthly_ops_${restaurantId}_${month}`);
+      return saved ? JSON.parse(saved) : null;
+    },
+    OperationType.GET,
+    path
+  );
 }
 
 export async function saveMonthlyOps(restaurantId: string, monthlyData: MonthlyOperationalData): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/monthly_ops/${monthlyData.month}`;
-  try {
-    const dRef = doc(db, 'restaurants', restaurantId, 'monthly_ops', monthlyData.month);
-    await setDoc(dRef, monthlyData);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'monthly_ops', monthlyData.month);
+      await setDoc(dRef, monthlyData);
+      localStorage.setItem(`app_monthly_ops_${restaurantId}_${monthlyData.month}`, JSON.stringify(monthlyData));
+    },
+    () => {
+      localStorage.setItem(`app_monthly_ops_${restaurantId}_${monthlyData.month}`, JSON.stringify(monthlyData));
+    },
+    OperationType.WRITE,
+    path
+  );
 }

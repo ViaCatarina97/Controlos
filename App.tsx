@@ -13,7 +13,8 @@ import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, 
 import { 
   getRestaurants, saveRestaurant, getEmployees, saveEmployees, 
   getStaffingTable, saveStaffingTable, getHistory, saveHistory, 
-  getSchedules, saveScheduleDoc, deleteScheduleDoc, ensureAuthenticated
+  getSchedules, saveScheduleDoc, deleteScheduleDoc, ensureAuthenticated,
+  subscribeToQuotaChange, getQuotaExceeded
 } from './services/firebaseService';
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
@@ -26,6 +27,12 @@ type ModuleType = 'positioning' | 'finance' | 'billing';
 const ADMIN_PASSWORD = 'Imperial96';
 
 const App: React.FC = () => {
+  const [quotaExceeded, setQuotaExceeded] = useState(getQuotaExceeded());
+
+  useEffect(() => {
+    return subscribeToQuotaChange(setQuotaExceeded);
+  }, []);
+
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
   const [activeTab, setActiveTab] = useState<string>('positioning');
@@ -561,6 +568,30 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
+
+        {quotaExceeded && (
+          <div id="quota-warning-banner" className="mx-6 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 text-amber-900 animate-pulse">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5">
+                <ShieldAlert size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-tight">Limite de Quota do Banco de Dados Excedido (Spark Plan)</h4>
+                <p className="text-xs text-amber-700 font-bold mt-1">
+                  O banco de dados do projeto excedeu os limites de gravação diários e gratuitos da Firebase. <strong>A aplicação continua totalmente segura e funcional</strong> guardando as suas alterações localmente (localStorage). Os seus dados serão sincronizados com a nuvem quando a quota for redefinida a amanhã.
+                </p>
+              </div>
+            </div>
+            <a 
+              href={`https://console.firebase.google.com/project/gen-lang-client-0960499326/firestore/databases/ai-studio-3b572120-1507-4607-9365-d61746a6a5ec/data?openUpgradeDialog=true`}
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-sm shrink-0 text-center"
+            >
+              Ver Consola do Banco de Dados
+            </a>
+          </div>
+        )}
 
         <div className="p-6 flex-1">
           {activeTab === 'settings' && renderProtectedTab(

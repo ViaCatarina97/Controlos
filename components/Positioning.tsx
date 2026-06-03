@@ -29,95 +29,138 @@ const StationGroup: React.FC<StationGroupProps> = ({
   title, stations, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, color, isLocked
 }) => {
   const colorMap: Record<string, string> = {
-    red: 'border-red-200 bg-red-50',
-    blue: 'border-blue-200 bg-blue-50',
-    yellow: 'border-yellow-200 bg-yellow-50',
-    purple: 'border-purple-200 bg-purple-50',
-    green: 'border-green-200 bg-green-50',
-    slate: 'border-slate-200 bg-white',
+    red: 'border-red-200/65 bg-red-50/15 shadow-[0_4px_20px_rgba(239,68,68,0.02)]',
+    blue: 'border-blue-200/65 bg-blue-50/15 shadow-[0_4px_20px_rgba(59,130,246,0.02)]',
+    yellow: 'border-amber-200/65 bg-amber-50/15 shadow-[0_4px_20px_rgba(245,158,11,0.02)]',
+    purple: 'border-purple-200/65 bg-purple-50/15 shadow-[0_4px_20px_rgba(16,185,129,0.02)]',
+    green: 'border-emerald-200/65 bg-emerald-50/15 shadow-[0_4px_20px_rgba(16,185,129,0.02)]',
+    slate: 'border-slate-200/65 bg-slate-50/15 shadow-[0_4px_20px_rgba(100,116,139,0.02)]',
   };
   const titleColorMap: Record<string, string> = {
-    red: 'text-red-800',
-    blue: 'text-blue-800',
-    yellow: 'text-yellow-800',
-    purple: 'text-purple-800',
-    green: 'text-green-800',
-    slate: 'text-gray-800',
+    red: 'text-red-900 bg-red-100/40',
+    blue: 'text-blue-900 bg-blue-100/40',
+    yellow: 'text-amber-900 bg-amber-100/40',
+    purple: 'text-purple-900 bg-purple-100/40',
+    green: 'text-emerald-900 bg-emerald-100/40',
+    slate: 'text-slate-900 bg-slate-100/40',
+  };
+  const badgeColorMap: Record<string, string> = {
+    red: 'bg-red-500/10 text-red-700 border-red-200/40',
+    blue: 'bg-blue-500/10 text-blue-700 border-blue-200/40',
+    yellow: 'bg-amber-500/10 text-amber-700 border-amber-200/40',
+    purple: 'bg-purple-500/10 text-purple-700 border-purple-200/40',
+    green: 'bg-emerald-500/10 text-emerald-700 border-emerald-200/40',
+    slate: 'bg-slate-500/10 text-slate-700 border-slate-200/40',
   };
 
   const containerClass = colorMap[color] || 'border-gray-200 bg-white';
   const titleClass = titleColorMap[color] || 'text-gray-800';
 
   return (
-    <div className={`rounded-xl border shadow-sm overflow-hidden ${containerClass}`}>
-      <div className={`px-4 py-2 border-b border-black/5 font-bold text-sm uppercase tracking-wide flex justify-between items-center ${titleClass}`}>
+    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${containerClass}`}>
+      <div className={`px-4 py-3.5 border-b border-black/[0.04] font-black text-[11px] uppercase tracking-wider flex justify-between items-center ${titleClass}`}>
         <span>{title}</span>
-        <span className="bg-white/50 px-2 py-0.5 rounded text-xs">{stations.length}</span>
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${badgeColorMap[color] || 'bg-white/50 border-gray-100'}`}>
+          {stations.length}
+        </span>
       </div>
-      <div className="divide-y divide-black/5">
+      <div className="flex flex-col gap-3 p-3 bg-slate-50/10">
         {stations.map(station => {
           const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
           const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
           
           return (
-            <div key={station.id} className="p-3 hover:bg-white/40 transition-colors">
-              <div className="flex justify-between items-start mb-2">
+            <div key={station.id} className="bg-white rounded-xl border border-black/[0.03] p-3.5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
+              <div className="flex justify-between items-start mb-2.5">
                 <div>
-                   <div className="font-bold text-gray-800 text-sm">{station.label}</div>
-                   {station.designation && <div className="text-[10px] text-gray-500 font-mono">{station.designation}</div>}
+                   <div className="font-extrabold text-[#111827] text-sm tracking-tight">{station.label}</div>
+                   {station.designation && (
+                     <div className="text-[9px] font-bold text-gray-400 bg-gray-50 border border-gray-100/80 px-1.5 py-0.5 rounded leading-none mt-1 inline-block">
+                       {station.designation.toUpperCase()}
+                     </div>
+                   )}
                 </div>
-                <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-white px-1.5 py-0.5 rounded border border-gray-100">
-                    <User size={10} />
-                    <span>{assignedIds.length}/{station.defaultSlots}</span>
-                </div>
+                {(() => {
+                  const currentSize = assignedIds.length;
+                  const maxSlots = station.defaultSlots;
+                  const isFull = currentSize >= maxSlots;
+                  const isEmpty = currentSize === 0;
+                  
+                  let badgeColors = "text-gray-500 bg-gray-50 border-gray-200/60";
+                  if (isFull) {
+                    badgeColors = "text-emerald-700 bg-emerald-50 border-emerald-100";
+                  } else if (!isEmpty) {
+                    badgeColors = "text-blue-700 bg-blue-50 border-blue-100";
+                  }
+                  
+                  return (
+                    <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border transition-colors ${badgeColors}`}>
+                      <Users size={10} className="shrink-0" />
+                      <span>{currentSize}/{maxSlots}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
-              <div className="space-y-1 mb-2">
-                 {assignedIds.map(empId => {
-                    const emp = employees.find(e => e.id === empId);
-                    if(!emp) return null;
-                    return (
-                        <div key={empId} className="flex justify-between items-center bg-white border border-gray-200 rounded px-2 py-1 shadow-sm">
-                            <span className="text-xs font-medium text-gray-700 truncate">{emp.name}</span>
-                            {!isLocked && (
-                                <button onClick={() => onRemove(station.id, empId)} className="text-gray-400 hover:text-red-500">
-                                    <X size={12} />
-                                </button>
-                            )}
-                        </div>
-                    );
-                 })}
-                 
-                 {assignedTraineeIds.map(empId => {
-                    const emp = employees.find(e => e.id === empId);
-                    if(!emp) return null;
-                    return (
-                        <div key={empId} className="flex justify-between items-center bg-yellow-50 border border-yellow-200 rounded px-2 py-1 shadow-sm">
-                            <div className="flex items-center gap-1 overflow-hidden">
-                                <GraduationCap size={12} className="text-yellow-600 shrink-0"/>
-                                <span className="text-xs font-medium text-yellow-800 truncate">{emp.name}</span>
-                            </div>
-                            {!isLocked && (
-                                <button onClick={() => onRemoveTrainee(station.id, empId)} className="text-yellow-400 hover:text-red-500">
-                                    <X size={12} />
-                                </button>
-                            )}
-                        </div>
-                    );
-                 })}
-              </div>
+              {(assignedIds.length > 0 || assignedTraineeIds.length > 0) && (
+                <div className="space-y-1.5 mb-3">
+                   {assignedIds.map(empId => {
+                      const emp = employees.find(e => e.id === empId);
+                      if(!emp) return null;
+                      return (
+                          <div key={empId} className="flex justify-between items-center bg-slate-50 hover:bg-slate-105 border border-slate-200/60 rounded-lg pl-2 pr-1.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-colors animate-fade-in">
+                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                  <div className="w-5 h-5 rounded-full bg-blue-600/10 text-blue-700 flex items-center justify-center font-extrabold text-[10px] uppercase shrink-0">
+                                    {emp.name.charAt(0)}
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-800 truncate leading-none">{emp.name}</span>
+                                  <span className="text-[8px] font-extrabold text-slate-400 border border-slate-200 bg-white px-1 rounded uppercase tracking-wide shrink-0 scale-90">{emp.role}</span>
+                              </div>
+                              {!isLocked && (
+                                  <button onClick={() => onRemove(station.id, empId)} className="text-gray-400 hover:text-red-550 hover:bg-red-50 p-1 rounded-md transition-all active:scale-90">
+                                      <X size={12} />
+                                  </button>
+                              )}
+                          </div>
+                      );
+                   })}
+                   
+                   {assignedTraineeIds.map(empId => {
+                      const emp = employees.find(e => e.id === empId);
+                      if(!emp) return null;
+                      return (
+                          <div key={empId} className="flex justify-between items-center bg-amber-50 hover:bg-amber-102 border border-amber-200 rounded-lg pl-2 pr-1.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-colors animate-fade-in">
+                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                  <div className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-700 flex items-center justify-center font-black shrink-0">
+                                    <GraduationCap size={11} />
+                                  </div>
+                                  <div className="flex flex-col overflow-hidden">
+                                    <span className="text-xs font-black text-amber-900 truncate leading-none">{emp.name}</span>
+                                    <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mt-0.5">Formação</span>
+                                  </div>
+                              </div>
+                              {!isLocked && (
+                                  <button onClick={() => onRemoveTrainee(station.id, empId)} className="text-amber-400 hover:text-red-550 hover:bg-red-50 p-1 rounded-md transition-all active:scale-90">
+                                      <X size={12} />
+                                  </button>
+                              )}
+                          </div>
+                      );
+                   })}
+                </div>
+              )}
 
               {!isLocked && (
-                  <div className="flex gap-1">
+                  <div className="flex gap-1.5">
                      {assignedIds.length < station.defaultSlots && (
                         <select 
-                            className="flex-1 text-xs border rounded p-1 outline-none focus:ring-1 focus:ring-blue-500 bg-white/50 hover:bg-white transition-colors border-gray-200 text-gray-600"
+                            className="flex-1 text-[11px] font-bold border border-gray-200 rounded-lg p-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:border-gray-300 transition-all duration-150 text-gray-700 cursor-pointer shadow-sm"
                             value=""
                             onChange={(e) => {
                                 if(e.target.value) onAssign(station.id, e.target.value);
-                            }}
+                             }}
                         >
-                            <option value="">+ Staff</option>
+                            <option value="">+ Escalar Staff</option>
                             {employees
                                 .filter(e => !assignedIds.includes(e.id)) 
                                 .map(e => (
@@ -127,7 +170,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
                      )}
 
                      <select 
-                        className="w-8 text-xs border border-yellow-200 text-yellow-600 rounded p-1 outline-none focus:ring-1 focus:ring-yellow-500 bg-yellow-50/50 hover:bg-yellow-50 transition-colors"
+                        className="w-10 text-[11px] font-bold border border-amber-200 text-amber-700 rounded-lg p-2 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition-all duration-150 cursor-pointer shadow-sm text-center"
                         value=""
                         onChange={(e) => {
                              if(e.target.value) onAssignTrainee(station.id, e.target.value);
@@ -528,114 +571,212 @@ export const Positioning: React.FC<PositioningProps> = ({
   return (
     <>
       <div className="flex flex-col h-full space-y-4 animate-fade-in print:hidden">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
-                <div><p className="text-xs text-gray-500 font-bold uppercase">Data</p><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-lg font-bold text-gray-800 bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none pb-0.5" /></div>
-            </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><UserCircle size={20} /></div>
+        {/* Header Bar: Date & Shift Manager selection */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-5">
+            <div className="flex items-center gap-3.5 w-full md:w-auto">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0 shadow-sm"><Calendar size={20} /></div>
                 <div className="flex-1">
-                    <p className="text-xs text-gray-500 font-bold uppercase">Gerente de Turno</p>
-                    <select value={schedule.shiftManagers?.[selectedShift] || ''} onChange={(e) => handleManagerChange(e.target.value)} disabled={isShiftLocked} className={`w-full md:w-64 mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}><option value="">Selecione o Gerente...</option>{employees.filter(e => e.role === 'GERENTE').map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select>
+                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Data de Trabalho</p>
+                  <input 
+                    type="date" 
+                    value={date} 
+                    onChange={(e) => setDate(e.target.value)} 
+                    className="text-base font-black text-gray-800 bg-transparent border-b-2 border-gray-150 focus:border-blue-500 outline-none pb-0.5 hover:border-gray-300 transition-colors w-full cursor-pointer" 
+                  />
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-3.5 w-full md:w-auto">
+                <div className="p-3 bg-purple-50 text-purple-600 rounded-xl shrink-0 shadow-sm"><UserCircle size={20} /></div>
+                <div className="flex-1 w-full md:w-auto">
+                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Turno LÍDER</p>
+                    <select 
+                      value={schedule.shiftManagers?.[selectedShift] || ''} 
+                      onChange={(e) => handleManagerChange(e.target.value)} 
+                      disabled={isShiftLocked} 
+                      className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
+                    >
+                      <option value="">Selecione o Gerente...</option>
+                      {employees.filter(e => e.role === 'GERENTE').map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
                 </div>
             </div>
         </div>
-        <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto">
-          {availableShifts.map(shift => (
-            <button key={shift} onClick={() => setSelectedShift(shift)} className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap ${selectedShift === shift ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
-              <div className="relative">
-                {getShiftIcon(shift)}
-                {(schedule.lockedShifts || []).includes(shift) && (
-                   <div className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-0.5 border border-white shadow-sm">
-                      <Lock size={8} />
-                   </div>
-                )}
-              </div>
-              {getShiftLabel(shift)}
-            </button>
-          ))}
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-5 border-r border-gray-100 pr-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} /> Previsão de Vendas</h3>
-                    {shiftPeakData.length > 0 ? (
-                      <div className="space-y-3">
-                        {shiftPeakData.map((data, idx) => { 
-                          const isActive = manualPeakHour === data.hour; 
-                          return (
-                            <button key={idx} onClick={() => setManualPeakHour(data.hour)} className={`w-full flex justify-between items-center p-3 rounded-lg border transition-all cursor-pointer relative overflow-hidden ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}>
-                              {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
-                              <div className="flex items-center gap-3">
-                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isActive ? 'border-blue-500' : 'border-gray-300'}`}>
-                                  {isActive && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}
-                                </div>
-                                <span className={`font-bold ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>{data.hour}</span>
-                              </div>
-                              <div className="flex gap-6">
-                                <div className="flex flex-col items-end">
-                                  <span className="text-xs text-gray-400">Vendas</span>
-                                  <span className={`font-bold ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{data.totalSales} €</span>
-                                </div>
-                              </div>
-                            </button>
-                          ); 
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-4 text-center bg-yellow-50 text-yellow-700 rounded-lg text-sm flex items-center gap-2 justify-center"><AlertCircle size={16} /> Sem dados de previsão.</div>
-                    )}
+
+        {/* Shift selector container: Modern Segment Controller pill bar */}
+        <div className="bg-slate-100/55 p-1.5 rounded-2xl border border-gray-200/50 flex gap-1.5 overflow-x-auto shadow-sm">
+          {availableShifts.map(shift => {
+            const isActive = selectedShift === shift;
+            return (
+              <button 
+                key={shift} 
+                onClick={() => setSelectedShift(shift)} 
+                className={`flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2.5 font-bold text-xs uppercase tracking-wider transition-all duration-150 whitespace-nowrap cursor-pointer active:scale-98 ${
+                  isActive 
+                    ? 'bg-white text-blue-700 shadow-md border border-blue-100' 
+                    : 'bg-transparent text-slate-550 hover:bg-white/40 hover:text-slate-700'
+                }`}
+              >
+                <div className="relative">
+                  {getShiftIcon(shift)}
+                  {(schedule.lockedShifts || []).includes(shift) && (
+                     <div className="absolute -top-2.5 -right-2.5 bg-emerald-500 text-white rounded-full p-0.5 border border-white shadow-sm flex items-center justify-center">
+                        <Lock size={8} className="stroke-[2.5]" />
+                     </div>
+                   )}
                 </div>
-                <div className="lg:col-span-7 pl-2">
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-blue-400 uppercase mb-1">Necessários</span><div className="flex items-center gap-2"><Calculator className="text-blue-500" size={20} /><span className="text-3xl font-extrabold text-blue-700">{requirement.count}</span></div></div>
-                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col items-center justify-center text-center"><span className="text-xs font-bold text-gray-400 uppercase mb-1">Posicionados</span><div className="flex items-center gap-2"><Users className="text-gray-500" size={20} /><span className="text-3xl font-extrabold text-gray-700">{currentAssignedCount}</span></div></div>
-                        <div className={`rounded-xl p-4 border flex flex-col items-center justify-center text-center ${gap > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}><span className={`text-xs font-bold uppercase mb-1 ${gap > 0 ? 'text-red-400' : 'text-emerald-400'}`}>Diferença</span><div className="flex items-center gap-2">{gap > 0 ? <AlertTriangle className="text-red-500" size={20} /> : <CheckCircle2 className="text-emerald-500" size={20} />}<span className={`text-3xl font-extrabold ${gap > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{gap > 0 ? `-${gap}` : 'OK'}</span></div></div>
+                <span>{getShiftLabel(shift)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sales Forecast & Metrics Bento Grid */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+                <div className="lg:col-span-5 lg:border-r border-gray-100 lg:pr-6 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-blue-600" /> Previsão de Vendas</h3>
+                      {shiftPeakData.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {shiftPeakData.map((data, idx) => { 
+                            const isActive = manualPeakHour === data.hour; 
+                            return (
+                              <button 
+                                key={idx} 
+                                onClick={() => setManualPeakHour(data.hour)} 
+                                className={`w-full flex justify-between items-center p-3.5 rounded-xl border-2 transition-all cursor-pointer relative overflow-hidden active:scale-99 ${
+                                  isActive 
+                                    ? 'bg-blue-50/50 border-blue-500 shadow-sm' 
+                                    : 'bg-white border-gray-100 hover:border-blue-200/60 hover:bg-gray-50/30'
+                                }`}
+                              >
+                                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isActive ? 'border-blue-500 bg-blue-505' : 'border-gray-200 bg-white'}`}>
+                                    {isActive && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                  </div>
+                                  <span className={`font-black text-sm tracking-tight ${isActive ? 'text-blue-900' : 'text-gray-600'}`}>{data.hour}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-gray-400 block font-black uppercase tracking-wide">Previsão</span>
+                                  <span className={`font-black text-sm ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{data.totalSales} €</span>
+                                </div>
+                              </button>
+                            ); 
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-5 text-center bg-amber-50/50 text-amber-800 rounded-xl border border-amber-100 text-xs font-bold flex items-center gap-2 justify-center"><AlertCircle size={16} /> Sem dados de previsão.</div>
+                      )}
+                    </div>
+                </div>
+                <div className="lg:col-span-7 lg:pl-6 flex items-center">
+                    <div className="grid grid-cols-3 gap-4 w-full">
+                        {/* Necessários */}
+                        <div className="bg-blue-50/40 rounded-2xl p-5 border border-blue-100 flex flex-col items-center justify-center text-center shadow-inner">
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">Necessários</span>
+                          <div className="p-2.5 bg-blue-100/60 rounded-xl mb-2 text-blue-600">
+                            <Calculator size={20} />
+                          </div>
+                          <span className="text-3xl font-black text-blue-900 leading-none">{requirement.count}</span>
+                          <span className="text-[9px] text-blue-500 font-bold mt-1.5 uppercase">Colaboradores</span>
+                        </div>
+                        
+                        {/* Posicionados */}
+                        <div className="bg-slate-50/80 rounded-2xl p-5 border border-gray-200/60 flex flex-col items-center justify-center text-center shadow-sm">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Posicionados</span>
+                          <div className="p-2.5 bg-slate-100 rounded-xl mb-2 text-slate-600">
+                            <Users size={20} />
+                          </div>
+                          <span className="text-3xl font-black text-gray-800 leading-none">{currentAssignedCount}</span>
+                          <span className="text-[9px] text-slate-500 font-bold mt-1.5 uppercase">Na Escala</span>
+                        </div>
+                        
+                        {/* Diferença */}
+                        <div className={`rounded-2xl p-5 border flex flex-col items-center justify-center text-center shadow-sm ${
+                          gap > 0 
+                            ? 'bg-rose-50/50 border-rose-200' 
+                            : 'bg-emerald-50/50 border-emerald-200'
+                        }`}>
+                          <span className={`text-[10px] font-black uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-500' : 'text-emerald-550'}`}>Diferença</span>
+                          <div className={`p-2.5 rounded-xl mb-2 bg-white ${gap > 0 ? 'text-rose-650' : 'text-emerald-650'}`}>
+                            {gap > 0 ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
+                          </div>
+                          <span className={`text-3xl font-black leading-none ${gap > 0 ? 'text-rose-600' : 'text-emerald-650'}`}>
+                            {gap > 0 ? `-${gap}` : 'OK'}
+                          </span>
+                          <span className={`text-[9px] font-bold mt-1.5 uppercase ${gap > 0 ? 'text-rose-450' : 'text-emerald-550'}`}>
+                            {gap > 0 ? 'Faltam' : 'Tudo Pronto'}
+                          </span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        {/* Turn Objectives and Production Goals */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm"><Target size={16} /> Objetivo de Turno</div>
-              <textarea value={currentObjectives.turnObjective || ''} onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} placeholder="Objetivos do turno..." disabled={isShiftLocked} className="w-full text-sm p-3 bg-blue-50/30 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-20 placeholder:text-gray-400" />
+           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-3 text-blue-900 font-black text-xs uppercase tracking-wider"><Target size={16} className="text-blue-500" /> Objetivo de Turno</div>
+              <textarea 
+                value={currentObjectives.turnObjective || ''} 
+                onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} 
+                placeholder="Objetivos do turno (qualidade, serviço, tempos)..." 
+                disabled={isShiftLocked} 
+                className="w-full text-xs font-semibold p-3.5 bg-blue-50/15 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 focus:outline-none outline-none h-20 placeholder:text-gray-400/85 transition-all resize-none" 
+              />
            </div>
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 mb-2 text-orange-800 font-bold text-sm"><Flame size={16} /> Objetivo de Produção</div>
-              <textarea value={currentObjectives.productionObjective || ''} onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} placeholder="Objetivos de produção..." disabled={isShiftLocked} className="w-full text-sm p-3 bg-orange-50/30 border border-orange-100 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none h-20 placeholder:text-gray-400" />
+           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-3 text-orange-900 font-black text-xs uppercase tracking-wider"><Flame size={16} className="text-orange-500" /> Objetivo de Produção</div>
+              <textarea 
+                value={currentObjectives.productionObjective || ''} 
+                onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} 
+                placeholder="Objetivos de produção (meta de tempo KVS, preparação)..." 
+                disabled={isShiftLocked} 
+                className="w-full text-xs font-semibold p-3.5 bg-orange-50/15 border border-orange-100 rounded-xl focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 focus:outline-none outline-none h-20 placeholder:text-gray-400/85 transition-all resize-none" 
+              />
            </div>
         </div>
-        <div className="flex justify-between items-center pt-2 px-1">
-          <h3 className="font-bold text-gray-700 flex items-center gap-2">
-            <Briefcase size={20} /> Postos de Trabalho 
-            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span>
+
+        {/* Stations Title and Action Controls */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2 px-1">
+          <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+            <Briefcase size={20} className="text-blue-600" /> Postos de Trabalho 
+            <span className="bg-blue-50 border border-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span>
           </h3>
-          <div className="flex items-center gap-3">
-            <div className="flex gap-2">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
               {!isShiftLocked && !isExpired && (
-                <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm">
-                  <Save size={16} /> Finalizar {getShiftLabel(selectedShift)}
+                <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4.5 py-2.5 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 cursor-pointer">
+                  <Save size={14} /> Finalizar {getShiftLabel(selectedShift)}
                 </button>
               )}
               {isShiftLocked && !isExpired && (
-                <button onClick={handleUnlock} className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors shadow-sm">
-                  <Edit size={16} /> Editar {getShiftLabel(selectedShift)}
+                <button onClick={handleUnlock} className="flex items-center gap-2 px-4.5 py-2.5 bg-amber-500 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-amber-600 transition-all shadow-sm active:scale-95 cursor-pointer">
+                  <Edit size={14} /> Editar {getShiftLabel(selectedShift)}
                 </button>
               )}
               {!isShiftLocked && (
-                <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors shadow-sm">
-                  <Trash2 size={16} /> Limpar
+                <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4.5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-black uppercase tracking-wider rounded-xl border border-red-100 transition-all active:scale-95 cursor-pointer">
+                  <Trash2 size={14} /> Limpar
                 </button>
               )}
-              <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"><Printer size={16} /> Imprimir</button>
+              <button onClick={handlePrint} className="flex items-center gap-2 px-4.5 py-2.5 bg-slate-900 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-slate-800 transition-all shadow-sm active:scale-95 cursor-pointer"><Printer size={14} /> Imprimir</button>
             </div>
-            <div className="h-6 w-px bg-gray-300 mx-1"></div>
-            <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showAllStations ? 'bg-blue-600' : 'bg-gray-300'}`}>
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
+            <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+            <div className="flex items-center gap-2" title="Mostrar todos os postos de trabalho configurados">
+              <span className="text-[10px] font-black uppercase text-slate-400 hidden lg:inline">Exibir Todos</span>
+              <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${showAllStations ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Primary Station Board Row of Columns */}
         <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
           {Object.entries(stationsByArea).map(([area, stations]) => (
             <div key={area} className="flex flex-col gap-4">
