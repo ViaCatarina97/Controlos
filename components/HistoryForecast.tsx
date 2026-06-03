@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HistoryEntry, HourlyProjection } from '../types';
 import { TIME_SLOTS_KEYS } from '../constants';
-import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2, Database, Save, CloudCheck } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle, Search, ArrowRight, Filter, FileSpreadsheet, AlertCircle, Trash2, Database, Save, CloudCheck, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HistoryForecastProps {
@@ -14,6 +14,8 @@ interface HistoryForecastProps {
   setTargetSales: (val: number) => void;
   setHourlyData: (data: HourlyProjection[]) => void;
   onNavigateToPositioning: () => void;
+  isSyncing?: boolean;
+  lastSync?: string;
 }
 
 export const HistoryForecast: React.FC<HistoryForecastProps> = ({ 
@@ -23,7 +25,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   setTargetDate,
   setTargetSales,
   setHourlyData,
-  onNavigateToPositioning
+  onNavigateToPositioning,
+  isSyncing = false,
+  lastSync = null
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Agora suporta múltiplos dias selecionados
@@ -47,13 +51,15 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   }, [history]);
 
   const filteredHistory = useMemo(() => {
-    // Se nenhum filtro estiver selecionado, mostra todos. Caso contrário, filtra pelos dias e anos incluídos nos arrays.
-    return history.filter(entry => {
-      const dayMatches = dayFilters.length === 0 || dayFilters.includes(entry.dayOfWeek);
-      const entryYear = entry.date ? entry.date.split('-')[0] : '';
-      const yearMatches = yearFilters.length === 0 || yearFilters.includes(entryYear);
-      return dayMatches && yearMatches;
-    });
+    // Se nenhum filtro estiver selecionado, mostra todos. Caso contrário, filtra pelos dias e anos incluídos nos arrays e ordena por data decrescente (mais recente primeiro).
+    return history
+      .filter(entry => {
+        const dayMatches = dayFilters.length === 0 || dayFilters.includes(entry.dayOfWeek);
+        const entryYear = entry.date ? entry.date.split('-')[0] : '';
+        const yearMatches = yearFilters.length === 0 || yearFilters.includes(entryYear);
+        return dayMatches && yearMatches;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
   }, [dayFilters, yearFilters, history]);
 
   const handleSelectAll = (checked: boolean) => {
@@ -228,7 +234,23 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         });
 
         if (newEntries.length > 0) {
-            setHistory(prev => [...prev, ...newEntries]);
+            setHistory(prev => {
+                const map = new Map<string, HistoryEntry>();
+                prev.forEach(h => {
+                    if (h.date) map.set(h.date, h);
+                });
+                newEntries.forEach(h => {
+                    if (h.date) {
+                        const existing = map.get(h.date);
+                        if (existing) {
+                            map.set(h.date, { ...existing, ...h, id: existing.id });
+                        } else {
+                            map.set(h.date, h);
+                        }
+                    }
+                });
+                return Array.from(map.values());
+            });
         } else {
             alert("Erro: Não foram encontrados dados válidos. Certifique-se que as DATAS estão na Coluna A (dd/mm/yyyy).");
         }
@@ -250,11 +272,11 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
             <TrendingUp className="text-blue-600" /> Histórico & Previsão
           </h2>
           <div className="flex items-center gap-2 mt-1">
-             <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${isSaving ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                {isSaving ? <Database size={12}/> : <CheckCircle size={12}/>}
-                {isSaving ? 'GRAVANDO NA BASE DE DADOS...' : 'BASE DE DADOS SINCRONIZADA'}
+             <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${isSyncing || isSaving ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                {isSyncing || isSaving ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle size={12}/>}
+                {isSyncing || isSaving ? 'SINCRONIZANDO COM A NUVEM...' : 'BASE DE DADOS SINCRONIZADA'}
              </span>
-             {lastSaved && <span className="text-[10px] text-gray-400 font-medium">Última gravação: {lastSaved}</span>}
+             {(lastSync || lastSaved) && <span className="text-[10px] text-gray-400 font-medium">Última sincronização: {lastSync || lastSaved}</span>}
           </div>
         </div>
         

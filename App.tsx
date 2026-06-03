@@ -621,7 +621,20 @@ const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'sales_history' && <HistoryForecast history={historyEntries} setHistory={setHistoryEntries} targetDate={targetDate} setTargetDate={setTargetDate} targetSales={targetSales} setTargetSales={setTargetSales} setHourlyData={setHourlyData} onNavigateToPositioning={() => setActiveTab('positioning')} />}
+              {activeTab === 'sales_history' && (
+                <HistoryForecast 
+                  history={historyEntries} 
+                  setHistory={setHistoryEntries} 
+                  targetDate={targetDate} 
+                  setTargetDate={setTargetDate} 
+                  targetSales={targetSales} 
+                  setTargetSales={setTargetSales} 
+                  setHourlyData={setHourlyData} 
+                  onNavigateToPositioning={() => setActiveTab('positioning')} 
+                  isSyncing={isSyncing}
+                  lastSync={lastSync}
+                />
+              )}
               {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
             </>
           )}
