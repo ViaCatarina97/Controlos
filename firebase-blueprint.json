@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "Restaurant": {
+      "title": "Restaurant Settings",
+      "description": "Configuration settings and custom properties of a restaurant.",
+      "type": "object",
+      "properties": {
+        "restaurantId": { "type": "string", "description": "Unique identifier" },
+        "restaurantName": { "type": "string", "description": "Human-friendly name of the restaurant" },
+        "restaurantType": { "type": "string", "description": "LOJA_DE_RUA, DRIVE, SHOPPING" },
+        "username": { "type": "string", "description": "Unique login username" },
+        "password": { "type": "string", "description": "Login password" },
+        "activeShifts": { "type": "array", "description": "Active operational shifts" },
+        "businessAreas": { "type": "array", "description": "Active business areas" },
+        "customStations": { "type": "array", "description": "List of station structures" }
+      },
+      "required": ["restaurantId", "restaurantName", "restaurantType", "username", "password"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "An employee belonging to a restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "name", "role", "isActive"]
+    },
+    "StaffingTableEntry": {
+      "title": "StaffingTableEntry",
+      "description": "The staffing requirements based on sales thresholds.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "minSales": { "type": "number" },
+        "maxSales": { "type": "number" },
+        "staffCount": { "type": "number" },
+        "stationLabel": { "type": "string" }
+      },
+      "required": ["id", "minSales", "maxSales", "staffCount", "stationLabel"]
+    },
+    "HistoryEntry": {
+      "title": "HistoryEntry",
+      "description": "Hourly sales statistics for a specific date.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "dayOfWeek": { "type": "number" },
+        "totalSales": { "type": "number" },
+        "totalGC": { "type": "number" },
+        "slots": { "type": "object" }
+      },
+      "required": ["id", "date", "totalSales", "totalGC"]
+    },
+    "DailySchedule": {
+      "title": "DailySchedule",
+      "description": "The daily team positioning and objectives schedule.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "shifts": { "type": "object" },
+        "trainees": { "type": "object" },
+        "shiftManagers": { "type": "object" },
+        "shiftManagersCounted": { "type": "boolean" },
+        "shiftObjectives": { "type": "object" },
+        "notes": { "type": "string" },
+        "lockedShifts": { "type": "array" }
+      },
+      "required": ["date"]
+    },
+    "DeliveryRecord": {
+      "title": "DeliveryRecord",
+      "description": "Detailed billing and cargo delivery invoice records.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "managerId": { "type": "string" },
+        "haviGroups": { "type": "array" },
+        "pontoVerde": { "type": "number" },
+        "smsValues": { "type": "array" },
+        "priceDifferences": { "type": "array" },
+        "missingProducts": { "type": "array" },
+        "comments": { "type": "string" },
+        "isFinalized": { "type": "boolean" }
+      },
+      "required": ["id", "date", "managerId", "isFinalized"]
+    },
+    "CreditNoteRecord": {
+      "title": "CreditNoteRecord",
+      "description": "Outstanding or processed vendor credit notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "value": { "type": "number" },
+        "reason": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "date", "invoiceNumber", "value", "status"]
+    },
+    "MonthlyOperationalData": {
+      "title": "MonthlyOperationalData",
+      "description": "Aggregated monthly financial and inventory statistics.",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string" },
+        "vendasMes": { "type": "number" },
+        "comprasComida": { "type": "number" },
+        "comprasPapel": { "type": "number" },
+        "comprasTotalOps": { "type": "number" },
+        "consumoComida": { "type": "number" },
+        "consumoPapel": { "type": "number" },
+        "consumoOps": { "type": "number" },
+        "invInicialComida": { "type": "number" },
+        "invInicialOps": { "type": "number" },
+        "perdasComida": { "type": "number" },
+        "refeicoesComida": { "type": "number" },
+        "promoComida": { "type": "number" },
+        "invFinalComida": { "type": "number" },
+        "invFinalPapel": { "type": "number" },
+        "invFinalOps": { "type": "number" },
+        "comprasOpsHavi": { "type": "number" },
+        "invInicialPapel": { "type": "number" },
+        "perdasPapel": { "type": "number" },
+        "refeicoesPapel": { "type": "number" },
+        "promoPapel": { "type": "number" },
+        "comprasOpsMaiaPapper": { "type": "number" },
+        "otherSuppliers": { "type": "array" }
+      },
+      "required": ["month"]
+    }
+  },
+  "firestore": {
+    "/restaurants/{restaurantId}": {
+      "schema": "Restaurant",
+      "description": "Primary metadata collection of operational restaurants"
+    },
+    "/restaurants/{restaurantId}/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Sub-collection of active team members"
+    },
+    "/restaurants/{restaurantId}/staffing_table/{staffId}": {
+      "schema": "StaffingTableEntry",
+      "description": "Sub-collection of sales-based staffing rules"
+    },
+    "/restaurants/{restaurantId}/history/{historyDate}": {
+      "schema": "HistoryEntry",
+      "description": "Sub-collection of historical hourly sales tracking"
+    },
+    "/restaurants/{restaurantId}/schedules/{scheduleDate}": {
+      "schema": "DailySchedule",
+      "description": "Sub-collection of planned daily team allocations"
+    },
+    "/restaurants/{restaurantId}/deliveries/{deliveryId}": {
+      "schema": "DeliveryRecord",
+      "description": "Sub-collection of invoice deliveries"
+    },
+    "/restaurants/{restaurantId}/credits/{creditId}": {
+      "schema": "CreditNoteRecord",
+      "description": "Sub-collection of credit declarations"
+    },
+    "/restaurants/{restaurantId}/monthly_ops/{monthId}": {
+      "schema": "MonthlyOperationalData",
+      "description": "Sub-collection of operational costs by month"
+    }
+  }
+}

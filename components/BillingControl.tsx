@@ -1,7 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
 import { BillingSummary } from './BillingSummary';
+import { 
+  getDeliveries, saveDeliveryDoc, deleteDeliveryDoc, 
+  getCredits, saveCreditDoc, deleteCreditDoc 
+} from '../services/firebaseService';
 import { Truck, FileMinus, ClipboardList, Plus, Eye, Trash2, FileText, CheckCircle2, Clock } from 'lucide-react';
 
 interface BillingControlProps {
@@ -11,29 +16,6 @@ interface BillingControlProps {
   onTabChange: (tab: string) => void;
 }
 
-// Definição centralizada dos grupos para evitar erros de digitação
-const INITIAL_HAVI_GROUPS = [
-  { group: '1', description: 'Congelados', total: 0 },
-  { group: '2', description: 'Refrigerados', total: 0 },
-  { group: '3', description: 'Secos Comida', total: 0 },
-  { group: '4', description: 'Secos Papel', total: 0 },
-  { group: '5', description: 'Manutenção Limpeza', total: 0 },
-  { group: '6', description: 'Marketing IPL', total: 0 },
-  { group: '7', description: 'Marketing Geral', total: 0 },
-  { group: '8', description: 'Produtos Frescos', total: 0 },
-  { group: '9', description: 'MANUTENÇÃO & LIMPEZA COMPRAS', total: 0 },
-  { group: '10', description: 'Condimentos', total: 0 },
-  { group: '11', description: 'Condimentos Cozinha', total: 0 },
-  { group: '12', description: 'Material Adm', total: 0 },
-  { group: '13', description: 'Manuais', total: 0 },
-  { group: '14', description: 'Ferramentas & Utensílios', total: 0 },
-  { group: '15', description: 'Marketing Geral Custo', total: 0 },
-  { group: '16', description: 'Fardas', total: 0 },
-  { group: '17', description: 'Distribuição de Marketing', total: 0 },
-  { group: '19', description: 'Bulk Alimentar', total: 0 },
-  { group: '20', description: 'Bulk Papel', total: 0 },
-];
-
 export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, employees, activeSubTab, onTabChange }) => {
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
   const [credits, setCredits] = useState<CreditNoteRecord[]>([]);
@@ -41,27 +23,52 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
   const [isCreatingDelivery, setIsCreatingDelivery] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryRecord | null>(null);
 
-  const STORAGE_KEY_DELIVERIES = `billing_deliveries_${restaurantId}`;
-  const STORAGE_KEY_CREDITS = `billing_credits_${restaurantId}`;
-
   useEffect(() => {
-    const savedDels = localStorage.getItem(STORAGE_KEY_DELIVERIES);
-    const savedCreds = localStorage.getItem(STORAGE_KEY_CREDITS);
-    if (savedDels) setDeliveries(JSON.parse(savedDels));
-    if (savedCreds) setCredits(JSON.parse(savedCreds));
+    const loadBillingData = async () => {
+      try {
+        const [dels, creds] = await Promise.all([
+          getDeliveries(restaurantId),
+          getCredits(restaurantId)
+        ]);
+        setDeliveries(dels || []);
+        setCredits(creds || []);
+      } catch (err) {
+        console.error("Failed to load billing data from cloud:", err);
+        const savedDels = localStorage.getItem(`billing_deliveries_${restaurantId}`);
+        const savedCreds = localStorage.getItem(`billing_credits_${restaurantId}`);
+        if (savedDels) setDeliveries(JSON.parse(savedDels));
+        if (savedCreds) setCredits(JSON.parse(savedCreds));
+      }
+    };
+    loadBillingData();
   }, [restaurantId]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_DELIVERIES, JSON.stringify(deliveries));
-    localStorage.setItem(STORAGE_KEY_CREDITS, JSON.stringify(credits));
-  }, [deliveries, credits]);
-
-  const handleCreateNewDelivery = (date: string, managerId: string) => {
+  const handleCreateNewDelivery = async (date: string, managerId: string) => {
     const newRecord: DeliveryRecord = {
       id: crypto.randomUUID(),
       date,
       managerId,
-      haviGroups: INITIAL_HAVI_GROUPS,
+      haviGroups: [
+        { group: 'A', description: 'Congelados', total: 0 },
+        { group: 'B', description: 'Refrigerados', total: 0 },
+        { group: 'C', description: 'Secos Comida', total: 0 },
+        { group: 'D', description: 'Secos Papel', total: 0 },
+        { group: 'E', description: 'Manutenção Limpeza', total: 0 },
+        { group: 'F', description: 'Marketing IPL', total: 0 },
+        { group: 'G', description: 'Marketing Geral', total: 0 },
+        { group: 'H', description: 'Produtos Frescos', total: 0 },
+        { group: 'I', description: 'Manutenção Limpeza Compras', total: 0 },
+        { group: 'J', description: 'Condimentos', total: 0 },
+        { group: 'L', description: 'Condimentos Cozinha', total: 0 },
+        { group: 'M', description: 'Material Adm', total: 0 },
+        { group: 'N', description: 'Manuais', total: 0 },
+        { group: 'O', description: 'Ferramentas Utensilios', total: 0 },
+        { group: 'P', description: 'Marketing Geral Custo', total: 0 },
+        { group: 'R', description: 'Fardas', total: 0 },
+        { group: 'S', description: 'Distribuição de Marketing', total: 0 },
+        { group: 'T', description: 'Bulk Alimentar', total: 0 },
+        { group: 'U', description: 'Bulk Papel', total: 0 },
+      ],
       pontoVerde: 0,
       smsValues: [
         { description: 'Comida', amount: 0 },
@@ -79,18 +86,36 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
     setDeliveries(prev => [newRecord, ...prev]);
     setSelectedDelivery(newRecord);
     setIsCreatingDelivery(false);
-  };
 
-  const handleUpdateDelivery = (updated: DeliveryRecord) => {
-    setDeliveries(prev => prev.map(d => d.id === updated.id ? updated : d));
-    setSelectedDelivery(null);
-  };
-
-  const handleDeleteDelivery = (id: string) => {
-    if (confirm('Eliminar este registo de entrega?')) {
-      setDeliveries(prev => prev.filter(d => d.id !== id));
+    try {
+      await saveDeliveryDoc(restaurantId, newRecord);
+    } catch (err) {
+      console.error("Failed to save delivery to cloud:", err);
     }
   };
+
+  const handleUpdateDelivery = async (updated: DeliveryRecord) => {
+    setDeliveries(prev => prev.map(d => d.id === updated.id ? updated : d));
+    setSelectedDelivery(null);
+    try {
+      await saveDeliveryDoc(restaurantId, updated);
+    } catch (err) {
+      console.error("Failed to save updated delivery on cloud:", err);
+    }
+  };
+
+  const handleDeleteDelivery = async (id: string) => {
+    if (confirm('Eliminar este registo de entrega?')) {
+      setDeliveries(prev => prev.filter(d => d.id !== id));
+      try {
+        await deleteDeliveryDoc(restaurantId, id);
+      } catch (err) {
+        console.error("Failed to delete delivery from cloud:", err);
+      }
+    }
+  };
+
+  const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in print:bg-white">
@@ -144,7 +169,7 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
               </div>
             )}
             {activeSubTab === 'summary' && (
-              <BillingSummary deliveries={deliveries} employees={employees} />
+              <BillingSummary deliveries={deliveries} employees={employees} restaurantId={restaurantId} />
             )}
           </div>
         </>
@@ -198,20 +223,15 @@ const DeliveriesTab: React.FC<{
                 <th className="px-6 py-4">Data Fatura</th>
                 <th className="px-6 py-4">Responsável</th>
                 <th className="px-6 py-4">Estado</th>
-                <th className="px-6 py-4">Diff. Final Real</th>
+                <th className="px-6 py-4">Diff. Acumulada</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {records.map(record => {
-                // Cálculo corrigido: HAVI - SMS - (Diferenças de Preço)
                 const haviTotal = record.haviGroups.reduce((s, g) => s + g.total, 0) + record.pontoVerde;
                 const smsTotal = record.smsValues.reduce((s, v) => s + v.amount, 0);
-                
-                // Calcula a soma das diferenças de preço registadas por artigo
-                const priceAdj = record.priceDifferences?.reduce((s, item) => s + (item.priceHavi - item.priceSms), 0) || 0;
-                
-                const diff = haviTotal - smsTotal - priceAdj;
+                const diff = haviTotal - smsTotal;
                 const manager = employees.find(e => e.id === record.managerId)?.name || '-';
 
                 return (
@@ -273,7 +293,6 @@ const NewDeliveryModal: React.FC<{ employees: Employee[], onClose: () => void, o
             <input 
                 type="date" 
                 value={date} 
-                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setDate(e.target.value)} 
                 className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700"
             />

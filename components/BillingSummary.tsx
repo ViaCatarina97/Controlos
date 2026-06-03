@@ -1,11 +1,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { DeliveryRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
+import { getMonthlyOps, saveMonthlyOps } from '../services/firebaseService';
 import { Printer, Calendar, Plus, Trash2 } from 'lucide-react';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
   employees: Employee[];
+  restaurantId: string;
 }
 
 const DEFAULT_MONTHLY_DATA: Omit<MonthlyOperationalData, 'month'> = {
@@ -33,7 +35,7 @@ const DEFAULT_MONTHLY_DATA: Omit<MonthlyOperationalData, 'month'> = {
   otherSuppliers: []
 };
 
-export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, employees }) => {
+export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, employees, restaurantId }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -44,20 +46,36 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, empl
     ...DEFAULT_MONTHLY_DATA
   });
 
-  const STORAGE_KEY = `monthly_ops_data_${selectedMonth}`;
-
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setMonthlyData(JSON.parse(saved));
-    } else {
-      setMonthlyData({ month: selectedMonth, ...DEFAULT_MONTHLY_DATA });
-    }
-  }, [selectedMonth]);
+    const loadMonthlyData = async () => {
+      try {
+        const data = await getMonthlyOps(restaurantId, selectedMonth);
+        if (data) {
+          setMonthlyData(data);
+        } else {
+          const saved = localStorage.getItem(`monthly_ops_data_${selectedMonth}`);
+          if (saved) {
+            setMonthlyData(JSON.parse(saved));
+          } else {
+            setMonthlyData({ month: selectedMonth, ...DEFAULT_MONTHLY_DATA });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load monthly operations data:", err);
+        setMonthlyData({ month: selectedMonth, ...DEFAULT_MONTHLY_DATA });
+      }
+    };
+    loadMonthlyData();
+  }, [selectedMonth, restaurantId]);
 
-  const saveToStore = (updated: MonthlyOperationalData) => {
+  const saveToStore = async (updated: MonthlyOperationalData) => {
     setMonthlyData(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(`monthly_ops_data_${selectedMonth}`, JSON.stringify(updated));
+    try {
+      await saveMonthlyOps(restaurantId, updated);
+    } catch (err) {
+      console.error("Failed to save monthly ops to cloud:", err);
+    }
   };
 
   const handleUpdateMonthlyField = (field: keyof Omit<MonthlyOperationalData, 'month' | 'otherSuppliers'>, value: number) => {

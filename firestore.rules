@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net (vulnerability default/allow-all defense)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    // Restaurants database collection & sub-structures
+    match /restaurants/{restaurantId} {
+      allow get, list, create, update: if isSignedIn() && isValidId(restaurantId);
+
+      match /employees/{employeeId} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(employeeId);
+      }
+
+      match /staffing_table/{staffId} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(staffId);
+      }
+
+      match /history/{historyDate} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(historyDate);
+      }
+
+      match /schedules/{scheduleDate} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(scheduleDate);
+      }
+
+      match /deliveries/{deliveryId} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(deliveryId);
+      }
+
+      match /credits/{creditId} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(creditId);
+      }
+
+      match /monthly_ops/{monthId} {
+        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(monthId);
+      }
+    }
+  }
+}
