@@ -17,34 +17,34 @@ service cloud.firestore {
 
     // Restaurants database collection & sub-structures
     match /restaurants/{restaurantId} {
-      allow get, list, create, update: if isSignedIn() && isValidId(restaurantId);
+      allow get, list, create, update: if isValidId(restaurantId);
 
       match /employees/{employeeId} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(employeeId);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(employeeId);
       }
 
       match /staffing_table/{staffId} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(staffId);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(staffId);
       }
 
       match /history/{historyDate} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(historyDate);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(historyDate);
       }
 
       match /schedules/{scheduleDate} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(scheduleDate);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(scheduleDate);
       }
 
       match /deliveries/{deliveryId} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(deliveryId);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(deliveryId);
       }
 
       match /credits/{creditId} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(creditId);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(creditId);
       }
 
       match /monthly_ops/{monthId} {
-        allow get, list, create, update, delete: if isSignedIn() && isValidId(restaurantId) && isValidId(monthId);
+        allow get, list, create, update, delete: if isValidId(restaurantId) && isValidId(monthId);
       }
     }
   }

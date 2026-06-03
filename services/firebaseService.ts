@@ -71,8 +71,8 @@ export async function testConnection() {
   }
 }
 
-// Ensure the user is authenticated anonymously so rules can verify identity
-export async function ensureAuthenticated(): Promise<string> {
+// Ensure the user is authenticated anonymously so rules can verify identity if enabled
+export async function ensureAuthenticated(): Promise<string | null> {
   if (auth.currentUser) {
     return auth.currentUser.uid;
   }
@@ -80,8 +80,8 @@ export async function ensureAuthenticated(): Promise<string> {
     const cred = await signInAnonymously(auth);
     return cred.user.uid;
   } catch (error) {
-    console.error("Anonymous authentication failed", error);
-    throw error;
+    console.warn("Anonymous authentication failed or not enabled in the Firebase Console. Continuing with unauthenticated session.", error);
+    return null;
   }
 }
 
