@@ -18,7 +18,7 @@ import {
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
-  CloudCheck, Lock, ShieldAlert, KeyRound, Loader2
+  CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw
 } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
@@ -217,12 +217,38 @@ const App: React.FC = () => {
     setAllRestaurants(prev => prev.map(r => r.restaurantId === updated.restaurantId ? updated : r));
   };
 
+  const [scheduleToSave, setScheduleToSave] = useState<DailySchedule | null>(null);
+
+  // Debounced cloud save for the schedule to prevent rapid write requests to Firestore.
+  useEffect(() => {
+    if (!scheduleToSave || !authenticatedRestaurantId) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await saveScheduleDoc(authenticatedRestaurantId, scheduleToSave);
+      } catch (err) {
+        console.error("Auto-save schedule to cloud failed:", err);
+      }
+    }, 1000); // 1-second debounce is ideal for fast user editing actions
+
+    return () => clearTimeout(timer);
+  }, [scheduleToSave, authenticatedRestaurantId]);
+
+  const handleUpdateSchedule = (updated: DailySchedule) => {
+    setCurrentSchedule(updated);
+    setScheduleToSave(updated);
+    setSavedSchedules(prev => {
+      const others = prev.filter(s => s.date !== updated.date);
+      return [...others, updated];
+    });
+  };
+
   const handleSaveSchedule = async (scheduleToSave: DailySchedule) => {
+    setCurrentSchedule(scheduleToSave);
     setSavedSchedules(prev => {
         const others = prev.filter(s => s.date !== scheduleToSave.date);
         return [...others, scheduleToSave];
     });
-    setCurrentSchedule(scheduleToSave);
     if (authenticatedRestaurantId) {
       try {
         await saveScheduleDoc(authenticatedRestaurantId, scheduleToSave);
@@ -231,6 +257,98 @@ const App: React.FC = () => {
       }
     }
   };
+
+  const pullCloudData = async () => {
+    if (!authenticatedRestaurantId) return;
+    const id = authenticatedRestaurantId;
+    setIsSyncing(true);
+    try {
+      const [restList, emp, staffing, hist, sched] = await Promise.all([
+        getRestaurants(),
+        getEmployees(id),
+        getStaffingTable(id),
+        getHistory(id),
+        getSchedules(id)
+      ]);
+
+      if (restList.length > 0) {
+        setAllRestaurants(restList);
+      }
+      if (emp.length > 0) {
+        setCurrentEmployees(emp);
+      }
+      if (staffing.length > 0) {
+        setCurrentStaffingTable(staffing);
+      }
+      if (hist.length > 0) {
+        setHistoryEntries(hist);
+      }
+      setSavedSchedules(sched || []);
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Error pulling data from cloud:", err);
+      alert("Não foi possível carregar os dados mais recentes.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Background polling every 30 seconds to fetch changes from other devices automatically
+  useEffect(() => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible' && !isSyncing) {
+        const refreshInBackground = async () => {
+          const id = authenticatedRestaurantId;
+          try {
+            const [restList, emp, staffing, hist, sched] = await Promise.all([
+              getRestaurants(),
+              getEmployees(id),
+              getStaffingTable(id),
+              getHistory(id),
+              getSchedules(id)
+            ]);
+
+            if (restList.length > 0) {
+              setAllRestaurants(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(restList)) return prev;
+                return restList;
+              });
+            }
+            if (emp.length > 0) {
+              setCurrentEmployees(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(emp)) return prev;
+                return emp;
+              });
+            }
+            if (staffing.length > 0) {
+              setCurrentStaffingTable(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(staffing)) return prev;
+                return staffing;
+              });
+            }
+            if (hist.length > 0) {
+              setHistoryEntries(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(hist)) return prev;
+                return hist;
+              });
+            }
+            setSavedSchedules(prev => {
+              if (JSON.stringify(prev) === JSON.stringify(sched)) return prev;
+              return sched || [];
+            });
+            setLastSync(new Date().toLocaleTimeString());
+          } catch (err) {
+            console.warn("Background auto-refresh failed:", err);
+          }
+        };
+        refreshInBackground();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [authenticatedRestaurantId, isLoaded, isSyncing]);
 
   const handleUnlockAdmin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -423,7 +541,16 @@ const App: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
             {activeModule === 'billing' ? 'Módulo Financeiro / Faturação' : 'Gestão Operacional | Posicionamento'}
           </h2>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={pullCloudData}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-100 active:scale-95 transition-all border border-blue-100/50 disabled:opacity-50 disabled:pointer-events-none"
+              title="Forçar sincronização e carregar dados mais recentes da nuvem"
+            >
+              <RefreshCw size={12} className={`${isSyncing ? 'animate-spin' : ''}`} />
+              <span>Sincronizar</span>
+            </button>
             <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
                 {isSyncing ? (
                   <Loader2 size={12} className="text-blue-500 animate-spin" />
@@ -449,7 +576,7 @@ const App: React.FC = () => {
           
           {activeModule === 'positioning' && (
             <>
-              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={setCurrentSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
+              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={handleUpdateSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
               
               {activeTab === 'staffing' && renderProtectedTab(
                 <Criteria 
