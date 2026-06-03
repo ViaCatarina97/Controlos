@@ -275,6 +275,7 @@ export async function getEmployees(restaurantId: string): Promise<Employee[]> {
       const snap = await getDocs(q);
       const list = snap.docs.map(d => d.data() as Employee);
       localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_employees_${restaurantId}_synced`, JSON.stringify(list));
       return list;
     },
     () => {
@@ -289,7 +290,7 @@ export async function getEmployees(restaurantId: string): Promise<Employee[]> {
 export async function saveEmployees(restaurantId: string, employees: Employee[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/employees`;
-  const saved = localStorage.getItem(`app_employees_${restaurantId}`);
+  const saved = localStorage.getItem(`app_employees_${restaurantId}_synced`);
   const previousList: Employee[] = saved ? JSON.parse(saved) : [];
 
   return runFirestoreWrite(
@@ -328,6 +329,7 @@ export async function saveEmployees(restaurantId: string, employees: Employee[])
       }
       await batch.commit();
       localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(employees));
+      localStorage.setItem(`app_employees_${restaurantId}_synced`, JSON.stringify(employees));
     },
     () => {
       localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(employees));
@@ -348,6 +350,7 @@ export async function getStaffingTable(restaurantId: string): Promise<StaffingTa
       const snap = await getDocs(q);
       const list = snap.docs.map(d => d.data() as StaffingTableEntry);
       localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_staffing_table_${restaurantId}_synced`, JSON.stringify(list));
       return list;
     },
     () => {
@@ -362,7 +365,7 @@ export async function getStaffingTable(restaurantId: string): Promise<StaffingTa
 export async function saveStaffingTable(restaurantId: string, staffing: StaffingTableEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/staffing_table`;
-  const saved = localStorage.getItem(`app_staffing_table_${restaurantId}`);
+  const saved = localStorage.getItem(`app_staffing_table_${restaurantId}_synced`);
   const previousList: StaffingTableEntry[] = saved ? JSON.parse(saved) : [];
 
   return runFirestoreWrite(
@@ -401,6 +404,7 @@ export async function saveStaffingTable(restaurantId: string, staffing: Staffing
       }
       await batch.commit();
       localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(staffing));
+      localStorage.setItem(`app_staffing_table_${restaurantId}_synced`, JSON.stringify(staffing));
     },
     () => {
       localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(staffing));
@@ -421,6 +425,7 @@ export async function getHistory(restaurantId: string): Promise<HistoryEntry[]> 
       const snap = await getDocs(q);
       const list = snap.docs.map(d => d.data() as HistoryEntry);
       localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_history_detailed_${restaurantId}_synced`, JSON.stringify(list));
       return list;
     },
     () => {
@@ -435,7 +440,7 @@ export async function getHistory(restaurantId: string): Promise<HistoryEntry[]> 
 export async function saveHistory(restaurantId: string, history: HistoryEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/history`;
-  const saved = localStorage.getItem(`app_history_detailed_${restaurantId}`);
+  const saved = localStorage.getItem(`app_history_detailed_${restaurantId}_synced`);
   const previousList: HistoryEntry[] = saved ? JSON.parse(saved) : [];
 
   return runFirestoreWrite(
@@ -494,6 +499,7 @@ export async function saveHistory(restaurantId: string, history: HistoryEntry[])
       }
 
       localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(history));
+      localStorage.setItem(`app_history_detailed_${restaurantId}_synced`, JSON.stringify(history));
     },
     () => {
       localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(history));
