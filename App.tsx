@@ -142,10 +142,17 @@ const App: React.FC = () => {
     loadRestaurantData();
   }, [authenticatedRestaurantId]);
 
-  // Synchronize changes to cloud and local storage
+  // Synchronize changes to cloud and local storage with debouncing (to avoid spamming Firestore and exceeding free tier quotas)
   useEffect(() => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     const id = authenticatedRestaurantId;
+
+    // Immediately update local storage so UI is extremely fast and stable
+    localStorage.setItem('app_all_restaurants', JSON.stringify(allRestaurants));
+    localStorage.setItem(`app_employees_${id}`, JSON.stringify(currentEmployees));
+    localStorage.setItem(`app_staffing_table_${id}`, JSON.stringify(currentStaffingTable));
+    localStorage.setItem(`app_history_detailed_${id}`, JSON.stringify(historyEntries));
+    localStorage.setItem(`app_schedules_${id}`, JSON.stringify(savedSchedules));
 
     const performSync = async () => {
       setIsSyncing(true);
@@ -167,13 +174,11 @@ const App: React.FC = () => {
       }
     };
 
-    localStorage.setItem('app_all_restaurants', JSON.stringify(allRestaurants));
-    localStorage.setItem(`app_employees_${id}`, JSON.stringify(currentEmployees));
-    localStorage.setItem(`app_staffing_table_${id}`, JSON.stringify(currentStaffingTable));
-    localStorage.setItem(`app_history_detailed_${id}`, JSON.stringify(historyEntries));
-    localStorage.setItem(`app_schedules_${id}`, JSON.stringify(savedSchedules));
+    const timer = setTimeout(() => {
+      performSync();
+    }, 1500);
 
-    performSync();
+    return () => clearTimeout(timer);
   }, [allRestaurants, currentEmployees, currentStaffingTable, historyEntries, savedSchedules, authenticatedRestaurantId, isLoaded]);
 
   useEffect(() => {

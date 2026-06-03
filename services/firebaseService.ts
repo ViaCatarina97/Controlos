@@ -289,19 +289,42 @@ export async function getEmployees(restaurantId: string): Promise<Employee[]> {
 export async function saveEmployees(restaurantId: string, employees: Employee[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/employees`;
+  const saved = localStorage.getItem(`app_employees_${restaurantId}`);
+  const previousList: Employee[] = saved ? JSON.parse(saved) : [];
+
   return runFirestoreWrite(
     async () => {
+      const prevMap = new Map(previousList.map(item => [item.id, item]));
+      const nextMap = new Map(employees.map(item => [item.id, item]));
+      
+      const toWrite: Employee[] = [];
+      const toDelete: string[] = [];
+
+      for (const item of employees) {
+        const prev = prevMap.get(item.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
+          toWrite.push(item);
+        }
+      }
+
+      for (const prev of previousList) {
+        if (!nextMap.has(prev.id)) {
+          toDelete.push(prev.id);
+        }
+      }
+
+      if (toWrite.length === 0 && toDelete.length === 0) {
+        return;
+      }
+
       const batch = writeBatch(db);
-      for (const emp of employees) {
+      for (const emp of toWrite) {
         const dRef = doc(db, 'restaurants', restaurantId, 'employees', emp.id);
         batch.set(dRef, emp);
       }
-      const current = await getEmployees(restaurantId);
-      for (const cur of current) {
-        if (!employees.some(e => e.id === cur.id)) {
-          const dRef = doc(db, 'restaurants', restaurantId, 'employees', cur.id);
-          batch.delete(dRef);
-        }
+      for (const idToDelete of toDelete) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'employees', idToDelete);
+        batch.delete(dRef);
       }
       await batch.commit();
       localStorage.setItem(`app_employees_${restaurantId}`, JSON.stringify(employees));
@@ -339,19 +362,42 @@ export async function getStaffingTable(restaurantId: string): Promise<StaffingTa
 export async function saveStaffingTable(restaurantId: string, staffing: StaffingTableEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/staffing_table`;
+  const saved = localStorage.getItem(`app_staffing_table_${restaurantId}`);
+  const previousList: StaffingTableEntry[] = saved ? JSON.parse(saved) : [];
+
   return runFirestoreWrite(
     async () => {
+      const prevMap = new Map(previousList.map(item => [item.id, item]));
+      const nextMap = new Map(staffing.map(item => [item.id, item]));
+      
+      const toWrite: StaffingTableEntry[] = [];
+      const toDelete: string[] = [];
+
+      for (const item of staffing) {
+        const prev = prevMap.get(item.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
+          toWrite.push(item);
+        }
+      }
+
+      for (const prev of previousList) {
+        if (!nextMap.has(prev.id)) {
+          toDelete.push(prev.id);
+        }
+      }
+
+      if (toWrite.length === 0 && toDelete.length === 0) {
+        return;
+      }
+
       const batch = writeBatch(db);
-      for (const s of staffing) {
+      for (const s of toWrite) {
         const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', s.id);
         batch.set(dRef, s);
       }
-      const current = await getStaffingTable(restaurantId);
-      for (const cur of current) {
-        if (!staffing.some(s => s.id === cur.id)) {
-          const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', cur.id);
-          batch.delete(dRef);
-        }
+      for (const idToDelete of toDelete) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'staffing_table', idToDelete);
+        batch.delete(dRef);
       }
       await batch.commit();
       localStorage.setItem(`app_staffing_table_${restaurantId}`, JSON.stringify(staffing));
@@ -389,21 +435,64 @@ export async function getHistory(restaurantId: string): Promise<HistoryEntry[]> 
 export async function saveHistory(restaurantId: string, history: HistoryEntry[]): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/history`;
+  const saved = localStorage.getItem(`app_history_detailed_${restaurantId}`);
+  const previousList: HistoryEntry[] = saved ? JSON.parse(saved) : [];
+
   return runFirestoreWrite(
     async () => {
-      const batch = writeBatch(db);
+      const prevMap = new Map(previousList.map(h => [h.id, h]));
+      const nextMap = new Map(history.map(h => [h.id, h]));
+      
+      const toWrite: HistoryEntry[] = [];
+      const toDelete: string[] = [];
+
       for (const h of history) {
-        const dRef = doc(db, 'restaurants', restaurantId, 'history', h.id);
-        batch.set(dRef, h);
-      }
-      const current = await getHistory(restaurantId);
-      for (const cur of current) {
-        if (!history.some(h => h.id === cur.id)) {
-          const dRef = doc(db, 'restaurants', restaurantId, 'history', cur.id);
-          batch.delete(dRef);
+        const prev = prevMap.get(h.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(h)) {
+          toWrite.push(h);
         }
       }
-      await batch.commit();
+
+      for (const prev of previousList) {
+        if (!nextMap.has(prev.id)) {
+          toDelete.push(prev.id);
+        }
+      }
+
+      if (toWrite.length === 0 && toDelete.length === 0) {
+        return;
+      }
+
+      const batchSize = 200;
+      let currentBatch = writeBatch(db);
+      let opCount = 0;
+
+      const commitIfNeeded = async () => {
+        if (opCount >= batchSize) {
+          await currentBatch.commit();
+          currentBatch = writeBatch(db);
+          opCount = 0;
+        }
+      };
+
+      for (const h of toWrite) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'history', h.id);
+        currentBatch.set(dRef, h);
+        opCount++;
+        await commitIfNeeded();
+      }
+
+      for (const idToDelete of toDelete) {
+        const dRef = doc(db, 'restaurants', restaurantId, 'history', idToDelete);
+        currentBatch.delete(dRef);
+        opCount++;
+        await commitIfNeeded();
+      }
+
+      if (opCount > 0) {
+        await currentBatch.commit();
+      }
+
       localStorage.setItem(`app_history_detailed_${restaurantId}`, JSON.stringify(history));
     },
     () => {

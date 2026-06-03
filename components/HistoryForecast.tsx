@@ -28,14 +28,33 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Agora suporta múltiplos dias selecionados
   const [dayFilters, setDayFilters] = useState<number[]>([]);
+  const [yearFilters, setYearFilters] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    history.forEach(entry => {
+      if (entry.date) {
+        const parts = entry.date.split('-');
+        if (parts[0] && parts[0].length === 4) {
+          years.add(parts[0]);
+        }
+      }
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [history]);
+
   const filteredHistory = useMemo(() => {
-    // Se nenhum filtro estiver selecionado, mostra todos. Caso contrário, filtra pelos dias incluídos no array.
-    return history.filter(entry => dayFilters.length === 0 || dayFilters.includes(entry.dayOfWeek));
-  }, [dayFilters, history]);
+    // Se nenhum filtro estiver selecionado, mostra todos. Caso contrário, filtra pelos dias e anos incluídos nos arrays.
+    return history.filter(entry => {
+      const dayMatches = dayFilters.length === 0 || dayFilters.includes(entry.dayOfWeek);
+      const entryYear = entry.date ? entry.date.split('-')[0] : '';
+      const yearMatches = yearFilters.length === 0 || yearFilters.includes(entryYear);
+      return dayMatches && yearMatches;
+    });
+  }, [dayFilters, yearFilters, history]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -265,6 +284,42 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* FILTRO DE ANO */}
+            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200 shrink-0">
+                <div className="flex flex-col">
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filtrar Ano</span>
+                        {yearFilters.length > 0 && (
+                            <button onClick={() => setYearFilters([])} className="text-[9px] text-blue-600 font-black uppercase hover:underline">Limpar</button>
+                        )}
+                    </div>
+                    <div className="flex gap-1 h-8 items-center">
+                        {availableYears.length === 0 ? (
+                           <span className="text-[10px] text-gray-400 font-medium italic px-2">Nenhum ano</span>
+                        ) : (
+                           availableYears.map(y => {
+                              const isSelected = yearFilters.includes(y);
+                              return (
+                                  <button 
+                                      key={y} 
+                                      onClick={() => {
+                                          setYearFilters(prev => 
+                                              prev.includes(y) ? prev.filter(item => item !== y) : [...prev, y]
+                                          );
+                                          setSelectedIds(new Set());
+                                      }}
+                                      className={`px-3 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                  >
+                                      {y}
+                                  </button>
+                              );
+                           })
+                        )}
+                    </div>
+                </div>
+            </div>
+
             <div className="flex items-center gap-3">
                <div className="flex gap-2 h-full">
                   <input type="file" ref={fileInputRef} accept=".xls,.xlsx" className="hidden" onChange={handleFileUpload} />

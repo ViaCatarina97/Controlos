@@ -70,7 +70,9 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         const activeShifts = prev.activeShifts.includes(shiftId)
             ? prev.activeShifts.filter(s => s !== shiftId)
             : [...prev.activeShifts, shiftId];
-        return { ...prev, activeShifts };
+        const updated = { ...prev, activeShifts };
+        onSaveSettings(updated);
+        return updated;
     });
   };
 
@@ -79,13 +81,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         const businessAreas = prev.businessAreas.includes(area)
             ? prev.businessAreas.filter(a => a !== area)
             : [...prev.businessAreas, area];
-        return { ...prev, businessAreas };
+        const updated = { ...prev, businessAreas };
+        onSaveSettings(updated);
+        return updated;
     });
-  };
-
-  const handleSaveGeneral = () => {
-    onSaveSettings(localSettings);
-    alert("Configurações da loja guardadas com sucesso!");
   };
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,11 +167,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-2 md:col-span-1">
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nome da Unidade</label>
-                <input type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700" value={localSettings.restaurantName} onChange={e => setLocalSettings({...localSettings, restaurantName: e.target.value})} />
+                <input type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700" value={localSettings.restaurantName} onChange={e => { const updated = {...localSettings, restaurantName: e.target.value}; setLocalSettings(updated); onSaveSettings(updated); }} />
               </div>
               <div className="col-span-2 md:col-span-1">
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tipologia de Loja</label>
-                <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-gray-700" value={localSettings.restaurantType} onChange={e => setLocalSettings({...localSettings, restaurantType: e.target.value as RestaurantTypology})}>
+                <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-gray-700" value={localSettings.restaurantType} onChange={e => { const updated = {...localSettings, restaurantType: e.target.value as RestaurantTypology}; setLocalSettings(updated); onSaveSettings(updated); }}>
                   {AVAILABLE_TYPOLOGIES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -220,29 +219,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                                 </button>
                             );
                         })}
-                    </div>
-                </div>
-            </div>
-
-            <div className="pt-4 flex flex-col gap-4 border-t border-gray-100 pt-8">
-                <button onClick={handleSaveGeneral} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl">
-                    <Save size={20} /> Guardar Alterações da Loja
-                </button>
-
-                {/* Portabilidade Section */}
-                <div className="bg-blue-50/50 p-6 rounded-2xl border-2 border-dashed border-blue-200 mt-4 text-center">
-                    <div className="inline-flex p-3 bg-blue-100 text-blue-600 rounded-full mb-3"><Share2 size={24} /></div>
-                    <h4 className="font-black text-gray-800 uppercase tracking-tighter">Portabilidade entre PCs</h4>
-                    <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto">Para abrir noutro computador, descarregue a base de dados e carregue-a no novo dispositivo.</p>
-                    
-                    <div className="flex gap-3">
-                        <button onClick={onExportFullData} className="flex-1 bg-white border border-blue-200 text-blue-600 px-4 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 hover:bg-blue-50 transition-all">
-                            <Download size={16} /> Exportar Base de Dados
-                        </button>
-                        <label className="flex-1 bg-white border border-blue-200 text-blue-600 px-4 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 hover:bg-blue-50 transition-all cursor-pointer">
-                            <Upload size={16} /> Importar Dados
-                            <input type="file" className="hidden" accept=".json" onChange={handleImportFile} ref={fileInputRef} />
-                        </label>
                     </div>
                 </div>
             </div>
