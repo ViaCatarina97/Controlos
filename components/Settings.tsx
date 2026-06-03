@@ -104,6 +104,15 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   };
 
   // Station Handlers
+  const hasStationChanges = useMemo(() => {
+    return JSON.stringify(localSettings.customStations) !== JSON.stringify(settings.customStations);
+  }, [localSettings.customStations, settings.customStations]);
+
+  const handleSaveStations = () => {
+    onSaveSettings(localSettings);
+    alert("Postos de trabalho guardados com sucesso!");
+  };
+
   const handleOpenStationModal = (station?: StationConfig) => {
     if (station) {
       setEditingStation({ ...station });
@@ -272,12 +281,25 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                    <h3 className="text-xl font-black text-gray-800">Postos de Trabalho</h3>
                    <p className="text-xs text-gray-400">Configure a matriz de postos para o posicionamento.</p>
                 </div>
-                <button 
-                  onClick={() => handleOpenStationModal()}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
-                >
-                   <Plus size={18} /> Novo Posto
-                </button>
+                <div className="flex gap-2">
+                   <button
+                     onClick={handleSaveStations}
+                     className={`px-5 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95 duration-150 ${
+                       hasStationChanges 
+                         ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse' 
+                         : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
+                     }`}
+                     disabled={!hasStationChanges}
+                   >
+                     <Save size={18} /> Gravar Postos
+                   </button>
+                   <button 
+                     onClick={() => handleOpenStationModal()}
+                     className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95"
+                   >
+                     <Plus size={18} /> Novo Posto
+                   </button>
+                </div>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -307,6 +329,21 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                   </div>
                 ))}
              </div>
+
+             {hasStationChanges && (
+               <div className="mt-8 p-5 bg-green-50 rounded-2xl border border-green-200 flex flex-col sm:flex-row justify-between items-center gap-4 animate-fade-in shadow-inner">
+                 <div className="text-left">
+                   <h4 className="font-bold text-green-800 text-sm">Alterações pendentes nos postos</h4>
+                   <p className="text-xs text-green-600">Tem alterações pendentes na matriz de postos de trabalho. Grave-as para que fiquem disponíveis na aplicação.</p>
+                 </div>
+                 <button 
+                   onClick={handleSaveStations}
+                   className="w-full sm:w-auto px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md transition-all font-bold text-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                 >
+                   <Save size={18} /> Gravar Postos de Trabalho
+                 </button>
+               </div>
+             )}
           </div>
         )}
       </div>
