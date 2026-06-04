@@ -357,32 +357,52 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const gap = requirement.count - currentAssignedCount;
 
-  const recommendedStationLabels = useMemo(() => {
-    // Ordenamos para garantir a progressividade
+  const allStations = useMemo(() => settings.customStations || STATIONS, [settings.customStations]);
+
+  const activeStations = useMemo(() => {
+    const activeBusinessAreas = settings.businessAreas || [];
+    return allStations.filter(s => {
+        if (!s.isActive) return false;
+        if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
+        if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
+        if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
+        return true;
+    });
+  }, [allStations, settings.businessAreas]);
+
+  const recommendedStationIds = useMemo(() => {
+    // Se a tabela diz que precisamos de N pessoas, mostramos exatamente N postos.
+    const stationsNeeded = Math.max(0, requirement.count);
+    const chosenIds = new Set<string>();
+    
+    // 1. Procurar correspondência de cada linha da staffingTable (ordenada) nas estações ativas
     const sortedTable = [...staffingTable].sort((a, b) => a.staffCount - b.staffCount);
     
-    // CORREÇÃO: Se a tabela diz que precisamos de 15 pessoas, mostramos exatamente 15 postos.
-    const stationsNeeded = Math.max(0, requirement.count);
-    
-    const labels = new Set<string>();
-    let count = 0;
-    
     for (const row of sortedTable) {
-        // Ignoramos postos que sejam "Gerente" se existirem na tabela, pois o gerente está no seletor topo.
-        const isManagerPost = row.stationLabel.toLowerCase().includes('gerente') || 
-                             row.stationLabel.toLowerCase().includes('manager');
-                             
-        if (isManagerPost) continue;
-
-        if (count < stationsNeeded) {
-            labels.add(row.stationLabel);
-            count++;
-        } else {
-            break;
+        if (chosenIds.size >= stationsNeeded) break;
+        
+        // Procurar estação ativa que corresponda à stationLabel da linha (comparação case-insensitive e trim)
+        const matchedStation = activeStations.find(s => 
+            s.label.toLowerCase().trim() === row.stationLabel.toLowerCase().trim() ||
+            s.designation.toLowerCase().trim() === row.stationLabel.toLowerCase().trim()
+        );
+        
+        if (matchedStation) {
+            chosenIds.add(matchedStation.id);
         }
     }
-    return labels;
-  }, [staffingTable, requirement.count]);
+    
+    // 2. Se as linhas da staffingTable não foram suficientes para preencher as vagas necessárias,
+    // preenchemos com as restantes estações ativas (na prioridade default delas)
+    if (chosenIds.size < stationsNeeded) {
+        for (const s of activeStations) {
+            if (chosenIds.size >= stationsNeeded) break;
+            chosenIds.add(s.id);
+        }
+    }
+    
+    return chosenIds;
+  }, [staffingTable, requirement.count, activeStations]);
 
   const handleManagerChange = (empId: string) => {
       if (isShiftLocked) return;
@@ -496,15 +516,9 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   const getShiftLabel = (id: ShiftType) => AVAILABLE_SHIFTS.find(s => s.id === id)?.label || id;
-  const allStations = settings.customStations || STATIONS;
 
   const filteredStations = useMemo(() => {
-    const activeBusinessAreas = settings.businessAreas || [];
-    return allStations.filter(s => {
-        if (!s.isActive) return false;
-        if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
-        if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
-        if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
+    return activeStations.filter(s => {
         if (showAllStations) return true;
         
         const currentAssignments = schedule.shifts[selectedShift]?.[s.id] || [];
@@ -512,10 +526,10 @@ export const Positioning: React.FC<PositioningProps> = ({
         const traineeAssignments = schedule.trainees?.[selectedShift]?.[s.id] || [];
         const assignedTrainees = traineeAssignments.some(id => id && id.trim() !== "");
         
-        // Visível se estiver preenchido OU se estiver nos recomendados exatos
-        return assigned || assignedTrainees || recommendedStationLabels.has(s.label);
+        // Visível se estiver preenchido OU se estiver nos recomendados exatos por ID
+        return assigned || assignedTrainees || recommendedStationIds.has(s.id);
     });
-  }, [allStations, showAllStations, recommendedStationLabels, schedule.shifts, schedule.trainees, selectedShift, settings.businessAreas]);
+  }, [activeStations, showAllStations, recommendedStationIds, schedule.shifts, schedule.trainees, selectedShift]);
 
   const stationsByArea = useMemo(() => {
     const groups: Record<string, StationConfig[]> = {};
