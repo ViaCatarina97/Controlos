@@ -387,17 +387,70 @@ export const Positioning: React.FC<PositioningProps> = ({
     const stationsNeeded = Math.max(0, requirement.count);
     const chosenIds = new Set<string>();
     
-    // 1. Procurar correspondência de cada linha da staffingTable (ordenada) nas estações ativas
-    const sortedTable = [...staffingTable].sort((a, b) => a.staffCount - b.staffCount);
+    // 1. Procurar correspondência de cada linha relevante da staffingTable (ordenada por intervalos crescentes) nas estações ativas.
+    // Pegamos as primeiras N linhas da tabela de staffing, pois elas determinam a ordem de abertura dos postos.
+    const sortedTable = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
+    const relevantRows = sortedTable.slice(0, stationsNeeded);
     
-    for (const row of sortedTable) {
+    for (const row of relevantRows) {
         if (chosenIds.size >= stationsNeeded) break;
         
-        // Procurar estação ativa que corresponda à stationLabel da linha (comparação case-insensitive e trim)
-        const matchedStation = activeStations.find(s => 
-            s.label.toLowerCase().trim() === row.stationLabel.toLowerCase().trim() ||
-            s.designation.toLowerCase().trim() === row.stationLabel.toLowerCase().trim()
-        );
+        // Procurar estação ativa que corresponda à stationLabel da linha de forma ultra-robusta e flexível
+        const matchedStation = activeStations.find(s => {
+            const labelNorm = s.label.toLowerCase().trim();
+            const desigNorm = (s.designation || "").toLowerCase().trim();
+            const rowLabelNorm = row.stationLabel.toLowerCase().trim();
+            
+            // 1. Correspondência exata
+            if (labelNorm === rowLabelNorm || desigNorm === rowLabelNorm) return true;
+            
+            // 2. Normalização de acentos
+            const stripAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const s1 = stripAccents(labelNorm);
+            const s2 = stripAccents(desigNorm);
+            const r = stripAccents(rowLabelNorm);
+            
+            if (s1 === r || s2 === r) return true;
+            if (s1.includes(r) || r.includes(s1)) return true;
+            if (s2 && (s2.includes(r) || r.includes(s2))) return true;
+            
+            // 3. Verificação de termos lógicos e abreviaturas comuns
+            const checkFuzzy = (term1: string, term2: string) => {
+              const pairs = [
+                ["batch cooker", "bc"],
+                ["expedidor", "exp"],
+                ["iniciador", "ini"],
+                ["bebidas", "beb"],
+                ["caixa", "cx"],
+                ["finalizador", "fin"],
+                ["apresentador", "apr"],
+                ["batata", "bat"],
+                ["preparador", "prep"],
+                ["delivery", "del"],
+                ["salao", "sala"]
+              ];
+              for (const [w1, w2] of pairs) {
+                if ((term1.includes(w1) && term2.includes(w2)) || (term1.includes(w2) && term2.includes(w1))) {
+                  return true;
+                }
+              }
+              return false;
+            };
+            
+            // Evitar conflitos numéricos (ex: Batch Cooker 1 vs Batch Cooker 2)
+            const getNum = (s: string) => {
+              const m = s.match(/\d+/);
+              return m ? m[0] : null;
+            };
+            
+            const numS = getNum(s1) || getNum(s2);
+            const numR = getNum(r);
+            if (numS && numR && numS !== numR) return false;
+            
+            if (checkFuzzy(r, s1) || checkFuzzy(r, s2)) return true;
+            
+            return false;
+        });
         
         if (matchedStation) {
             chosenIds.add(matchedStation.id);
@@ -405,7 +458,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     }
     
     // 2. Se as linhas da staffingTable não foram suficientes para preencher as vagas necessárias,
-    // preenchemos com as restantes estações ativas (na prioridade default delas)
+    // preenchemos com as restantes estações ativas (na prioridade de visualização de cada área)
     if (chosenIds.size < stationsNeeded) {
         for (const s of activeStations) {
             if (chosenIds.size >= stationsNeeded) break;

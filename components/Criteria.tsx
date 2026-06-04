@@ -12,10 +12,11 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
 
   // Initialize and synchronise with parent changes
   useEffect(() => {
-    setLocalTable(staffingTable);
+    const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
+    setLocalTable(sorted);
   }, [staffingTable]);
 
-  const hasChanges = JSON.stringify(localTable) !== JSON.stringify(staffingTable);
+  const hasChanges = JSON.stringify(localTable) !== JSON.stringify([...staffingTable].sort((a, b) => a.minSales - b.minSales));
 
   const handleSave = () => {
     // Sort table by minSales to maintain structured progression
@@ -26,7 +27,8 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
 
   const handleReset = () => {
     if (confirm('Deseja descartar as alterações não gravadas e repor os valores originais?')) {
-      setLocalTable(staffingTable);
+      const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
+      setLocalTable(sorted);
     }
   };
 
