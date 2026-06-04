@@ -28,6 +28,18 @@ interface StationGroupProps {
 const StationGroup: React.FC<StationGroupProps> = ({
   title, stations, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, color, isLocked
 }) => {
+  const sortedEmployeesForSelect = React.useMemo(() => {
+    const nonManagers = employees
+      .filter(e => e.role !== 'GERENTE')
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
+      
+    const managers = employees
+      .filter(e => e.role === 'GERENTE')
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
+      
+    return [...nonManagers, ...managers];
+  }, [employees]);
+
   const colorMap: Record<string, string> = {
     red: 'border-red-200/65 bg-red-50/15 shadow-[0_4px_20px_rgba(239,68,68,0.02)]',
     blue: 'border-blue-200/65 bg-blue-50/15 shadow-[0_4px_20px_rgba(59,130,246,0.02)]',
@@ -160,8 +172,8 @@ const StationGroup: React.FC<StationGroupProps> = ({
                                 if(e.target.value) onAssign(station.id, e.target.value);
                              }}
                         >
-                            <option value="">+ Escalar Staff</option>
-                            {employees
+                            <option value="">Nome</option>
+                            {sortedEmployeesForSelect
                                 .filter(e => !assignedIds.includes(e.id)) 
                                 .map(e => (
                                 <option key={e.id} value={e.id}>{e.name}</option>
@@ -177,7 +189,7 @@ const StationGroup: React.FC<StationGroupProps> = ({
                         }}
                      >
                         <option value="">🎓</option>
-                        {employees
+                        {sortedEmployeesForSelect
                             .filter(e => !assignedTraineeIds.includes(e.id))
                             .map(e => (
                             <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
@@ -611,7 +623,10 @@ export const Positioning: React.FC<PositioningProps> = ({
                       className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
                     >
                       <option value="">Selecione o Gerente...</option>
-                      {employees.filter(e => e.role === 'GERENTE').map(emp => (
+                      {employees
+                        .filter(e => e.role === 'GERENTE')
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
+                        .map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>
                       ))}
                     </select>

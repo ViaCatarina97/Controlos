@@ -45,6 +45,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [renderTrigger, setRenderTrigger] = useState(0);
+
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
+  }, [employees.length, renderTrigger]);
+
   // Station Modal State
   const [isStationModalOpen, setIsStationModalOpen] = useState(false);
   const [editingStation, setEditingStation] = useState<StationConfig | null>(null);
@@ -232,13 +238,23 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
               <button onClick={() => setEmployees(prev => [...prev, {id: crypto.randomUUID(), name: 'Novo Colaborador', role: 'FUNCIONÁRIO', isActive: true}])} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md">+ Adicionar</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {employees.map(emp => (
+              {sortedEmployees.map(emp => (
                 <div key={emp.id} className="bg-white p-4 rounded-2xl border border-gray-200 flex justify-between items-center hover:shadow-md transition-all group">
                    <div className="flex items-center gap-3">
                       <div className="p-2 bg-gray-50 rounded-xl text-gray-400"><Users size={24} /></div>
                       <div>
-                        <input value={emp.name} onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, name: e.target.value} : ev))} className="font-bold text-gray-800 bg-transparent border-none p-0 focus:ring-0 w-full" />
-                        <select value={emp.role} onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, role: e.target.value as RoleType} : ev))} className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border bg-transparent mt-1 ${ROLE_COLORS[emp.role]}`}>
+                        <input 
+                          value={emp.name} 
+                          onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, name: e.target.value} : ev))} 
+                          onBlur={() => setRenderTrigger(prev => prev + 1)}
+                          className="font-bold text-gray-800 bg-transparent border-none p-0 focus:ring-0 w-full" 
+                        />
+                        <select 
+                          value={emp.role} 
+                          onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, role: e.target.value as RoleType} : ev))} 
+                          onBlur={() => setRenderTrigger(prev => prev + 1)}
+                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border bg-transparent mt-1 ${ROLE_COLORS[emp.role]}`}
+                        >
                           {Object.entries(ROLE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                         </select>
                       </div>
