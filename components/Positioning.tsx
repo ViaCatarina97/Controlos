@@ -284,26 +284,28 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     );
 };
 
-const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = ""): boolean => {
+const matchSingle = (rowLabel: string, targetStr: string): boolean => {
+  if (!targetStr) return false;
+
   const getDigits = (str: string): string | null => {
     const match = str.match(/\d+/);
     return match ? match[0] : null;
   };
 
   const rDigit = getDigits(rowLabel);
-  const sDigit = getDigits(sLabel) || getDigits(sDesig);
+  const tDigit = getDigits(targetStr);
 
   // Se ambas as partes têm números definidos, estes têm de coincidir exatamente
-  if (rDigit !== null && sDigit !== null) {
-    if (rDigit !== sDigit) return false;
+  if (rDigit !== null && tDigit !== null) {
+    if (rDigit !== tDigit) return false;
   }
   // Se o utilizador escreveu um posto sem número (por exemplo, "Bebidas" ou "Apresentador"),
-  // isto deve por padrão assumir e corresponder ao posto "1" (nunca ao "2" ou "3").
-  else if (rDigit === null && sDigit !== null) {
-    if (sDigit !== "1") return false;
+  // isto deve por padrão assumir e corresponder ao posto "1".
+  else if (rDigit === null && tDigit !== null) {
+    if (tDigit !== "1") return false;
   }
   // Se o utilizador especificou "Bebidas 1" mas a estação ativa não tem nenhum número (ex: "Bebidas" genérico)
-  else if (rDigit !== null && sDigit === null) {
+  else if (rDigit !== null && tDigit === null) {
     if (rDigit !== "1") return false;
   }
 
@@ -319,30 +321,31 @@ const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = "
   };
 
   const rText = cleanTextOnly(rowLabel);
-  const sText1 = cleanTextOnly(sLabel);
-  const sText2 = cleanTextOnly(sDesig);
+  const tText = cleanTextOnly(targetStr);
 
-  // 1. Coincidência direta completa ou substring direta
-  if (rText === sText1 || rText === sText2) return true;
-  if (sText1.includes(rText) || rText.includes(sText1)) return true;
-  if (sText2 && (sText2.includes(rText) || rText.includes(sText2))) return true;
+  // 1. Coincidência direta completa
+  if (rText === tText) return true;
+  
+  // Para substring, vamos garantir que a correspondência de palavras é robusta
+  if (rText.length > 2 && tText.length > 2) {
+    if (rText.includes(tText) || tText.includes(rText)) {
+      // Mas evitamos "bat" substring de "batch cooker"
+      if (rText === "batch cooker" && tText === "bat") return false;
+      if (tText === "batch cooker" && rText === "bat") return false;
+      return true;
+    }
+  }
 
   // 2. Tokenização inteligente por palavras-chave com mapeamento de abreviaturas/variantes comuns em português
   const rTokens = rText.split(/[\s_\-\/]+/).filter(t => t.length > 1);
-  const sTokens = [...new Set([...sText1.split(/[\s_\-\/]+/), ...sText2.split(/[\s_\-\/]+/)])].filter(t => t.length > 1);
+  const tTokens = tText.split(/[\s_\-\/]+/).filter(t => t.length > 1);
 
   const abbreviations: Record<string, string[]> = {
     "bc": ["batch", "cooker"],
-    "batch": ["bc"],
-    "cooker": ["bc"],
-    "exp": ["expedidor", "expedicao"],
-    "expedidor": ["exp", "expedicao"],
-    "ini": ["iniciador", "inicio"],
-    "iniciador": ["ini", "inicio"],
-    "beb": ["bebidas", "beverage"],
-    "bebidas": ["beb", "beverage"],
-    "cx": ["caixa", "counter"],
-    "caixa": ["cx", "counter"],
+    "batch": ["bc", "batch", "cooker"],
+    "cooker": ["bc", "batch", "cooker"],
+    "ini": ["iniciador"],
+    "iniciador": ["ini"],
     "fin": ["finalizador"],
     "finalizador": ["fin"],
     "apr": ["apresentador", "apresentadora"],
@@ -353,31 +356,37 @@ const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = "
     "preparador": ["prep", "preparacao"],
     "del": ["delivery", "prep", "preparador"],
     "delivery": ["del"],
-    "sal": ["salao", "sala", "lobby"],
-    "salao": ["sal", "lobby"],
-    "sala": ["sal", "lobby"]
-  };
-
-  const tokensMatch = (t1: string, t2: string) => {
-    if (t1 === t2) return true;
-    if (t1.includes(t2) || t2.includes(t1)) return true;
-    if (abbreviations[t1] && abbreviations[t1].some(alias => alias === t2 || alias.includes(t2) || t2.includes(alias))) return true;
-    if (abbreviations[t2] && abbreviations[t2].some(alias => alias === t1 || alias.includes(t1) || t1.includes(alias))) return true;
-    return false;
+    "cax": ["caixa"],
+    "caixa": ["cax"],
+    "bev": ["bebidas", "beverage"],
+    "bebidas": ["bev", "beverage"],
   };
 
   // Excluímos conectores semânticos ou fluffs
   const fluffWords = ["de", "da", "do", "em", "para", "o", "a", "os", "as", "um", "uma", "com", "sem", "interno", "externo"];
   const rCleanTokens = rTokens.filter(t => !fluffWords.includes(t));
-  const sCleanTokens = sTokens.filter(t => !fluffWords.includes(t));
+  const tCleanTokens = tTokens.filter(t => !fluffWords.includes(t));
 
   for (const rt of rCleanTokens) {
-    for (const st of sCleanTokens) {
-      if (tokensMatch(rt, st)) return true;
+    for (const tt of tCleanTokens) {
+      if (rt === tt) return true;
+      if (abbreviations[rt] && abbreviations[rt].includes(tt)) return true;
+      if (abbreviations[tt] && abbreviations[tt].includes(rt)) return true;
     }
   }
 
   return false;
+};
+
+const stationLabelsMatchSelective = (rowLabel: string, sLabel: string, sDesig: string, useOnlyLabel: boolean): boolean => {
+  if (useOnlyLabel) {
+    return matchSingle(rowLabel, sLabel);
+  }
+  return matchSingle(rowLabel, sLabel) || matchSingle(rowLabel, sDesig);
+};
+
+const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = ""): boolean => {
+  return stationLabelsMatchSelective(rowLabel, sLabel, sDesig, false);
 };
 
 interface PositioningProps {
@@ -483,10 +492,18 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
 
     const getStationOpeningIndex = (station: StationConfig) => {
-      const idx = sortedStaffingTable.findIndex(row => 
-        stationLabelsMatch(row.stationLabel, station.label, station.designation || "")
+      // Tentar correspondência exata de label primeiro para evitar indexação por desig errada
+      let idx = sortedStaffingTable.findIndex(row => 
+        stationLabelsMatchSelective(row.stationLabel, station.label, station.designation || "", true)
       );
       if (idx !== -1) return idx;
+
+      // Fallback para desig
+      idx = sortedStaffingTable.findIndex(row => 
+        stationLabelsMatchSelective(row.stationLabel, station.label, station.designation || "", false)
+      );
+      if (idx !== -1) return idx;
+
       const originalIdx = allStations.findIndex(x => x.id === station.id);
       return 1000 + (originalIdx !== -1 ? originalIdx : 0);
     };
@@ -513,19 +530,31 @@ export const Positioning: React.FC<PositioningProps> = ({
     const relevantRows = finalMatchIdx !== -1 ? sortedStaffingTable.slice(0, finalMatchIdx + 1) : [];
     
     for (const row of relevantRows) {
-        // Encontrar uma estação ativa que corresponda à stationLabel que ainda NÃO tenha sido escolhida (para garantir atribuição 1-para-1 realista)
-        const matchedStation = activeStations.find(s => 
-            !chosenIds.has(s.id) && stationLabelsMatch(row.stationLabel, s.label, s.designation)
+        // PASS 1: Tentar corresponder APENAS pelo label principal da estação (muito mais específico e autoritário)
+        let matchedStation = activeStations.find(s => 
+            !chosenIds.has(s.id) && stationLabelsMatchSelective(row.stationLabel, s.label, s.designation || "", true)
         );
+        
+        // PASS 2: Se não encontrar pelo label, tenta encontrar usando também a desig
+        if (!matchedStation) {
+            matchedStation = activeStations.find(s => 
+                !chosenIds.has(s.id) && stationLabelsMatchSelective(row.stationLabel, s.label, s.designation || "", false)
+            );
+        }
         
         if (matchedStation) {
             chosenIds.add(matchedStation.id);
         } else {
             // Caso todas as instâncias daquela estação já estejam ocupadas mas precisamos abrir uma (ex: se o usuário colocou o mesmo nome várias vezes),
             // tentamos encontrar mesmo sem a restrição de "já escolhida", ou apenas mantemos a melhor correspondência possível.
-            const looseMatch = activeStations.find(s => 
-                stationLabelsMatch(row.stationLabel, s.label, s.designation)
+            let looseMatch = activeStations.find(s => 
+                stationLabelsMatchSelective(row.stationLabel, s.label, s.designation || "", true)
             );
+            if (!looseMatch) {
+                looseMatch = activeStations.find(s => 
+                    stationLabelsMatchSelective(row.stationLabel, s.label, s.designation || "", false)
+                );
+            }
             if (looseMatch) {
                 chosenIds.add(looseMatch.id);
             }
