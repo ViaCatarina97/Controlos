@@ -340,9 +340,10 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const getRequiredStaff = (sales: number): { count: number; label: string } => {
     if (!staffingTable || staffingTable.length === 0) return { count: 0, label: 'N/A' };
-    const match = staffingTable.find(row => sales >= row.minSales && sales <= row.maxSales);
+    const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
+    const match = sorted.find(row => sales >= row.minSales && sales <= row.maxSales);
     if (match) return { count: match.staffCount, label: match.stationLabel };
-    const lastRow = staffingTable[staffingTable.length - 1];
+    const lastRow = sorted[sorted.length - 1];
     if (sales > lastRow.maxSales) return { count: lastRow.staffCount, label: lastRow.stationLabel };
     return { count: 0, label: '0' };
   };
@@ -388,69 +389,103 @@ export const Positioning: React.FC<PositioningProps> = ({
     const chosenIds = new Set<string>();
     
     // 1. Procurar correspondência de cada linha relevante da staffingTable (ordenada por intervalos crescentes) nas estações ativas.
-    // Pegamos as primeiras N linhas da tabela de staffing, pois elas determinam a ordem de abertura dos postos.
+    // Filtramos apenas as linhas cujo staffCount é menor ou igual ao número total de colaboradores necessários.
     const sortedTable = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
-    const relevantRows = sortedTable.slice(0, stationsNeeded);
+    const relevantRows = sortedTable.filter(row => row.staffCount <= stationsNeeded);
+
+    const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = ""): boolean => {
+      const clean = (str: string) => {
+        return str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "") // remove accents
+          .toLowerCase()
+          .trim();
+      };
+
+      const r = clean(rowLabel);
+      const s1 = clean(sLabel);
+      const s2 = clean(sDesig);
+
+      // 1. Coincidência direta completa ou substring direta
+      if (r === s1 || r === s2) return true;
+      if (s1.includes(r) || r.includes(s1)) return true;
+      if (s2 && (s2.includes(r) || r.includes(s2))) return true;
+
+      // 2. Extrair números das duas strings e garantir que coincidem exatamente
+      const getNums = (str: string) => {
+        const matches = str.match(/\d+/g);
+        return matches ? matches : [];
+      };
+      
+      const rNums = getNums(r);
+      const sNums = [...new Set([...getNums(s1), ...getNums(s2)])];
+
+      // Se ambas as partes têm números e não há interseção, não deve corresponder (ex: Apresentador 1 vs Apresentador 2)
+      if (rNums.length > 0 && sNums.length > 0) {
+        const hasCommonNumber = rNums.some(n => sNums.includes(n));
+        if (!hasCommonNumber) return false;
+      }
+
+      // 3. Tokenização inteligente por palavras-chave com mapeamento de abreviaturas/variantes comuns em português
+      const rTokens = r.split(/[\s_\-\/]+/).filter(t => t.length > 1);
+      const sTokens = [...new Set([...s1.split(/[\s_\-\/]+/), ...s2.split(/[\s_\-\/]+/)])].filter(t => t.length > 1);
+
+      const abbreviations: Record<string, string[]> = {
+        "bc": ["batch", "cooker"],
+        "batch": ["bc"],
+        "cooker": ["bc"],
+        "exp": ["expedidor", "expedicao"],
+        "expedidor": ["exp", "expedicao"],
+        "ini": ["iniciador", "inicio"],
+        "iniciador": ["ini", "inicio"],
+        "beb": ["bebidas", "beverage"],
+        "bebidas": ["beb", "beverage"],
+        "cx": ["caixa", "counter"],
+        "caixa": ["cx", "counter"],
+        "fin": ["finalizador"],
+        "finalizador": ["fin"],
+        "apr": ["apresentador", "apresentadora"],
+        "apresentador": ["apr", "apresentadora"],
+        "bat": ["batata", "batatas", "fries"],
+        "batata": ["bat", "fries"],
+        "prep": ["preparador", "preparacao", "prep"],
+        "preparador": ["prep", "preparacao"],
+        "del": ["delivery", "prep", "preparador"],
+        "delivery": ["del"],
+        "sal": ["salao", "sala", "lobby"],
+        "salao": ["sal", "lobby"],
+        "sala": ["sal", "lobby"]
+      };
+
+      const tokensMatch = (t1: string, t2: string) => {
+        if (t1 === t2) return true;
+        if (t1.includes(t2) || t2.includes(t1)) return true;
+        if (abbreviations[t1] && abbreviations[t1].some(alias => alias === t2 || alias.includes(t2) || t2.includes(alias))) return true;
+        if (abbreviations[t2] && abbreviations[t2].some(alias => alias === t1 || alias.includes(t1) || t1.includes(alias))) return true;
+        return false;
+      };
+
+      // Excluímos conectores semânticos ou fluffs
+      const fluffWords = ["de", "da", "do", "em", "para", "o", "a", "os", "as", "um", "uma", "com", "sem", "interno", "externo"];
+      const rCleanTokens = rTokens.filter(t => !fluffWords.includes(t) && isNaN(Number(t)));
+      const sCleanTokens = sTokens.filter(t => !fluffWords.includes(t) && isNaN(Number(t)));
+
+      for (const rt of rCleanTokens) {
+        for (const st of sCleanTokens) {
+          if (tokensMatch(rt, st)) return true;
+        }
+      }
+
+      return false;
+    };
     
     for (const row of relevantRows) {
         if (chosenIds.size >= stationsNeeded) break;
         
         // Procurar estação ativa que corresponda à stationLabel da linha de forma ultra-robusta e flexível
-        const matchedStation = activeStations.find(s => {
-            const labelNorm = s.label.toLowerCase().trim();
-            const desigNorm = (s.designation || "").toLowerCase().trim();
-            const rowLabelNorm = row.stationLabel.toLowerCase().trim();
-            
-            // 1. Correspondência exata
-            if (labelNorm === rowLabelNorm || desigNorm === rowLabelNorm) return true;
-            
-            // 2. Normalização de acentos
-            const stripAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const s1 = stripAccents(labelNorm);
-            const s2 = stripAccents(desigNorm);
-            const r = stripAccents(rowLabelNorm);
-            
-            if (s1 === r || s2 === r) return true;
-            if (s1.includes(r) || r.includes(s1)) return true;
-            if (s2 && (s2.includes(r) || r.includes(s2))) return true;
-            
-            // 3. Verificação de termos lógicos e abreviaturas comuns
-            const checkFuzzy = (term1: string, term2: string) => {
-              const pairs = [
-                ["batch cooker", "bc"],
-                ["expedidor", "exp"],
-                ["iniciador", "ini"],
-                ["bebidas", "beb"],
-                ["caixa", "cx"],
-                ["finalizador", "fin"],
-                ["apresentador", "apr"],
-                ["batata", "bat"],
-                ["preparador", "prep"],
-                ["delivery", "del"],
-                ["salao", "sala"]
-              ];
-              for (const [w1, w2] of pairs) {
-                if ((term1.includes(w1) && term2.includes(w2)) || (term1.includes(w2) && term2.includes(w1))) {
-                  return true;
-                }
-              }
-              return false;
-            };
-            
-            // Evitar conflitos numéricos (ex: Batch Cooker 1 vs Batch Cooker 2)
-            const getNum = (s: string) => {
-              const m = s.match(/\d+/);
-              return m ? m[0] : null;
-            };
-            
-            const numS = getNum(s1) || getNum(s2);
-            const numR = getNum(r);
-            if (numS && numR && numS !== numR) return false;
-            
-            if (checkFuzzy(r, s1) || checkFuzzy(r, s2)) return true;
-            
-            return false;
-        });
+        const matchedStation = activeStations.find(s => 
+            stationLabelsMatch(row.stationLabel, s.label, s.designation)
+        );
         
         if (matchedStation) {
             chosenIds.add(matchedStation.id);
