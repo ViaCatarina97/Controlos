@@ -284,6 +284,102 @@ const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
     );
 };
 
+const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = ""): boolean => {
+  const getDigits = (str: string): string | null => {
+    const match = str.match(/\d+/);
+    return match ? match[0] : null;
+  };
+
+  const rDigit = getDigits(rowLabel);
+  const sDigit = getDigits(sLabel) || getDigits(sDesig);
+
+  // Se ambas as partes têm números definidos, estes têm de coincidir exatamente
+  if (rDigit !== null && sDigit !== null) {
+    if (rDigit !== sDigit) return false;
+  }
+  // Se o utilizador escreveu um posto sem número (por exemplo, "Bebidas" ou "Apresentador"),
+  // isto deve por padrão assumir e corresponder ao posto "1" (nunca ao "2" ou "3").
+  else if (rDigit === null && sDigit !== null) {
+    if (sDigit !== "1") return false;
+  }
+  // Se o utilizador especificou "Bebidas 1" mas a estação ativa não tem nenhum número (ex: "Bebidas" genérico)
+  else if (rDigit !== null && sDigit === null) {
+    if (rDigit !== "1") return false;
+  }
+
+  // Agora comparamos os textos sem os números
+  const cleanTextOnly = (str: string) => {
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/\d+/g, "") // remove digits
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " "); // collapse spaces
+  };
+
+  const rText = cleanTextOnly(rowLabel);
+  const sText1 = cleanTextOnly(sLabel);
+  const sText2 = cleanTextOnly(sDesig);
+
+  // 1. Coincidência direta completa ou substring direta
+  if (rText === sText1 || rText === sText2) return true;
+  if (sText1.includes(rText) || rText.includes(sText1)) return true;
+  if (sText2 && (sText2.includes(rText) || rText.includes(sText2))) return true;
+
+  // 2. Tokenização inteligente por palavras-chave com mapeamento de abreviaturas/variantes comuns em português
+  const rTokens = rText.split(/[\s_\-\/]+/).filter(t => t.length > 1);
+  const sTokens = [...new Set([...sText1.split(/[\s_\-\/]+/), ...sText2.split(/[\s_\-\/]+/)])].filter(t => t.length > 1);
+
+  const abbreviations: Record<string, string[]> = {
+    "bc": ["batch", "cooker"],
+    "batch": ["bc"],
+    "cooker": ["bc"],
+    "exp": ["expedidor", "expedicao"],
+    "expedidor": ["exp", "expedicao"],
+    "ini": ["iniciador", "inicio"],
+    "iniciador": ["ini", "inicio"],
+    "beb": ["bebidas", "beverage"],
+    "bebidas": ["beb", "beverage"],
+    "cx": ["caixa", "counter"],
+    "caixa": ["cx", "counter"],
+    "fin": ["finalizador"],
+    "finalizador": ["fin"],
+    "apr": ["apresentador", "apresentadora"],
+    "apresentador": ["apr", "apresentadora"],
+    "bat": ["batata", "batatas", "fries"],
+    "batata": ["bat", "fries"],
+    "prep": ["preparador", "preparacao"],
+    "preparador": ["prep", "preparacao"],
+    "del": ["delivery", "prep", "preparador"],
+    "delivery": ["del"],
+    "sal": ["salao", "sala", "lobby"],
+    "salao": ["sal", "lobby"],
+    "sala": ["sal", "lobby"]
+  };
+
+  const tokensMatch = (t1: string, t2: string) => {
+    if (t1 === t2) return true;
+    if (t1.includes(t2) || t2.includes(t1)) return true;
+    if (abbreviations[t1] && abbreviations[t1].some(alias => alias === t2 || alias.includes(t2) || t2.includes(alias))) return true;
+    if (abbreviations[t2] && abbreviations[t2].some(alias => alias === t1 || alias.includes(t1) || t1.includes(alias))) return true;
+    return false;
+  };
+
+  // Excluímos conectores semânticos ou fluffs
+  const fluffWords = ["de", "da", "do", "em", "para", "o", "a", "os", "as", "um", "uma", "com", "sem", "interno", "externo"];
+  const rCleanTokens = rTokens.filter(t => !fluffWords.includes(t));
+  const sCleanTokens = sTokens.filter(t => !fluffWords.includes(t));
+
+  for (const rt of rCleanTokens) {
+    for (const st of sCleanTokens) {
+      if (tokensMatch(rt, st)) return true;
+    }
+  }
+
+  return false;
+};
+
 interface PositioningProps {
   date: string; setDate: (date: string) => void; projectedSales: number; employees: Employee[]; staffingTable: StaffingTableEntry[];
   schedule: DailySchedule; setSchedule: (s: DailySchedule) => void; settings: AppSettings; hourlyData?: HourlyProjection[]; onSaveSchedule: (schedule: DailySchedule) => void;
@@ -372,137 +468,72 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const allStations = useMemo(() => settings.customStations || STATIONS, [settings.customStations]);
 
+  const sortedStaffingTable = useMemo(() => {
+    return [...staffingTable].sort((a, b) => a.minSales - b.minSales);
+  }, [staffingTable]);
+
   const activeStations = useMemo(() => {
     const activeBusinessAreas = settings.businessAreas || [];
-    return allStations.filter(s => {
+    const filtered = allStations.filter(s => {
         if (!s.isActive) return false;
         if (s.area === 'drive' && !activeBusinessAreas.includes('Drive')) return false;
         if (s.area === 'mccafe' && !activeBusinessAreas.includes('McCafé')) return false;
         if (s.area === 'delivery' && !activeBusinessAreas.includes('Delivery')) return false;
         return true;
     });
-  }, [allStations, settings.businessAreas]);
+
+    const getStationOpeningIndex = (station: StationConfig) => {
+      const idx = sortedStaffingTable.findIndex(row => 
+        stationLabelsMatch(row.stationLabel, station.label, station.designation || "")
+      );
+      if (idx !== -1) return idx;
+      const originalIdx = allStations.findIndex(x => x.id === station.id);
+      return 1000 + (originalIdx !== -1 ? originalIdx : 0);
+    };
+
+    return filtered.sort((a, b) => getStationOpeningIndex(a) - getStationOpeningIndex(b));
+  }, [allStations, settings.businessAreas, sortedStaffingTable]);
 
   const recommendedStationIds = useMemo(() => {
-    // Se a tabela diz que precisamos de N pessoas, mostramos exatamente N postos.
-    const stationsNeeded = Math.max(0, requirement.count);
     const chosenIds = new Set<string>();
     
-    // 1. Procurar correspondência de cada linha relevante da staffingTable (ordenada por intervalos crescentes) nas estações ativas.
-    // Filtramos apenas as linhas cujo staffCount é menor ou igual ao número total de colaboradores necessários.
-    const sortedTable = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
-    const relevantRows = sortedTable.filter(row => row.staffCount <= stationsNeeded);
-
-    const stationLabelsMatch = (rowLabel: string, sLabel: string, sDesig: string = ""): boolean => {
-      const clean = (str: string) => {
-        return str
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "") // remove accents
-          .toLowerCase()
-          .trim();
-      };
-
-      const r = clean(rowLabel);
-      const s1 = clean(sLabel);
-      const s2 = clean(sDesig);
-
-      // 1. Coincidência direta completa ou substring direta
-      if (r === s1 || r === s2) return true;
-      if (s1.includes(r) || r.includes(s1)) return true;
-      if (s2 && (s2.includes(r) || r.includes(s2))) return true;
-
-      // 2. Extrair números das duas strings e garantir que coincidem exatamente
-      const getNums = (str: string) => {
-        const matches = str.match(/\d+/g);
-        return matches ? matches : [];
-      };
-      
-      const rNums = getNums(r);
-      const sNums = [...new Set([...getNums(s1), ...getNums(s2)])];
-
-      // Se ambas as partes têm números e não há interseção, não deve corresponder (ex: Apresentador 1 vs Apresentador 2)
-      if (rNums.length > 0 && sNums.length > 0) {
-        const hasCommonNumber = rNums.some(n => sNums.includes(n));
-        if (!hasCommonNumber) return false;
+    // 1. Descobrir em que intervalo de vendas se encaixa a previsão de vendas atual
+    const sales = activeSalesData.totalSales;
+    const matchIdx = sortedStaffingTable.findIndex(row => sales >= row.minSales && sales <= row.maxSales);
+    
+    let finalMatchIdx = matchIdx;
+    if (finalMatchIdx === -1 && sortedStaffingTable.length > 0) {
+      const lastRow = sortedStaffingTable[sortedStaffingTable.length - 1];
+      if (sales > lastRow.maxSales) {
+        finalMatchIdx = sortedStaffingTable.length - 1;
       }
-
-      // 3. Tokenização inteligente por palavras-chave com mapeamento de abreviaturas/variantes comuns em português
-      const rTokens = r.split(/[\s_\-\/]+/).filter(t => t.length > 1);
-      const sTokens = [...new Set([...s1.split(/[\s_\-\/]+/), ...s2.split(/[\s_\-\/]+/)])].filter(t => t.length > 1);
-
-      const abbreviations: Record<string, string[]> = {
-        "bc": ["batch", "cooker"],
-        "batch": ["bc"],
-        "cooker": ["bc"],
-        "exp": ["expedidor", "expedicao"],
-        "expedidor": ["exp", "expedicao"],
-        "ini": ["iniciador", "inicio"],
-        "iniciador": ["ini", "inicio"],
-        "beb": ["bebidas", "beverage"],
-        "bebidas": ["beb", "beverage"],
-        "cx": ["caixa", "counter"],
-        "caixa": ["cx", "counter"],
-        "fin": ["finalizador"],
-        "finalizador": ["fin"],
-        "apr": ["apresentador", "apresentadora"],
-        "apresentador": ["apr", "apresentadora"],
-        "bat": ["batata", "batatas", "fries"],
-        "batata": ["bat", "fries"],
-        "prep": ["preparador", "preparacao", "prep"],
-        "preparador": ["prep", "preparacao"],
-        "del": ["delivery", "prep", "preparador"],
-        "delivery": ["del"],
-        "sal": ["salao", "sala", "lobby"],
-        "salao": ["sal", "lobby"],
-        "sala": ["sal", "lobby"]
-      };
-
-      const tokensMatch = (t1: string, t2: string) => {
-        if (t1 === t2) return true;
-        if (t1.includes(t2) || t2.includes(t1)) return true;
-        if (abbreviations[t1] && abbreviations[t1].some(alias => alias === t2 || alias.includes(t2) || t2.includes(alias))) return true;
-        if (abbreviations[t2] && abbreviations[t2].some(alias => alias === t1 || alias.includes(t1) || t1.includes(alias))) return true;
-        return false;
-      };
-
-      // Excluímos conectores semânticos ou fluffs
-      const fluffWords = ["de", "da", "do", "em", "para", "o", "a", "os", "as", "um", "uma", "com", "sem", "interno", "externo"];
-      const rCleanTokens = rTokens.filter(t => !fluffWords.includes(t) && isNaN(Number(t)));
-      const sCleanTokens = sTokens.filter(t => !fluffWords.includes(t) && isNaN(Number(t)));
-
-      for (const rt of rCleanTokens) {
-        for (const st of sCleanTokens) {
-          if (tokensMatch(rt, st)) return true;
-        }
-      }
-
-      return false;
-    };
+    }
+    
+    // 2. Os postos a abrir são os que estão na coluna da descrição (stationLabel) desde o início (índice 0) até à linha do intervalo de vendas (inclusive)
+    const relevantRows = finalMatchIdx !== -1 ? sortedStaffingTable.slice(0, finalMatchIdx + 1) : [];
     
     for (const row of relevantRows) {
-        if (chosenIds.size >= stationsNeeded) break;
-        
-        // Procurar estação ativa que corresponda à stationLabel da linha de forma ultra-robusta e flexível
+        // Encontrar uma estação ativa que corresponda à stationLabel que ainda NÃO tenha sido escolhida (para garantir atribuição 1-para-1 realista)
         const matchedStation = activeStations.find(s => 
-            stationLabelsMatch(row.stationLabel, s.label, s.designation)
+            !chosenIds.has(s.id) && stationLabelsMatch(row.stationLabel, s.label, s.designation)
         );
         
         if (matchedStation) {
             chosenIds.add(matchedStation.id);
-        }
-    }
-    
-    // 2. Se as linhas da staffingTable não foram suficientes para preencher as vagas necessárias,
-    // preenchemos com as restantes estações ativas (na prioridade de visualização de cada área)
-    if (chosenIds.size < stationsNeeded) {
-        for (const s of activeStations) {
-            if (chosenIds.size >= stationsNeeded) break;
-            chosenIds.add(s.id);
+        } else {
+            // Caso todas as instâncias daquela estação já estejam ocupadas mas precisamos abrir uma (ex: se o usuário colocou o mesmo nome várias vezes),
+            // tentamos encontrar mesmo sem a restrição de "já escolhida", ou apenas mantemos a melhor correspondência possível.
+            const looseMatch = activeStations.find(s => 
+                stationLabelsMatch(row.stationLabel, s.label, s.designation)
+            );
+            if (looseMatch) {
+                chosenIds.add(looseMatch.id);
+            }
         }
     }
     
     return chosenIds;
-  }, [staffingTable, requirement.count, activeStations]);
+  }, [sortedStaffingTable, activeSalesData.totalSales, activeStations]);
 
   const handleManagerChange = (empId: string) => {
       if (isShiftLocked) return;
