@@ -242,7 +242,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           // @ts-ignore
           if (window.aistudio) await window.aistudio.openSelectKey();
       } else {
-          alert("Erro ao processar PDF. Verifique se o ficheiro é uma fatura HAVI válida.");
+          alert(`Erro ao processar PDF: ${err.message || err}\n\nVerifique se o ficheiro é uma fatura HAVI válida e se a sua chave API do Gemini está devidamente configurada.`);
       }
     } finally {
       setIsProcessingPdf(false);
