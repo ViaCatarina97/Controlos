@@ -47,6 +47,56 @@ function cleanGroupName(name: string): string {
   return name.replace(/^[\d\s.\-_/\\]+/, '').trim();
 }
 
+/**
+ * Handles calling Gemini with exponential backoff retry on transient/capacity errors,
+ * and falls back across robust model alternatives: gemini-3.5-flash, gemini-flash-latest, and gemini-3.1-flash-lite.
+ */
+async function generateContentWithFallbackAndRetry(ai: any, params: any) {
+  const modelsToTry = [params.model, 'gemini-flash-latest', 'gemini-3.1-flash-lite'].filter(Boolean);
+  let lastError: any = null;
+
+  for (const modelName of modelsToTry) {
+    let attempt = 0;
+    const maxAttempts = 3;
+    const initialDelay = 1500;
+
+    console.log(`[Gemini API] Trying model: ${modelName}`);
+    while (attempt < maxAttempts) {
+      try {
+        attempt++;
+        const response = await ai.models.generateContent({
+          ...params,
+          model: modelName
+        });
+        return response; // Success!
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err?.message || String(err);
+        console.warn(`[Gemini API] Attempt ${attempt} with model ${modelName} failed. Error:`, errMsg);
+
+        const isRetryable = 
+          errMsg.includes("503") || 
+          errMsg.includes("demand") || 
+          errMsg.includes("UNAVAILABLE") || 
+          errMsg.includes("rate limit") || 
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("overloaded");
+
+        if (isRetryable && attempt < maxAttempts) {
+          const delay = initialDelay * Math.pow(2, attempt - 1);
+          console.log(`[Gemini API] Retrying model ${modelName} in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          // Break retry loop of current model to try next fallback model
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -116,8 +166,8 @@ async function startServer() {
         Retorne valores numéricos como string contendo o número formatado tal como se encontra na fatura.
       `;
 
-      console.log("[Invoice API] Sending request to Gemini with model gemini-3.5-flash...");
-      const response = await ai.models.generateContent({
+      console.log("[Invoice API] Sending request to Gemini (with fallback and retry)...");
+      const response = await generateContentWithFallbackAndRetry(ai, {
         model: 'gemini-3.5-flash',
         contents: [
           {
@@ -184,6 +234,208 @@ async function startServer() {
     } catch (error: any) {
       console.error("[Invoice API] Server Invoice Processing Error detailed:", error);
       res.status(500).json({ error: error.message || "Failed to process PDF" });
+    }
+  });
+
+  // API route for extracting delivery PDF totals for MyStore
+  app.post("/api/process-delivery", async (req, res) => {
+    try {
+      const { fileBase64, mimeType } = req.body;
+      if (!fileBase64) {
+        console.error("[Delivery API] Error: Missing file base64 data");
+        return res.status(400).json({ error: "Missing file base64 data" });
+      }
+
+      console.log(`[Delivery API] Processing delivery PDF. base64 size: ${fileBase64.length} bytes, mimeType: ${mimeType}`);
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+        console.error("[Delivery API] Error: API Key not configured (process.env.GEMINI_API_KEY/API_KEY is empty)");
+        return res.status(401).json({ error: "AUTH_REQUIRED" });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const prompt = `
+        Você é um assistente especializado em conferência de documentos de entrega McDonald's Portugal ("Entrega" ou "Entrega Não Planificada").
+        Analise todo o documento PDF e localize a tabela de totais por categoria de custos ou as linhas de totais por área/grupo de mercadorias, normalmente localizadas no final do documento (muitas vezes na página 4 ou rodapé, após a linha "VALOR TOTAL" ou na tabela de distribuição).
+        As categorias comumente encontradas são: "COMIDA", "PAPEL", "OPS" (ou "OPERACIONAIS"), "OUTROS" ou "HAPPY MEAL", "MATERIAL ADM".
+
+        Você deve mapear esses valores para as seguintes categorias padrão de custos/tabela MyStore:
+        - 'Comida' (representa COMIDA ou alimentos)
+        - 'Papel' (representa PAPEL ou embalagens)
+        - 'F. Operacionais' (representa OPS, fungíveis operacionais ou despesas de funcionamento)
+        - 'Material Adm' (representa MATERIAL ADM ou administrativo)
+        - 'Happy Meal' (representa HAPPY MEAL)
+        - 'Outros' (representa OUTROS ou de preferência qualquer outra categoria que não caiba nas anteriores)
+
+        Para cada categoria padrão encontrada ou mapeada na folha de entrega, forneça o valor total decimal associado (ex: "8765,83" ou "8.765,83").
+        Extraia também o tipo de documento (ex: "Entrega" ou "Entrega Não Planificada") sob a chave "documentName" e a data de fecho ou entrega (ex: "14/05/2026") sob "date" (se encontrar no cabeçalho como "Data da Entrega:" ou similar).
+        
+        Por favor, retorne estritamente o formato JSON solicitado nas respostas, sem marcadores adicionais.
+      `;
+
+      console.log("[Delivery API] Sending request to Gemini (with fallback and retry)...");
+      const response = await generateContentWithFallbackAndRetry(ai, {
+        model: 'gemini-3.5-flash',
+        contents: [
+          {
+            inlineData: {
+              mimeType: mimeType || 'application/pdf',
+              data: fileBase64,
+            },
+          },
+          prompt
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              documentName: { type: Type.STRING },
+              date: { type: Type.STRING },
+              categories: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    categoryName: { type: Type.STRING },
+                    totalVal: { type: Type.STRING }
+                  },
+                  required: ["categoryName", "totalVal"]
+                }
+              }
+            },
+            required: ["documentName", "date", "categories"]
+          }
+        }
+      });
+
+      const textOutput = response.text;
+      console.log(`[Delivery API] Received raw text output from Gemini: ${textOutput?.substring(0, 1000)}...`);
+
+      if (!textOutput) {
+        throw new Error("No text output was returned by the Gemini API.");
+      }
+
+      const parsed = JSON.parse(textOutput.trim());
+      console.log("[Delivery API] Successfully parsed JSON from Gemini:", JSON.stringify(parsed, null, 2));
+
+      const mappedCategories = (parsed.categories || []).map((c: any) => ({
+        categoryName: c.categoryName,
+        totalVal: sanitizeHaviValue(c.totalVal)
+      }));
+
+      res.json({
+        documento: parsed.documentName || "Entrega",
+        data: parsed.date || "",
+        valores: mappedCategories
+      });
+
+    } catch (error: any) {
+      console.error("[Delivery API] Server Delivery Processing Error detailed:", error);
+      res.status(500).json({ error: error.message || "Failed to process PDF" });
+    }
+  });
+
+  // API route for extracting credit note details using Gemini
+  app.post("/api/process-credit-note", async (req, res) => {
+    try {
+      const { fileBase64, mimeType } = req.body;
+      if (!fileBase64) {
+        console.error("[Credit Note API] Error: Missing file base64 data");
+        return res.status(400).json({ error: "Missing file base64 data" });
+      }
+
+      console.log(`[Credit Note API] Processing. base64 size: ${fileBase64.length} bytes, mimeType: ${mimeType}`);
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+        console.error("[Credit Note API] Error: API Key not configured");
+        return res.status(401).json({ error: "AUTH_REQUIRED" });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const prompt = `
+        Você é um assistente especializado em faturas e notas de crédito da HAVI Logistics Portugal para os restaurantes McDonald's Portugal.
+        Analise a nota de crédito em anexo e extraia as seguintes informações:
+        
+        1. "No DOCUMENTO" / "Nº DOCUMENTO": geralmente no cabeçalho ou tabelas, ex: "ZG2 BW8X/7138467625".
+        2. "DATA DOCUMENTO": a data do documento ex: "22/05/2026". Retorne no formato AAAA-MM-DD (ISO).
+        3. "TOTAL POR GRUPO PRODUTO" ou "TOTAL POR IVA" ou seção semelhante:
+           - Procure o nome do grupo do produto ex: "4 SECOS PAPEL" ou "CONGELADOS". Mapeie ou limpe o nome do grupo do produto.
+           - Valor total correspondente a este grupo ou o valor total líquido, ex: "44,55" ou "44,55 EUR".
+        4. Artigo/Produto listado na descrição: ex: "CX CHK BM" ou "MOL BIG MAC".
+        5. Quantidade: ex: "1,000 BX1" -> extraia o valor "1" ou "1.0".
+
+        Por favor, retorne os dados no formato JSON solicitado.
+      `;
+
+      console.log("[Credit Note API] Sending request to Gemini (with fallback and retry)...");
+      const response = await generateContentWithFallbackAndRetry(ai, {
+        model: 'gemini-3.5-flash',
+        contents: [
+          {
+            inlineData: {
+              mimeType: mimeType || 'application/pdf',
+              data: fileBase64,
+            },
+          },
+          prompt
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              documentNumber: { type: Type.STRING },
+              date: { type: Type.STRING },
+              productGroup: { type: Type.STRING },
+              totalValue: { type: Type.STRING },
+              productName: { type: Type.STRING },
+              quantity: { type: Type.STRING }
+            },
+            required: ["documentNumber", "date", "productGroup", "totalValue", "productName", "quantity"]
+          }
+        }
+      });
+
+      const textOutput = response.text;
+      console.log(`[Credit Note API] Received raw text output from Gemini: ${textOutput?.substring(0, 1000)}...`);
+
+      if (!textOutput) {
+        throw new Error("No text output was returned by the Gemini API.");
+      }
+
+      const parsed = JSON.parse(textOutput.trim());
+      
+      res.json({
+        documentNumber: parsed.documentNumber || "",
+        date: parsed.date || "",
+        productGroup: parsed.productGroup || "",
+        totalValue: sanitizeHaviValue(parsed.totalValue),
+        productName: parsed.productName || "",
+        quantity: sanitizeHaviValue(parsed.quantity)
+      });
+
+    } catch (error: any) {
+      console.error("[Credit Note API] Error detailed:", error);
+      res.status(500).json({ error: error.message || "Failed to process Credit Note PDF" });
     }
   });
 

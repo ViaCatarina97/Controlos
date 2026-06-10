@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { DeliveryRecord, Employee, PriceDifferenceItem, MissingProduct } from '../types';
 import { ArrowLeft, Save, Printer, Plus, Trash2, CheckCircle2, UploadCloud, Calculator, Loader2, AlertCircle, Key } from 'lucide-react';
-import { processInvoicePdf } from '../services/geminiService';
+import { processInvoicePdf, processDeliveryPdf } from '../services/geminiService';
 
 interface BillingDeliveryDetailProps {
   record: DeliveryRecord;
@@ -25,11 +25,11 @@ const HAVI_GROUPS_LIST = [
   'Refrigerados',
   'Secos Comida',
   'Secos Papel',
-  'Manutenção Limpeza',
+  'Manutenção & Limpeza',
   'Marketing IPL',
   'Marketing Geral',
   'Produtos Frescos',
-  'Manutenção Limpeza Compras',
+  'Manutenção & Limpeza Compras',
   'Condimentos',
   'Condimentos Cozinha',
   'Material Adm',
@@ -59,8 +59,8 @@ const HAVI_MAPPING: Record<string, string> = {
   'BULK ALIMENTAR': 'Bulk Alimentar',
   'BULK PAPEL': 'Bulk Papel',
   'PRODUTOS FRESCOS': 'Produtos Frescos',
-  'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção Limpeza Compras',
-  'MANUTENÇÃO & LIMPEZA': 'Manutenção Limpeza',
+  'MANUTENÇÃO & LIMPEZA COMPRAS': 'Manutenção & Limpeza Compras',
+  'MANUTENÇÃO & LIMPEZA': 'Manutenção & Limpeza',
   'CONDIMENTOS': 'Condimentos',
   'CONDIMENTOS COZINHA': 'Condimentos Cozinha',
   'MATERIAL ADM': 'Material Adm',
@@ -86,7 +86,9 @@ const normalizeName = (name: string): string => {
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [isProcessingDelivery, setIsProcessingDelivery] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const deliveryInputRef = useRef<HTMLInputElement>(null);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
@@ -109,7 +111,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   const totalHaviGroups = useMemo(() => local.haviGroups.reduce((s, g) => s + g.total, 0), [local.haviGroups]);
-  const totalHaviFinal = totalHaviGroups + local.pontoVerde;
+  const totalHaviFinal = totalHaviGroups;
   const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
   
   const diffBySmsGroup = useMemo(() => {
@@ -217,14 +219,30 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                 const mappedName = HAVI_MAPPING[pdfName.toUpperCase().trim()] || pdfName;
                 const normMapped = normalizeName(mappedName);
 
-                return (
-                  normPdf === normInternal || 
-                  normMapped === normInternal || 
+                // 1. Exact match checking has priority
+                if (normPdf === normInternal || normMapped === normInternal) {
+                  return true;
+                }
+
+                // 2. Loose substring matching check
+                const isLoose = (
                   (normPdf.length > 2 && normInternal.includes(normPdf)) || 
                   (normInternal.length > 2 && normPdf.includes(normInternal)) ||
                   (normMapped.length > 2 && normInternal.includes(normMapped)) || 
                   (normInternal.length > 2 && normMapped.includes(normInternal))
                 );
+
+                if (isLoose) {
+                  // Guard against prefix conflict (e.g. "Manutenção & Limpeza" vs "Manutenção & Limpeza Compras")
+                  const forms = [normPdf, normMapped].filter(Boolean);
+                  const isPrefixConflict = forms.some(f => f.startsWith(normInternal) || normInternal.startsWith(f));
+                  if (isPrefixConflict) {
+                    return false;
+                  }
+                  return true;
+                }
+
+                return false;
             });
             return pdfMatch ? { ...internal, total: pdfMatch.valor_total } : internal;
           });
@@ -250,6 +268,64 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     }
   };
 
+  const handleLoadDelivery = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsProcessingDelivery(true);
+    try {
+      const accumulated: Record<string, number> = {};
+      const documentInfos: string[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const result = await processDeliveryPdf(file);
+        
+        if (result && result.valores) {
+          result.valores.forEach((v: any) => {
+            const cat = v.categoryName; 
+            const amt = v.totalVal || 0;
+            accumulated[cat] = (accumulated[cat] || 0) + amt;
+          });
+
+          const docName = result.documento || file.name;
+          documentInfos.push(`${docName} (${result.data || 'Sem Data'})`);
+        }
+      }
+
+      setLocal(prev => {
+        const updatedSmsValues = prev.smsValues.map(sms => {
+          const accVal = accumulated[sms.description];
+          if (accVal !== undefined) {
+            return {
+              ...sms,
+              amount: accVal
+            };
+          }
+          return sms;
+        });
+
+        const newCommentLine = `Importadas Entregas:\n${documentInfos.map(info => `- ${info}`).join('\n')}`;
+        return {
+          ...prev,
+          smsValues: updatedSmsValues,
+          comments: `${newCommentLine}\n${prev.comments}`
+        };
+      });
+
+    } catch (err: any) {
+      if (err.message === "AUTH_REQUIRED") {
+        // @ts-ignore
+        if (window.aistudio) await window.aistudio.openSelectKey();
+      } else {
+        alert(`Erro ao processar PDF(s) de Entrega: ${err.message || err}\n\nVerifique se os ficheiros são folhas de entrega válidas e se a sua chave API do Gemini está devidamente configurada.`);
+      }
+    } finally {
+      setIsProcessingDelivery(false);
+      if (deliveryInputRef.current) deliveryInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in print:p-0">
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center print:hidden">
@@ -258,9 +334,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </button>
         <div className="flex items-center gap-3">
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
-           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
+           <input type="file" ref={deliveryInputRef} onChange={handleLoadDelivery} accept=".pdf" multiple className="hidden" />
+           <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf || isProcessingDelivery} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
               {isProcessingPdf ? "A carregar..." : "Carregar Fatura"}
+           </button>
+           <button onClick={() => deliveryInputRef.current?.click()} disabled={isProcessingPdf || isProcessingDelivery} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 font-bold border border-emerald-200 transition-all disabled:opacity-50 shadow-sm">
+              {isProcessingDelivery ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
+              {isProcessingDelivery ? "A carregar..." : "Carregar Entrega"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
@@ -305,12 +386,6 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                     </div>
                  </div>
                ))}
-               <div className="grid grid-cols-12 gap-1 px-2 py-1 items-center bg-purple-50/30">
-                  <div className="col-span-9 text-[10px] font-black text-purple-800">Contribuição Ponto Verde</div>
-                  <div className="col-span-3">
-                    <input type="number" step="0.01" value={local.pontoVerde || ''} onChange={(e) => setLocal({...local, pontoVerde: parseFloat(e.target.value) || 0})} className="w-full text-right bg-white border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0 text-purple-800" placeholder="0,00" />
-                  </div>
-               </div>
                <div className="p-3 bg-purple-100/50 text-right font-black text-purple-900 text-lg border-t border-purple-500">
                   {formatEuro(totalHaviFinal)}
                </div>

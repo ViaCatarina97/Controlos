@@ -154,6 +154,13 @@ export interface CreditNoteRecord {
   value: number;
   reason: string;
   status: 'Pendente' | 'Recebido';
+  product?: string;
+  quantity?: number;
+  haviGroup?: string;
+  myStoreGroup?: string;
+  managerId?: string;
+  valueHavi?: number;
+  valueMyStore?: number;
 }
 
 // --- Operational Summary Types ---

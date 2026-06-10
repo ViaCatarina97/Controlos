@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee } from '../types';
 import { BillingDeliveryDetail } from './BillingDeliveryDetail';
 import { BillingSummary } from './BillingSummary';
+import { BillingCreditsTab } from './BillingCreditsTab';
 import { 
   getDeliveries, saveDeliveryDoc, deleteDeliveryDoc, 
   getCredits, saveCreditDoc, deleteCreditDoc 
@@ -15,6 +16,19 @@ interface BillingControlProps {
   activeSubTab: 'deliveries' | 'credits' | 'summary';
   onTabChange: (tab: string) => void;
 }
+
+const upgradeDeliveryRecord = (d: DeliveryRecord): DeliveryRecord => {
+  if (!d) return d;
+  return {
+    ...d,
+    haviGroups: (d.haviGroups || []).map(g => {
+      let desc = g.description;
+      if (desc === 'Manutenção Limpeza') desc = 'Manutenção & Limpeza';
+      if (desc === 'Manutenção Limpeza Compras') desc = 'Manutenção & Limpeza Compras';
+      return { ...g, description: desc };
+    })
+  };
+};
 
 export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, employees, activeSubTab, onTabChange }) => {
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
@@ -30,13 +44,17 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
           getDeliveries(restaurantId),
           getCredits(restaurantId)
         ]);
-        setDeliveries(dels || []);
+        const upgradedDels = (dels || []).map(upgradeDeliveryRecord);
+        setDeliveries(upgradedDels);
         setCredits(creds || []);
       } catch (err) {
         console.error("Failed to load billing data from cloud:", err);
         const savedDels = localStorage.getItem(`billing_deliveries_${restaurantId}`);
         const savedCreds = localStorage.getItem(`billing_credits_${restaurantId}`);
-        if (savedDels) setDeliveries(JSON.parse(savedDels));
+        if (savedDels) {
+          const parsed = JSON.parse(savedDels) as DeliveryRecord[];
+          setDeliveries(parsed.map(upgradeDeliveryRecord));
+        }
         if (savedCreds) setCredits(JSON.parse(savedCreds));
       }
     };
@@ -53,11 +71,11 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
         { group: 'B', description: 'Refrigerados', total: 0 },
         { group: 'C', description: 'Secos Comida', total: 0 },
         { group: 'D', description: 'Secos Papel', total: 0 },
-        { group: 'E', description: 'Manutenção Limpeza', total: 0 },
+        { group: 'E', description: 'Manutenção & Limpeza', total: 0 },
         { group: 'F', description: 'Marketing IPL', total: 0 },
         { group: 'G', description: 'Marketing Geral', total: 0 },
         { group: 'H', description: 'Produtos Frescos', total: 0 },
-        { group: 'I', description: 'Manutenção Limpeza Compras', total: 0 },
+        { group: 'I', description: 'Manutenção & Limpeza Compras', total: 0 },
         { group: 'J', description: 'Condimentos', total: 0 },
         { group: 'L', description: 'Condimentos Cozinha', total: 0 },
         { group: 'M', description: 'Material Adm', total: 0 },
@@ -95,10 +113,11 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
   };
 
   const handleUpdateDelivery = async (updated: DeliveryRecord) => {
-    setDeliveries(prev => prev.map(d => d.id === updated.id ? updated : d));
+    const upgraded = upgradeDeliveryRecord(updated);
+    setDeliveries(prev => prev.map(d => d.id === upgraded.id ? upgraded : d));
     setSelectedDelivery(null);
     try {
-      await saveDeliveryDoc(restaurantId, updated);
+      await saveDeliveryDoc(restaurantId, upgraded);
     } catch (err) {
       console.error("Failed to save updated delivery on cloud:", err);
     }
@@ -112,6 +131,27 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
       } catch (err) {
         console.error("Failed to delete delivery from cloud:", err);
       }
+    }
+  };
+
+  const handleSaveCredit = async (credit: CreditNoteRecord) => {
+    setCredits(prev => {
+      const filtered = prev.filter(c => c.id !== credit.id);
+      return [credit, ...filtered];
+    });
+    try {
+      await saveCreditDoc(restaurantId, credit);
+    } catch (err) {
+      console.error("Failed to save credit note to cloud:", err);
+    }
+  };
+
+  const handleDeleteCredit = async (id: string) => {
+    setCredits(prev => prev.filter(c => c.id !== id));
+    try {
+      await deleteCreditDoc(restaurantId, id);
+    } catch (err) {
+      console.error("Failed to delete credit note from cloud:", err);
     }
   };
 
@@ -154,22 +194,21 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
               <DeliveriesTab 
                 records={deliveries} 
                 employees={employees}
-                onSelect={setSelectedDelivery} 
+                onSelect={(r) => setSelectedDelivery(upgradeDeliveryRecord(r))} 
                 onDelete={handleDeleteDelivery}
                 onOpenCreate={() => setIsCreatingDelivery(true)}
               />
             )}
             {activeSubTab === 'credits' && (
-              <div className="p-12 text-center text-gray-400 italic">
-                <div className="flex flex-col items-center py-20">
-                    <FileText size={48} className="text-gray-200 mb-4" />
-                    <h3 className="text-lg font-bold text-gray-400 mb-1">Notas de Crédito</h3>
-                    <p className="text-sm">Gestão de pendentes e reembolsos operacionais.</p>
-                </div>
-              </div>
+              <BillingCreditsTab 
+                records={credits} 
+                employees={employees}
+                onSave={handleSaveCredit} 
+                onDelete={handleDeleteCredit}
+              />
             )}
             {activeSubTab === 'summary' && (
-              <BillingSummary deliveries={deliveries} employees={employees} restaurantId={restaurantId} />
+              <BillingSummary deliveries={deliveries} credits={credits} employees={employees} restaurantId={restaurantId} />
             )}
           </div>
         </>
@@ -223,19 +262,18 @@ const DeliveriesTab: React.FC<{
                 <th className="px-6 py-4">Data Fatura</th>
                 <th className="px-6 py-4">Responsável</th>
                 <th className="px-6 py-4">Estado</th>
-                <th className="px-6 py-4">Diff. Acumulada</th>
-                <th className="px-6 py-4 text-right">Ações</th>
+                <th className="px-6 py-4">Diferença</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {records.map(record => {
-                const haviTotal = record.haviGroups.reduce((s, g) => s + g.total, 0) + record.pontoVerde;
+                const haviTotal = record.haviGroups.reduce((s, g) => s + g.total, 0);
                 const smsTotal = record.smsValues.reduce((s, v) => s + v.amount, 0);
                 const diff = haviTotal - smsTotal;
                 const manager = employees.find(e => e.id === record.managerId)?.name || '-';
 
                 return (
-                  <tr key={record.id} className="hover:bg-blue-50/30 transition-colors group">
+                  <tr key={record.id} onClick={() => onSelect(record)} className="hover:bg-blue-50/30 transition-colors group cursor-pointer">
                     <td className="px-6 py-4 font-black text-gray-700">
                       {new Date(record.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </td>
@@ -251,18 +289,20 @@ const DeliveriesTab: React.FC<{
                         </span>
                       )}
                     </td>
-                    <td className={`px-6 py-4 font-black text-sm ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      {formatEuro(diff)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => onSelect(record)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl" title="Editar / Consultar">
-                          <Eye size={18} />
-                        </button>
-                        <button onClick={() => onDelete(record.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl" title="Eliminar">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                    <td className={`px-6 py-4 font-black text-sm flex items-center justify-between`}>
+                      <span className={Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-emerald-600'}>
+                        {formatEuro(diff)}
+                      </span>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(record.id);
+                        }} 
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 );

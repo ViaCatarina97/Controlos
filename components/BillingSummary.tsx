@@ -1,14 +1,38 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { DeliveryRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
+import { DeliveryRecord, CreditNoteRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
 import { getMonthlyOps, saveMonthlyOps } from '../services/firebaseService';
 import { Printer, Calendar, Plus, Trash2 } from 'lucide-react';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
+  credits?: CreditNoteRecord[];
   employees: Employee[];
   restaurantId: string;
 }
+
+const HAVI_NAME_TO_CODE: Record<string, string> = {
+  'Congelados': 'A',
+  'Refrigerados': 'B',
+  'Secos Comida': 'C',
+  'Secos Papel': 'D',
+  'Manutenção & Limpeza': 'E',
+  'Marketing IPL': 'F',
+  'Marketing Geral': 'G',
+  'Produtos Frescos': 'H',
+  'Manutenção & Limpeza Compras': 'I',
+  'Condimentos': 'J',
+  'Condimentos Cozinha': 'L',
+  'Material Adm': 'M',
+  'Manuais': 'N',
+  'Ferramentas Utensilios': 'O',
+  'Marketing Geral Custo': 'P',
+  'Fardas': 'R',
+  'Distribuição de Marketing': 'S',
+  'Bulk Alimentar': 'T',
+  'Bulk Papel': 'U',
+  'Outros': 'G'
+};
 
 const DEFAULT_MONTHLY_DATA: Omit<MonthlyOperationalData, 'month'> = {
   vendasMes: 0,
@@ -35,7 +59,7 @@ const DEFAULT_MONTHLY_DATA: Omit<MonthlyOperationalData, 'month'> = {
   otherSuppliers: []
 };
 
-export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, employees, restaurantId }) => {
+export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, credits = [], employees, restaurantId }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -108,36 +132,66 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, empl
     return deliveries.filter(d => d.date.startsWith(selectedMonth));
   }, [deliveries, selectedMonth]);
 
+  const filteredCredits = useMemo(() => {
+    return credits.filter(c => c.date && c.date.startsWith(selectedMonth));
+  }, [credits, selectedMonth]);
+
   const aggregatedHavi = useMemo<Record<string, { desc: string, total: number }>>(() => {
     const groups: Record<string, { desc: string, total: number }> = {};
+    
+    // Add deliveries
     filteredRecords.forEach(rec => {
       rec.haviGroups.forEach(g => {
         if (!groups[g.group]) {
           groups[g.group] = { desc: g.description, total: 0 };
         }
-        const group = groups[g.group]!;
-        group.total += g.total;
+        groups[g.group].total += g.total;
       });
     });
+
+    // Discount Credit Notes (Valor HAVI)
+    filteredCredits.forEach(c => {
+      const gName = c.haviGroup || 'Outros';
+      const code = HAVI_NAME_TO_CODE[gName] || 'G';
+      const val = c.valueHavi ?? c.value ?? 0;
+      if (!groups[code]) {
+        groups[code] = { desc: gName, total: 0 };
+      }
+      groups[code].total -= val;
+    });
+
     return groups;
-  }, [filteredRecords]);
+  }, [filteredRecords, filteredCredits]);
 
   const totalPontoVerde = useMemo(() => filteredRecords.reduce((s, r) => s + r.pontoVerde, 0), [filteredRecords]);
   
   const grandTotalHavi = useMemo(() => 
-    (Object.values(aggregatedHavi) as { desc: string, total: number }[]).reduce((s, g) => s + g.total, 0) + totalPontoVerde, 
-    [aggregatedHavi, totalPontoVerde]
+    (Object.values(aggregatedHavi) as { desc: string, total: number }[]).reduce((s, g) => s + g.total, 0), 
+    [aggregatedHavi]
   );
 
   const aggregatedSms = useMemo<Record<string, number>>(() => {
     const sms: Record<string, number> = {};
+    
+    // Add MyStore deliveries
     filteredRecords.forEach(rec => {
       rec.smsValues.forEach(v => {
         sms[v.description] = (sms[v.description] || 0) + v.amount;
       });
     });
+
+    // Discount Credit Notes (Valor MyStore)
+    filteredCredits.forEach(c => {
+      const gName = c.myStoreGroup || 'Outros';
+      const val = c.valueMyStore ?? 0;
+      if (sms[gName] === undefined) {
+        sms[gName] = 0;
+      }
+      sms[gName] -= val;
+    });
+
     return sms;
-  }, [filteredRecords]);
+  }, [filteredRecords, filteredCredits]);
 
   const grandTotalSms = useMemo(() => 
     (Object.values(aggregatedSms) as number[]).reduce((s, a) => s + a, 0), 
@@ -207,10 +261,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, empl
                   <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{g.total.toFixed(2)} €</div>
                 </div>
               ))}
-              <div className="grid grid-cols-12 text-[11px] font-bold border-t border-gray-200 bg-gray-50">
-                <div className="col-span-9 px-2 py-1">Ponto Verde</div>
-                <div className="col-span-3 px-2 py-1 text-right">{totalPontoVerde.toFixed(2)} €</div>
-              </div>
+              {/* Removed Ponto Verde row */}
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
               <div className="text-2xl font-black text-slate-900">{grandTotalHavi.toFixed(2)} €</div>
