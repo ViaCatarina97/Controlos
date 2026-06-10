@@ -38,23 +38,24 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
 
     const prompt = `
       Você é um assistente especializado em faturas HAVI Logistics Portugal.
-      Analise o PDF e extraia os dados da tabela "TOTAL POR GRUPO PRODUTO".
+      Analise o PDF e extraia os dados da tabela de resumo por grupo que está na última página, com o cabeçalho: "GRUPO PRODUTO", "VALOR LIQ.", "PTO VERDE", "Cont. Embal. Plástico", "VALOR TOTAL".
 
       REGRAS DE EXTRAÇÃO:
-      1. Localize a tabela que contém "GRUPO PRODUTO" e "VALOR TOTAL".
-      2. Para cada linha (ex: 1 CONGELADOS, 14 FERRAMENTAS & UTENSÍLIOS):
-         - Extraia o NOME (texto) e o VALOR TOTAL (última coluna).
-      3. Na linha "TOTAL" (no fundo da tabela):
-         - Extraia o valor de "PTO VERDE".
-         - Extraia o valor de "VALOR TOTAL" geral.
-      4. Extraia o Nº do documento e a Data.
+      1. Localize a tabela de resumo dos grupos de produtos da fatura, que possui colunas como "GRUPO PRODUTO", "VALOR LIQ.", "PTO VERDE", "Cont. Embal. Plástico", "VALOR TOTAL".
+      2. Para cada linha de produto nesta tabela de resumo (por exemplo: "1 CONGELADOS", "14 FERRAMENTAS & UTENSÍLIOS", "17 FARDAS", "19 BULK ALIMENTAR", "2 REFRIGERADOS", "20 BULK PAPEL", "3 SECOS COMIDA", "4 SECOS PAPEL", "5 MANUTENÇÃO & LIMPEZA", "8 PRODUTOS FRESCOS", "9 MANUTENÇÃO & LIMPEZA COMPRAS"):
+         - Extraia o NOME do grupo descritivo limpo (ex: "CONGELADOS", "REFRIGERADOS", etc.).
+         - Extraia o valor correspondente sob a coluna "VALOR TOTAL" (última coluna da tabela, por exemplo, para "1 CONGELADOS" o valor total é "6.499,66").
+      3. Na linha de rodapé "TOTAL" no final dessa tabela:
+         - Extraia o valor de "PTO VERDE" (ex: "42,25").
+         - Extraia o valor total geral da fatura "VALOR TOTAL" (ex: "10.229,64").
+      4. Extraia também o Nº do documento (fatura) e a Data de emissão.
 
-      Retorne os valores numéricos como strings exatamente como aparecem (ex: "6.052,67").
-      Ignore os números de índice dos grupos (extraia "CONGELADOS" em vez de "1 CONGELADOS").
+      Retorne os valores de texto limpos e os valores numéricos como strings exatamente como aparecem no PDF (ex: "6.499,66" ou "10.229,64").
+      Ignore o número de índice no início dos grupos ao extrair o nome (ex: extraia "CONGELADOS" em vez de "1 CONGELADOS").
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: [
           {

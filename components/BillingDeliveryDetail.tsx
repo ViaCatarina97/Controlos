@@ -72,6 +72,17 @@ const HAVI_MAPPING: Record<string, string> = {
   'MARKETING GERAL CUSTO': 'Marketing Geral Custo'
 };
 
+const normalizeName = (name: string): string => {
+  if (!name) return "";
+  return name
+    .normalize('NFD')                     // Decompose accents
+    .replace(/[\u0300-\u036f]/g, '')     // Strip accents
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, ' ')          // Replace symbols with spaces
+    .replace(/\s+/g, ' ')                // Collapse duplicate spaces
+    .trim();
+};
+
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
@@ -197,10 +208,23 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         setLocal(prev => {
           const updatedHaviGroups = prev.haviGroups.map(internal => {
             const pdfMatch = result.grupos.find((pg: any) => {
-                const pdfName = pg.nome.toUpperCase().trim();
-                const internalName = internal.description.toUpperCase().trim();
-                const mappedName = (HAVI_MAPPING[pdfName] || pdfName).toUpperCase();
-                return mappedName === internalName || pdfName.includes(internalName) || internalName.includes(pdfName);
+                const pdfName = pg.nome || "";
+                const internalDesc = internal.description || "";
+                
+                const normPdf = normalizeName(pdfName);
+                const normInternal = normalizeName(internalDesc);
+                
+                const mappedName = HAVI_MAPPING[pdfName.toUpperCase().trim()] || pdfName;
+                const normMapped = normalizeName(mappedName);
+
+                return (
+                  normPdf === normInternal || 
+                  normMapped === normInternal || 
+                  (normPdf.length > 2 && normInternal.includes(normPdf)) || 
+                  (normInternal.length > 2 && normPdf.includes(normInternal)) ||
+                  (normMapped.length > 2 && normInternal.includes(normMapped)) || 
+                  (normInternal.length > 2 && normMapped.includes(normInternal))
+                );
             });
             return pdfMatch ? { ...internal, total: pdfMatch.valor_total } : internal;
           });
@@ -236,7 +260,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            <input type="file" ref={fileInputRef} onChange={handleLoadInvoice} accept=".pdf" className="hidden" />
            <button onClick={() => fileInputRef.current?.click()} disabled={isProcessingPdf} className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 font-bold border border-purple-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingPdf ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingPdf ? "Extraindo..." : "Extrair de PDF"}
+              {isProcessingPdf ? "A carregar..." : "Carregar Fatura"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
