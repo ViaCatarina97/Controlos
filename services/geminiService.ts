@@ -26,15 +26,26 @@ export const processInvoicePdf = async (file: File): Promise<any> => {
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (errorData.error === "AUTH_REQUIRED") {
-        throw new Error("AUTH_REQUIRED");
-      }
-      throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+    const responseText = await response.text();
+    let responseData: any = null;
+    try {
+      responseData = responseText ? JSON.parse(responseText) : null;
+    } catch (e) {
+      console.error("[processInvoicePdf] Failed to parse as JSON:", responseText);
     }
 
-    return await response.json();
+    if (!response.ok) {
+      if (responseData && responseData.error === "AUTH_REQUIRED") {
+        throw new Error("AUTH_REQUIRED");
+      }
+      throw new Error((responseData && responseData.error) || `HTTP error! Status: ${response.status} - ${responseText.substring(0, 150)}`);
+    }
+
+    if (!responseData) {
+      throw new Error("Empty response from server");
+    }
+
+    return responseData;
   } catch (error: any) {
     console.error("Client Invoice Processing Error:", error);
     throw error;
@@ -56,15 +67,26 @@ export const processDeliveryPdf = async (file: File): Promise<any> => {
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (errorData.error === "AUTH_REQUIRED") {
-        throw new Error("AUTH_REQUIRED");
-      }
-      throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+    const responseText = await response.text();
+    let responseData: any = null;
+    try {
+      responseData = responseText ? JSON.parse(responseText) : null;
+    } catch (e) {
+      console.error("[processDeliveryPdf] Failed to parse as JSON:", responseText);
     }
 
-    return await response.json();
+    if (!response.ok) {
+      if (responseData && responseData.error === "AUTH_REQUIRED") {
+        throw new Error("AUTH_REQUIRED");
+      }
+      throw new Error((responseData && responseData.error) || `HTTP error! Status: ${response.status} - ${responseText.substring(0, 150)}`);
+    }
+
+    if (!responseData) {
+      throw new Error("Empty response from server");
+    }
+
+    return responseData;
   } catch (error: any) {
     console.error("Client Delivery Processing Error:", error);
     throw error;
@@ -86,19 +108,28 @@ export const processCreditNotePdf = async (file: File): Promise<any> => {
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (errorData.error === "AUTH_REQUIRED") {
-        throw new Error("AUTH_REQUIRED");
-      }
-      throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+    const responseText = await response.text();
+    let responseData: any = null;
+    try {
+      responseData = responseText ? JSON.parse(responseText) : null;
+    } catch (e) {
+      console.error("[processCreditNotePdf] Failed to parse as JSON:", responseText);
     }
 
-    return await response.json();
+    if (!response.ok) {
+      if (responseData && responseData.error === "AUTH_REQUIRED") {
+        throw new Error("AUTH_REQUIRED");
+      }
+      throw new Error((responseData && responseData.error) || `HTTP error! Status: ${response.status} - ${responseText.substring(0, 150)}`);
+    }
+
+    if (!responseData) {
+      throw new Error("Empty response from server");
+    }
+
+    return responseData;
   } catch (error: any) {
     console.error("Client Credit Note Processing Error:", error);
     throw error;
   }
 };
-
-

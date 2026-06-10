@@ -17,6 +17,36 @@ interface BillingControlProps {
   onTabChange: (tab: string) => void;
 }
 
+const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
+  if (!record || !record.smsValues || !record.haviGroups) return 0;
+  
+  const priceDiffs = record.priceDifferences || [];
+  const sums: Record<string, number> = {};
+  ['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Outros', 'Happy Meal'].forEach(cat => {
+    sums[cat] = priceDiffs
+      .filter(i => i.category === cat)
+      .reduce((s, i) => s + (i.priceHavi - i.priceSms), 0);
+  });
+
+  const categoryDifferences = record.smsValues.map(v => {
+    const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
+                           v.description === 'Papel' ? ['D','U'] :
+                           v.description === 'F. Operacionais' ? ['E','I','O'] :
+                           v.description === 'Material Adm' ? ['M'] :
+                           v.description === 'Happy Meal' ? ['F'] :
+                           v.description === 'Outros' ? ['G','N','P','R','S'] : [];
+
+    const haviSubtotal = (record.haviGroups || [])
+        .filter(g => haviMatchCodes.includes(g.group))
+        .reduce((s, g) => s + g.total, 0);
+
+    const groupPriceDiff = sums[v.description] || 0;
+    return haviSubtotal - (v.amount || 0) - groupPriceDiff;
+  });
+
+  return categoryDifferences.reduce((s, d) => s + d, 0);
+};
+
 const upgradeDeliveryRecord = (d: DeliveryRecord): DeliveryRecord => {
   if (!d) return d;
   return {
@@ -267,9 +297,7 @@ const DeliveriesTab: React.FC<{
             </thead>
             <tbody className="divide-y divide-gray-50">
               {records.map(record => {
-                const haviTotal = record.haviGroups.reduce((s, g) => s + g.total, 0);
-                const smsTotal = record.smsValues.reduce((s, v) => s + v.amount, 0);
-                const diff = haviTotal - smsTotal;
+                const diff = calculateDeliveryFinalDifference(record);
                 const manager = employees.find(e => e.id === record.managerId)?.name || '-';
 
                 return (

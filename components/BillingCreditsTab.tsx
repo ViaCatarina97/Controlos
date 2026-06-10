@@ -281,11 +281,11 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
   // Form State
   const [id] = useState(record?.id || crypto.randomUUID());
   const [invoiceNumber, setInvoiceNumber] = useState(record?.invoiceNumber || '');
-  const [date, setDate] = useState(record?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(record?.date || '');
   const [product, setProduct] = useState(record?.product || '');
-  const [quantity, setQuantity] = useState(record?.quantity || 1);
-  const [haviGroup, setHaviGroup] = useState(record?.haviGroup || 'Secos Papel');
-  const [myStoreGroup, setMyStoreGroup] = useState(record?.myStoreGroup || 'Papel');
+  const [quantity, setQuantity] = useState<number | ''>(record?.quantity || '');
+  const [haviGroup, setHaviGroup] = useState(record?.haviGroup || '');
+  const [myStoreGroup, setMyStoreGroup] = useState(record?.myStoreGroup || '');
   const [reason, setReason] = useState(record?.reason || 'Sem motivo selecionado');
   const [managerId, setManagerId] = useState(record?.managerId || '');
   const [valueHavi, setValueHavi] = useState(record?.valueHavi ?? record?.value ?? 0);
@@ -314,8 +314,8 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
         if (info.productGroup) {
           // Check closest matching HAVI and MyStore groups
           const parsedGroup = info.productGroup.toUpperCase();
-          let matchedHavi = 'Secos Papel';
-          let matchedMyStore = 'Papel';
+          let matchedHavi = '';
+          let matchedMyStore = '';
 
           if (parsedGroup.includes('CONGELADO')) {
             matchedHavi = 'Congelados';
@@ -335,10 +335,13 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
           } else if (parsedGroup.includes('F. OPERACIONAIS') || parsedGroup.includes('LIMIT') || parsedGroup.includes('LIMPEZA')) {
             matchedHavi = 'Manutenção & Limpeza';
             matchedMyStore = 'F. Operacionais';
+          } else if (parsedGroup.includes('PAPEL')) {
+            matchedHavi = 'Secos Papel';
+            matchedMyStore = 'Papel';
           }
 
-          setHaviGroup(matchedHavi);
-          setMyStoreGroup(matchedMyStore);
+          if (matchedHavi) setHaviGroup(matchedHavi);
+          if (matchedMyStore) setMyStoreGroup(matchedMyStore);
         }
         
         if (info.totalValue) {
@@ -376,9 +379,9 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
       reason,
       status,
       product,
-      quantity,
-      haviGroup,
-      myStoreGroup,
+      quantity: quantity === '' ? undefined : quantity,
+      haviGroup: haviGroup || undefined,
+      myStoreGroup: myStoreGroup || undefined,
       managerId,
       valueHavi,
       valueMyStore
@@ -420,10 +423,6 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
             <div className="space-y-6 py-8">
               <div className="text-center max-w-md mx-auto space-y-2">
                 <FileText className="mx-auto text-blue-600 opacity-80" size={48} />
-                <h4 className="text-base font-black text-gray-800 uppercase tracking-tight">Análise Automática de Ficheiro</h4>
-                <p className="text-xs font-medium text-gray-500">
-                  Carregue a nota de crédito no formato PDF (HAVI). O assistente IA Gemini preencherá automaticamente os valores, grupo de produto e número do documento.
-                </p>
               </div>
 
               {/* Upload Dropper Box */}
@@ -526,6 +525,7 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
                     onChange={e => setHaviGroup(e.target.value)}
                     className="w-full p-2.5 border border-gray-200 rounded-xl font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 text-gray-700"
                   >
+                    <option value="">Selecione o grupo...</option>
                     {HAVI_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
@@ -536,6 +536,7 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
                     onChange={e => setMyStoreGroup(e.target.value)}
                     className="w-full p-2.5 border border-gray-200 rounded-xl font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 text-gray-700"
                   >
+                    <option value="">Selecione o grupo...</option>
                     {MYSTORE_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
