@@ -19,7 +19,8 @@ import {
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
-  CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw
+  CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw,
+  Truck, FileMinus, ClipboardList
 } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
@@ -533,8 +534,23 @@ const App: React.FC = () => {
 
           {activeModule === 'billing' && (
             <>
-              <button onClick={() => setActiveTab('deliveries')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${['deliveries', 'credits', 'summary'].includes(activeTab) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <FileText size={20} /> {sidebarOpen && <span>Controlo Entregas</span>}
+              <button 
+                onClick={() => setActiveTab('deliveries')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'deliveries' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Truck size={20} /> {sidebarOpen && <span>Descargas</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('credits')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'credits' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <FileMinus size={20} /> {sidebarOpen && <span>Notas de Crédito</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('summary')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'summary' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <ClipboardList size={20} /> {sidebarOpen && <span>Resumo</span>}
               </button>
             </>
           )}

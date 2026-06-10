@@ -198,27 +198,6 @@ export const BillingControl: React.FC<BillingControlProps> = ({ restaurantId, em
         />
       ) : (
         <>
-          <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex gap-2 overflow-x-auto print:hidden">
-            <button 
-              onClick={() => onTabChange('deliveries')} 
-              className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-bold uppercase text-xs tracking-widest transition-all ${activeSubTab === 'deliveries' ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}
-            >
-              <Truck size={18} /> Entregas
-            </button>
-            <button 
-              onClick={() => onTabChange('credits')} 
-              className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-bold uppercase text-xs tracking-widest transition-all ${activeSubTab === 'credits' ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}
-            >
-              <FileMinus size={18} /> Notas de Crédito
-            </button>
-            <button 
-              onClick={() => onTabChange('summary')} 
-              className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 font-bold uppercase text-xs tracking-widest transition-all ${activeSubTab === 'summary' ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-400 hover:bg-gray-50'}`}
-            >
-              <ClipboardList size={18} /> Resumo
-            </button>
-          </div>
-
           <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
             {activeSubTab === 'deliveries' && (
               <DeliveriesTab 
@@ -268,8 +247,7 @@ const DeliveriesTab: React.FC<{
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
         <div>
-          <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Registo de Entregas HAVI</h2>
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Arquivo digital e conferência MyStore</p>
+          <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Registo de Descargas</h2>
         </div>
         <button 
           onClick={onOpenCreate}

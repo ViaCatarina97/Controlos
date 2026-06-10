@@ -386,7 +386,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           )}
 
           {/* Dummy element for spacing */}
-          <div className="flex-1 hidden md:block print:hidden"></div>
+          <div className="flex-1 hidden md:block print:block"></div>
 
           {/* Centered Title */}
           <div className="flex-1 text-center">
@@ -401,7 +401,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
           </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4">
           <div className="border border-purple-500 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-purple-50 py-1.5 text-center font-black text-purple-800 border-b border-purple-500 uppercase text-xs tracking-wider">HAVI</div>
             <div className="p-1 flex flex-col flex-1 divide-y divide-purple-100">
@@ -541,7 +541,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         </div>
 
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários e Notas da Conferência</h3>
+           <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest mb-2">Comentários</h3>
            <textarea 
              value={local.comments} 
              onChange={(e) => setLocal({...local, comments: e.target.value})} 

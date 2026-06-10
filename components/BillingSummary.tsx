@@ -239,8 +239,8 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
           <div className="bg-[#5a7d36] text-white px-12 py-3 rounded-r-full">
             <h1 className="text-3xl font-black uppercase tracking-tighter">Resumo Controlo de Facturação</h1>
           </div>
-          <div className="flex items-center gap-8">
-            <div className="text-4xl font-black text-gray-300 tracking-widest uppercase">
+          <div className="flex items-center gap-8 shrink-0 text-right">
+            <div className="text-4xl font-black text-gray-300 tracking-widest uppercase text-right">
               {formatMonthHeader(selectedMonth)}
             </div>
           </div>
@@ -256,7 +256,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
               <div className="col-span-7 px-2 py-1 border-r border-gray-50">Descrição</div>
               <div className="col-span-3 px-2 py-1 text-right">Total</div>
             </div>
-            <div className="flex flex-col bg-white overflow-y-auto max-h-60 custom-scrollbar">
+            <div className="flex flex-col bg-white overflow-y-auto max-h-60 custom-scrollbar print:max-h-none print:overflow-visible">
               {(Object.entries(aggregatedHavi) as [string, { desc: string, total: number }][]).map(([code, g]) => (
                 <div key={code} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-2 px-2 py-0.5 border-r border-gray-50">{code}</div>
@@ -388,60 +388,63 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
             </table>
         </div>
 
-        {/* Resumo Mês Bar */}
-        <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg font-bold text-sm uppercase tracking-widest">
-            Resumo Mês
-        </div>
+        {/* Resumo Mês section wrapped to avoid page break inside when printing */}
+        <div className="print:break-inside-avoid">
+          {/* Resumo Mês Bar */}
+          <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg font-bold text-sm uppercase tracking-widest">
+              Resumo Mês
+          </div>
 
-        {/* Operational Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
-           {/* Coluna 1 */}
-           <div className="space-y-4">
-              <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
-              <div className="space-y-1">
-                 <DataInputRow label="Compras Comida" value={monthlyData.comprasComida} onChange={v => handleUpdateMonthlyField('comprasComida', v)} />
-                 <DataInputRow label="Compras Papel" value={monthlyData.comprasPapel} onChange={v => handleUpdateMonthlyField('comprasPapel', v)} />
-                 <DataInputRow label="Compras Total Ops" value={monthlyData.comprasTotalOps} onChange={v => handleUpdateMonthlyField('comprasTotalOps', v)} />
-              </div>
-              <div className="space-y-1">
-                 <DataInputRow label="Consumo Comida" value={monthlyData.consumoComida} onChange={v => handleUpdateMonthlyField('consumoComida', v)} />
-                 <DataInputRow label="Consumo Papel" value={monthlyData.consumoPapel} onChange={v => handleUpdateMonthlyField('consumoPapel', v)} />
-                 <DataInputRow label="Consumo OPS" value={monthlyData.consumoOps} onChange={v => handleUpdateMonthlyField('consumoOps', v)} />
-              </div>
-           </div>
+          {/* Operational Dashboard Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
+             {/* Coluna 1 */}
+             <div className="space-y-4">
+                <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
+                <div className="space-y-1">
+                   <DataInputRow label="Compras Comida" value={monthlyData.comprasComida} onChange={v => handleUpdateMonthlyField('comprasComida', v)} />
+                   <DataInputRow label="Compras Papel" value={monthlyData.comprasPapel} onChange={v => handleUpdateMonthlyField('comprasPapel', v)} />
+                   <DataInputRow label="Compras Total Ops" value={monthlyData.comprasTotalOps} onChange={v => handleUpdateMonthlyField('comprasTotalOps', v)} />
+                </div>
+                <div className="space-y-1">
+                   <DataInputRow label="Consumo Comida" value={monthlyData.consumoComida} onChange={v => handleUpdateMonthlyField('consumoComida', v)} />
+                   <DataInputRow label="Consumo Papel" value={monthlyData.consumoPapel} onChange={v => handleUpdateMonthlyField('consumoPapel', v)} />
+                   <DataInputRow label="Consumo OPS" value={monthlyData.consumoOps} onChange={v => handleUpdateMonthlyField('consumoOps', v)} />
+                </div>
+             </div>
 
-           {/* Coluna 2 */}
-           <div className="space-y-4">
-              <div className="space-y-1">
-                <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} />
-                <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} />
-                <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} />
-                <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} />
-                <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} />
-              </div>
-              <div className="space-y-1">
-                <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
-                <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
-                <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
-                <DataInputRow label="Compras OPS Havi" value={monthlyData.comprasOpsHavi} onChange={v => handleUpdateMonthlyField('comprasOpsHavi', v)} />
-              </div>
-           </div>
+             {/* Coluna 2 */}
+             <div className="space-y-4">
+                <div className="space-y-1">
+                  <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} />
+                  <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} />
+                  <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} />
+                  <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} />
+                  <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} />
+                </div>
+                <div className="space-y-1">
+                  <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
+                  <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
+                  <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
+                  <DataInputRow label="Compras OPS Havi" value={monthlyData.comprasOpsHavi} onChange={v => handleUpdateMonthlyField('comprasOpsHavi', v)} />
+                </div>
+             </div>
 
-           {/* Coluna 3 */}
-           <div className="space-y-4">
-              <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} />
-              <div className="space-y-1">
-                <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} />
-                <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} />
-                <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
-              </div>
-              <div className="space-y-1">
-                 <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                 <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                 <DataDisplayRow label="% Custo OPS" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                 <DataInputRow label="Compras OPS MaiaPapper" value={monthlyData.comprasOpsMaiaPapper} onChange={v => handleUpdateMonthlyField('comprasOpsMaiaPapper', v)} />
-              </div>
-           </div>
+             {/* Coluna 3 */}
+             <div className="space-y-4">
+                <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} />
+                <div className="space-y-1">
+                  <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} />
+                  <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} />
+                  <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
+                </div>
+                <div className="space-y-1">
+                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataDisplayRow label="% Custo OPS" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataInputRow label="Compras OPS MaiaPapper" value={monthlyData.comprasOpsMaiaPapper} onChange={v => handleUpdateMonthlyField('comprasOpsMaiaPapper', v)} />
+                </div>
+             </div>
+          </div>
         </div>
       </div>
     </div>
