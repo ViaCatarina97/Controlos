@@ -355,7 +355,15 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      alert(`Não foi possível extrair dados automaticamente: ${err.message || err}\n\nInsira os dados manualmente na página seguinte.`);
+      if (err.message === "AUTH_REQUIRED") {
+        if ((window as any).aistudio) {
+          await (window as any).aistudio.openSelectKey();
+        } else {
+          alert("Configuração Pendente: A chave da API Gemini (GEMINI_API_KEY) não está configurada nas variáveis de ambiente do seu projeto Vercel.\n\nPor favor, adicione a variável 'GEMINI_API_KEY' nas configurações da Vercel para que a extração automática de PDFs funcione em produção.");
+        }
+      } else {
+        alert(`Não foi possível extrair dados automaticamente: ${err.message || err}\n\nInsira os dados manualmente na página seguinte.`);
+      }
     } finally {
       setIsUploading(false);
     }

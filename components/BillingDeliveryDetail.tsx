@@ -280,8 +280,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
-          // @ts-ignore
-          if (window.aistudio) await window.aistudio.openSelectKey();
+        if ((window as any).aistudio) {
+          await (window as any).aistudio.openSelectKey();
+        } else {
+          alert("Configuração Pendente: A chave da API Gemini (GEMINI_API_KEY) não está configurada nas variáveis de ambiente do seu projeto Vercel.\n\nPor favor, adicione a variável 'GEMINI_API_KEY' nas configurações da Vercel para que a extração automática de PDFs funcione em produção.");
+        }
       } else {
           alert(`Erro ao processar PDF: ${err.message || err}\n\nVerifique se o ficheiro é uma fatura HAVI válida e se a sua chave API do Gemini está devidamente configurada.`);
       }
@@ -338,8 +341,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
     } catch (err: any) {
       if (err.message === "AUTH_REQUIRED") {
-        // @ts-ignore
-        if (window.aistudio) await window.aistudio.openSelectKey();
+        if ((window as any).aistudio) {
+          await (window as any).aistudio.openSelectKey();
+        } else {
+          alert("Configuração Pendente: A chave da API Gemini (GEMINI_API_KEY) não está configurada nas variáveis de ambiente do seu projeto Vercel.\n\nPor favor, adicione a variável 'GEMINI_API_KEY' nas configurações da Vercel para que a extração automática de PDFs funcione em produção.");
+        }
       } else {
         alert(`Erro ao processar PDF(s) de Entrega: ${err.message || err}\n\nVerifique se os ficheiros são folhas de entrega válidas e se a sua chave API do Gemini está devidamente configurada.`);
       }
