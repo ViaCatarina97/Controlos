@@ -104,7 +104,7 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
 
   // API route for extracting invoice PDF details using Gemini
-  app.post("/api/process-invoice", async (req, res) => {
+  app.post(["/api/process-invoice", "/process-invoice"], async (req, res) => {
     try {
       const { fileBase64, mimeType } = req.body;
       if (!fileBase64) {
@@ -238,7 +238,7 @@ async function startServer() {
   });
 
   // API route for extracting delivery PDF totals for MyStore
-  app.post("/api/process-delivery", async (req, res) => {
+  app.post(["/api/process-delivery", "/process-delivery"], async (req, res) => {
     try {
       const { fileBase64, mimeType } = req.body;
       if (!fileBase64) {
@@ -346,7 +346,7 @@ async function startServer() {
   });
 
   // API route for extracting credit note details using Gemini
-  app.post("/api/process-credit-note", async (req, res) => {
+  app.post(["/api/process-credit-note", "/process-credit-note"], async (req, res) => {
     try {
       const { fileBase64, mimeType } = req.body;
       if (!fileBase64) {
