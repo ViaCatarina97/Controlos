@@ -200,14 +200,17 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
 
   const formatMonthHeader = (monthStr: string) => {
     const [y, m] = monthStr.split('-');
-    const months = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
-    return `${months[parseInt(m) - 1]}/${y.slice(2)}`;
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    return `${months[parseInt(m) - 1]} ${y}`;
   };
 
   const gerentes = employees.filter(e => e.role === 'GERENTE');
 
   return (
-    <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar">
+    <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar print:h-auto print:overflow-visible print:p-0">
       {/* Controls */}
       <div className="flex justify-between items-center mb-6 print:hidden">
         <div className="flex items-center gap-4">
@@ -225,11 +228,11 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
           </div>
         </div>
         <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-all">
-          <Printer size={18} /> Imprimir Relatório
+          <Printer size={18} /> Imprimir Resumo
         </button>
       </div>
 
-      <div className="bg-white border-2 border-slate-100 p-8 shadow-sm flex flex-col space-y-6 min-w-[1000px] print:p-0 print:border-none print:shadow-none">
+      <div className="bg-white border-2 border-slate-100 p-8 shadow-sm flex flex-col space-y-6 min-w-[1000px] print:min-w-0 print:w-full print:p-0 print:border-none print:shadow-none">
         
         {/* Header Section */}
         <div className="flex items-center justify-between border-b-4 border-[#5a7d36] pb-2">
@@ -391,7 +394,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
         </div>
 
         {/* Operational Dashboard Grid */}
-        <div className="grid grid-cols-3 gap-6 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
            {/* Coluna 1 */}
            <div className="space-y-4">
               <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />

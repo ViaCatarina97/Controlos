@@ -72,6 +72,28 @@ const HAVI_MAPPING: Record<string, string> = {
   'MARKETING GERAL CUSTO': 'Marketing Geral Custo'
 };
 
+const getMonthYearText = (dateStr: string) => {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  const year = parts[0];
+  const monthInt = parseInt(parts[1], 10);
+  if (isNaN(monthInt) || monthInt < 1 || monthInt > 12) return '-';
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return `${monthNames[monthInt - 1]} ${year}`;
+};
+
+const getFormattedDate = (dateStr: string) => {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const normalizeName = (name: string): string => {
   if (!name) return "";
   return name
@@ -85,6 +107,7 @@ const normalizeName = (name: string): string => {
 
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
+  const managerName = employees.find(e => e.id === local.managerId)?.name || '-';
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [isProcessingDelivery, setIsProcessingDelivery] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -350,23 +373,31 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       </div>
 
       <div className="bg-white border-2 border-purple-500 rounded-lg p-6 space-y-6 shadow-xl print:border-none print:shadow-none print:p-0">
-        <div className="flex justify-between items-center border-b border-purple-100 pb-4">
-          <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Controlo de Faturação</h2>
-          <div className="text-right flex items-center gap-4">
-             {/* @ts-ignore */}
-             {window.aistudio && (
-               <button 
-                // @ts-ignore
-                onClick={() => window.aistudio.openSelectKey()} 
-                className="flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors"
-               >
-                 <Key size={12} /> Configurar Chave
-               </button>
-             )}
-             <div>
-                <div className="text-[10px] font-bold text-purple-500 uppercase tracking-widest">ID Registo</div>
-                <div className="text-xs font-mono text-gray-400">{local.id.split('-')[0]}</div>
-             </div>
+        <div className="flex justify-between items-start border-b border-purple-100 pb-4 relative">
+          {/* @ts-ignore */}
+          {window.aistudio && (
+            <button 
+              // @ts-ignore
+              onClick={() => window.aistudio.openSelectKey()} 
+              className="absolute left-0 bottom-1 flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 hover:text-purple-600 transition-colors print:hidden"
+            >
+              <Key size={12} /> Configurar Chave
+            </button>
+          )}
+
+          {/* Dummy element for spacing */}
+          <div className="flex-1 hidden md:block print:hidden"></div>
+
+          {/* Centered Title */}
+          <div className="flex-1 text-center">
+            <h2 className="text-2xl font-black text-purple-800 uppercase tracking-tighter">Controlo de Faturação</h2>
+          </div>
+
+          {/* Right side block for Month, Date, and Manager */}
+          <div className="flex-1 text-right text-xs">
+            <div className="font-black text-purple-800 text-sm uppercase tracking-tight">{getMonthYearText(local.date)}</div>
+            <div className="font-bold text-gray-500 mt-0.5">{getFormattedDate(local.date)}</div>
+            <div className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px] mt-1">{managerName}</div>
           </div>
         </div>
         
@@ -514,7 +545,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            <textarea 
              value={local.comments} 
              onChange={(e) => setLocal({...local, comments: e.target.value})} 
-             placeholder="Notas adicionais sobre a entrega..."
+             placeholder=""
              className="w-full h-24 p-3 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"
            />
         </div>

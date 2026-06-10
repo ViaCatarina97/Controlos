@@ -112,8 +112,7 @@ export const BillingCreditsTab: React.FC<BillingCreditsTabProps> = ({
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
         <div>
-          <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Notas de Crédito HAVI</h2>
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Gestão de reembolsos e regularização de faturas</p>
+          <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Notas de Crédito</h2>
         </div>
         <button 
           onClick={handleOpenCreateMode}

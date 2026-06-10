@@ -494,8 +494,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-xl z-20`}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden print:h-auto print:overflow-visible">
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-xl z-20 print:hidden`}>
         <div className="p-4 flex items-center gap-3 border-b border-slate-700 h-16">
           <div className="p-1.5 bg-blue-600 rounded-lg shrink-0"><Building2 size={20} /></div>
           {sidebarOpen && (
@@ -545,10 +545,10 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto flex flex-col">
-        <header className="bg-white shadow-sm px-6 py-4 sticky top-0 z-10 flex justify-between items-center">
+      <main className="flex-1 overflow-auto flex flex-col print:h-auto print:overflow-visible">
+        <header className="bg-white shadow-sm px-6 py-4 sticky top-0 z-10 flex justify-between items-center print:hidden">
           <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
-            {activeModule === 'billing' ? 'Módulo Financeiro / Faturação' : 'Gestão Operacional | Posicionamento'}
+            {activeModule === 'billing' ? 'Controlo de Faturação' : 'Gestão Operacional | Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
             <button
