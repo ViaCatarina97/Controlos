@@ -256,7 +256,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
               <div className="col-span-7 px-2 py-1 border-r border-gray-50">Descrição</div>
               <div className="col-span-3 px-2 py-1 text-right">Total</div>
             </div>
-            <div className="flex flex-col bg-white overflow-y-auto max-h-60 custom-scrollbar print:max-h-none print:overflow-visible">
+            <div className="flex flex-col bg-white">
               {(Object.entries(aggregatedHavi) as [string, { desc: string, total: number }][]).map(([code, g]) => (
                 <div key={code} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-2 px-2 py-0.5 border-r border-gray-50">{code}</div>
