@@ -133,6 +133,61 @@
         "otherSuppliers": { "type": "array" }
       },
       "required": ["month"]
+    },
+    "CofreCount": {
+      "title": "Safe and Till Count Record",
+      "description": "Daily audit record of safe cash, till drawers, and operational cash in the restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "turn": { "type": "string", "enum": ["Abertura", "Tarde", "Fecho"] },
+        "managerId": { "type": "string" },
+        "fundoGerente": { "type": "object" },
+        "cofre": { "type": "object" },
+        "invoices": { "type": "array" },
+        "totalFaturas": { "type": "number" },
+        "fundosCount": { "type": "number" },
+        "fundosValuePerFundo": { "type": "number" },
+        "fundosTotal": { "type": "number" },
+        "moedasProsegur": { "type": "number" },
+        "totalGeral": { "type": "number" },
+        "diferenca": { "type": "number" },
+        "observacoes": { "type": "string" }
+      },
+      "required": ["id", "date", "turn", "managerId", "totalGeral"]
+    },
+    "DepositRecord": {
+      "title": "Bank Deposit Record",
+      "description": "Record of standard bank deposit slips for physical bank safe drop.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "amount": { "type": "number" },
+        "ref": { "type": "string" },
+        "managerId": { "type": "string" },
+        "bank": { "type": "string" },
+        "comment": { "type": "string" }
+      },
+      "required": ["id", "date", "amount", "ref", "managerId", "bank"]
+    },
+    "ProsegurDepositRecord": {
+      "title": "Prosegur Cash Collection",
+      "description": "Record of high-security armored transport bank bags processed through Prosegur.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "bagNumber": { "type": "string" },
+        "amountNotes": { "type": "number" },
+        "amountCoins": { "type": "number" },
+        "amountTotal": { "type": "number" },
+        "prosegurReceipt": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pendente", "Recolhido", "Confirmado"] },
+        "comment": { "type": "string" }
+      },
+      "required": ["id", "date", "bagNumber", "amountTotal", "status"]
     }
   },
   "firestore": {
@@ -146,7 +201,7 @@
     },
     "/restaurants/{restaurantId}/staffing_table/{staffId}": {
       "schema": "StaffingTableEntry",
-      "description": "Sub-collection of sales-based staffing rules"
+      "description": "Sub-collection of sales-based staffing requirements"
     },
     "/restaurants/{restaurantId}/history/{historyDate}": {
       "schema": "HistoryEntry",
@@ -167,6 +222,18 @@
     "/restaurants/{restaurantId}/monthly_ops/{monthId}": {
       "schema": "MonthlyOperationalData",
       "description": "Sub-collection of operational costs by month"
+    },
+    "/restaurants/{restaurantId}/cofre_counts/{countId}": {
+      "schema": "CofreCount",
+      "description": "Sub-collection of physical coin/bill safe count audits"
+    },
+    "/restaurants/{restaurantId}/deposits/{depositId}": {
+      "schema": "DepositRecord",
+      "description": "Sub-collection of manual bank cash drops"
+    },
+    "/restaurants/{restaurantId}/prosegur_deposits/{prosegurDepositId}": {
+      "schema": "ProsegurDepositRecord",
+      "description": "Sub-collection of Prosegur cash pickup bags"
     }
   }
 }

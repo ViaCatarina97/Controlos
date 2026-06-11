@@ -31,6 +31,8 @@ export interface AppSettings {
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
   customStations: StationConfig[]; 
+  fundoGavetaCount?: number;
+  fundoGavetaValue?: number;
 }
 
 export interface StaffingTableEntry {
@@ -161,6 +163,76 @@ export interface CreditNoteRecord {
   managerId?: string;
   valueHavi?: number;
   valueMyStore?: number;
+}
+
+// --- Finance Types ---
+export interface FinanceInvoice {
+  id: string;
+  number: string;
+  supplier: string;
+  amount: number;
+}
+
+export interface FundoCofrePart {
+  moedas: {
+    '0.05': number;
+    '0.10': number;
+    '0.20': number;
+    '0.50': number;
+    '1.00': number;
+    loose: number; // Moedas Soltas (loose coins)
+  };
+  notas: {
+    '5': number;
+    '10': number;
+    '20': number;
+    '50': number;
+    '100': number;
+    '200': number;
+  };
+  totalCoins: number;
+  totalNotes: number;
+  total: number;
+}
+
+export interface CofreCount {
+  id: string;
+  date: string;
+  turn: 'Abertura' | 'Tarde' | 'Fecho';
+  managerId: string;
+  fundoGerente: FundoCofrePart;
+  cofre: FundoCofrePart;
+  invoices: FinanceInvoice[];
+  totalFaturas: number;
+  fundosCount: number;
+  fundosValuePerFundo: number;
+  fundosTotal: number;
+  moedasProsegur: number;
+  totalGeral: number;
+  diferenca: number;
+  observacoes?: string;
+}
+
+export interface DepositRecord {
+  id: string;
+  date: string;
+  amount: number;
+  ref: string;
+  managerId: string;
+  bank: string;
+  comment: string;
+}
+
+export interface ProsegurDepositRecord {
+  id: string;
+  date: string;
+  bagNumber: string;
+  amountNotes: number;
+  amountCoins: number;
+  amountTotal: number;
+  prosegurReceipt: string;
+  status: 'Pendente' | 'Recolhido' | 'Confirmado';
+  comment: string;
 }
 
 // --- Operational Summary Types ---

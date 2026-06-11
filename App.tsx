@@ -8,6 +8,7 @@ import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
 import { Positioning } from './components/Positioning';
+import { FinanceControl } from './components/FinanceControl';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
 import { 
@@ -20,7 +21,7 @@ import {
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
   CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw,
-  Truck, FileMinus, ClipboardList
+  Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard
 } from 'lucide-react';
 
 type ModuleType = 'positioning' | 'finance' | 'billing';
@@ -223,7 +224,7 @@ const App: React.FC = () => {
     setActiveModule(module);
     if (module === 'positioning') setActiveTab('positioning');
     else if (module === 'billing') setActiveTab('deliveries');
-    else if (module === 'finance') setActiveTab('finance_summary');
+    else if (module === 'finance') setActiveTab('cofre');
   };
 
   const handleSaveRestaurantSettings = (updated: AppSettings) => {
@@ -554,6 +555,35 @@ const App: React.FC = () => {
               </button>
             </>
           )}
+
+          {activeModule === 'finance' && (
+            <>
+              <button 
+                onClick={() => setActiveTab('cofre')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'cofre' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Calculator size={20} /> {sidebarOpen && <span>Contagem de Cofre</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('depositos')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'depositos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Landmark size={20} /> {sidebarOpen && <span>Depósito Bancário</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('prosegur')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'prosegur' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <CreditCard size={20} /> {sidebarOpen && <span>Depósito Prosegur</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('finance_settings')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'finance_settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Sliders size={20} /> {sidebarOpen && <span>Definições</span>}
+              </button>
+            </>
+          )}
         </nav>
         <div className="p-4 border-t border-slate-700">
              <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400 transition-colors"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
@@ -564,7 +594,9 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-auto flex flex-col print:h-auto print:overflow-visible">
         <header className="bg-white shadow-sm px-6 py-4 sticky top-0 z-10 flex justify-between items-center print:hidden">
           <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
-            {activeModule === 'billing' ? 'Controlo de Faturação' : 'Gestão Operacional | Posicionamento'}
+            {activeModule === 'billing' ? 'Controlo de Faturação' : 
+             activeModule === 'finance' ? 'Controlo Financeiro' :
+             'Gestão Operacional | Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
             <button
@@ -659,6 +691,21 @@ const App: React.FC = () => {
                   restaurantId={activeRestaurant.restaurantId} 
                   employees={currentEmployees} 
                   activeSubTab={activeTab as any}
+                  onTabChange={setActiveTab}
+                />
+              )}
+            </>
+          )}
+
+          {activeModule === 'finance' && (
+            <>
+              {(['cofre', 'depositos', 'prosegur', 'finance_settings'].includes(activeTab)) && (
+                <FinanceControl 
+                  restaurantId={activeRestaurant.restaurantId} 
+                  employees={currentEmployees} 
+                  settings={activeRestaurant}
+                  onSaveSettings={handleSaveRestaurantSettings}
+                  activeSubTab={activeTab === 'finance_settings' ? 'settings' : activeTab as any}
                   onTabChange={setActiveTab}
                 />
               )}

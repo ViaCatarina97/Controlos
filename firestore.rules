@@ -54,6 +54,21 @@ service cloud.firestore {
         allow list: if isValidId(restaurantId);
         allow get, create, update, delete: if isValidId(restaurantId) && isValidId(monthId);
       }
+
+      match /cofre_counts/{countId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(countId);
+      }
+
+      match /deposits/{depositId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(depositId);
+      }
+
+      match /prosegur_deposits/{prosegurDepositId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(prosegurDepositId);
+      }
     }
   }
 }

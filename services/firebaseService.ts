@@ -7,7 +7,8 @@ import {
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
-  DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData 
+  DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
+  CofreCount, DepositRecord, ProsegurDepositRecord
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -774,6 +775,234 @@ export async function saveMonthlyOps(restaurantId: string, monthlyData: MonthlyO
       localStorage.setItem(`app_monthly_ops_${restaurantId}_${monthlyData.month}`, JSON.stringify(monthlyData));
     },
     OperationType.WRITE,
+    path
+  );
+}
+
+// --- COFRE COUNTS (SAFE COUNTS) ---
+
+export async function getCofreCounts(restaurantId: string): Promise<CofreCount[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cofre_counts`;
+  return runFirestoreOp<CofreCount[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'cofre_counts');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as CofreCount);
+      localStorage.setItem(`app_cofre_counts_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cofre_counts_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveCofreCount(restaurantId: string, count: CofreCount): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cofre_counts/${count.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cofre_counts', count.id);
+      await setDoc(dRef, count);
+      
+      const saved = localStorage.getItem(`app_cofre_counts_${restaurantId}`);
+      let list: CofreCount[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== count.id);
+      list.push(count);
+      localStorage.setItem(`app_cofre_counts_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cofre_counts_${restaurantId}`);
+      let list: CofreCount[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== count.id);
+      list.push(count);
+      localStorage.setItem(`app_cofre_counts_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteCofreCount(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cofre_counts/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cofre_counts', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_cofre_counts_${restaurantId}`);
+      if (saved) {
+        let list: CofreCount[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_cofre_counts_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cofre_counts_${restaurantId}`);
+      if (saved) {
+        let list: CofreCount[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_cofre_counts_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+// --- DEPOSITS ---
+
+export async function getDeposits(restaurantId: string): Promise<DepositRecord[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/deposits`;
+  return runFirestoreOp<DepositRecord[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'deposits');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as DepositRecord);
+      localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deposits_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveDeposit(restaurantId: string, deposit: DepositRecord): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/deposits/${deposit.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'deposits', deposit.id);
+      await setDoc(dRef, deposit);
+      
+      const saved = localStorage.getItem(`app_deposits_${restaurantId}`);
+      let list: DepositRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== deposit.id);
+      list.push(deposit);
+      localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deposits_${restaurantId}`);
+      let list: DepositRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== deposit.id);
+      list.push(deposit);
+      localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteDeposit(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/deposits/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'deposits', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_deposits_${restaurantId}`);
+      if (saved) {
+        let list: DepositRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_deposits_${restaurantId}`);
+      if (saved) {
+        let list: DepositRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+// --- PROSEGUR DEPOSITS ---
+
+export async function getProsegurDeposits(restaurantId: string): Promise<ProsegurDepositRecord[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_deposits`;
+  return runFirestoreOp<ProsegurDepositRecord[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'prosegur_deposits');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as ProsegurDepositRecord);
+      localStorage.setItem(`app_prosegur_deposits_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_deposits_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveProsegurDeposit(restaurantId: string, deposit: ProsegurDepositRecord): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_deposits/${deposit.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_deposits', deposit.id);
+      await setDoc(dRef, deposit);
+      
+      const saved = localStorage.getItem(`app_prosegur_deposits_${restaurantId}`);
+      let list: ProsegurDepositRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== deposit.id);
+      list.push(deposit);
+      localStorage.setItem(`app_prosegur_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_deposits_${restaurantId}`);
+      let list: ProsegurDepositRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== deposit.id);
+      list.push(deposit);
+      localStorage.setItem(`app_prosegur_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteProsegurDeposit(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_deposits/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_deposits', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_prosegur_deposits_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurDepositRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_deposits_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurDepositRecord[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
     path
   );
 }
