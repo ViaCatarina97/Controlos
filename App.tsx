@@ -568,7 +568,7 @@ const App: React.FC = () => {
                 onClick={() => setActiveTab('depositos')} 
                 className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'depositos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
               >
-                <Landmark size={20} /> {sidebarOpen && <span>Depósito Bancário</span>}
+                <Landmark size={20} /> {sidebarOpen && <span>Folha de Depósito</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('prosegur')} 

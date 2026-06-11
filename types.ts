@@ -211,6 +211,8 @@ export interface CofreCount {
   totalGeral: number;
   diferenca: number;
   observacoes?: string;
+  isLocked?: boolean;
+  isDayClosed?: boolean;
 }
 
 export interface DepositRecord {

@@ -10,7 +10,8 @@ import {
 import { 
   Calculator, Coins, CreditCard, Landmark, Plus, Trash2, Edit2, 
   Save, ArrowLeft, Calendar, User, Clock, FileText, Check, AlertTriangle, 
-  Sliders, ArrowUpRight, DollarSign, Wallet, ShieldCheck, Printer, CheckCircle
+  Sliders, ArrowUpRight, DollarSign, Wallet, ShieldCheck, Printer, CheckCircle,
+  Lock, CheckCheck
 } from 'lucide-react';
 
 interface FinanceControlProps {
@@ -142,13 +143,81 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     };
   };
 
+  // For selecting a custom date or starting counts on standard days
+  const [extraDates, setExtraDates] = useState<string[]>([]);
+  const [customDateInput, setCustomDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Grouped days calculation
+  interface DayState {
+    date: string;
+    abertura?: CofreCount;
+    tarde?: CofreCount;
+    fecho?: CofreCount;
+    isClosed: boolean;
+  }
+
+  const groupedDays = useMemo(() => {
+    const groups: { [date: string]: DayState } = {};
+
+    // Process cofre counts
+    cofreCounts.forEach(count => {
+      if (!groups[count.date]) {
+        groups[count.date] = {
+          date: count.date,
+          isClosed: false
+        };
+      }
+      const turnKey = count.turn.toLowerCase();
+      if (turnKey === 'abertura') {
+        groups[count.date].abertura = count;
+      } else if (turnKey === 'tarde') {
+        groups[count.date].tarde = count;
+      } else if (turnKey === 'fecho') {
+        groups[count.date].fecho = count;
+      }
+
+      if (count.isDayClosed) {
+        groups[count.date].isClosed = true;
+      }
+    });
+
+    // Make sure today's date is always preset in the active list if it hasn't been closed
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!groups[todayStr]) {
+      groups[todayStr] = {
+        date: todayStr,
+        isClosed: false
+      };
+    }
+
+    // Include custom user added dates
+    extraDates.forEach(d => {
+      if (!groups[d]) {
+        groups[d] = {
+          date: d,
+          isClosed: false
+        };
+      }
+    });
+
+    const list = Object.values(groups);
+    list.sort((a, b) => b.date.localeCompare(a.date));
+    return list;
+  }, [cofreCounts, extraDates]);
+
   // Safe Count detailed actions
-  const handleAddNewSafeCount = () => {
-    const today = new Date().toISOString().split('T')[0];
+  const handleAddNewSafeCountForTurn = (date: string, turn: 'Abertura' | 'Tarde' | 'Fecho') => {
+    const existing = cofreCounts.find(c => c.date === date && c.turn === turn);
+    if (existing) {
+      setEditingCofre(existing);
+      setSafeEditorTab('contagem');
+      return;
+    }
+
     const newCount: CofreCount = {
-      id: `cofre_${today}_${Date.now()}`,
-      date: today,
-      turn: 'Abertura',
+      id: `cofre_${date}_${turn}_${Date.now()}`,
+      date: date,
+      turn: turn,
       managerId: employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '',
       fundoGerente: createEmptyPart(),
       cofre: createEmptyPart(),
@@ -160,13 +229,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       moedasProsegur: 0,
       totalGeral: 0,
       diferenca: 0,
-      observacoes: ''
+      observacoes: '',
+      isLocked: false,
+      isDayClosed: false
     };
-    // Pre-calculate just in case
     newCount.fundoGerente = calculatePartTotals(newCount.fundoGerente);
     newCount.cofre = calculatePartTotals(newCount.cofre);
     setEditingCofre(newCount);
     setSafeEditorTab('contagem');
+  };
+
+  // Fallback signature for compatibility if needed elsewhere
+  const handleAddNewSafeCount = () => {
+    const today = new Date().toISOString().split('T')[0];
+    handleAddNewSafeCountForTurn(today, 'Abertura');
   };
 
   const handleUpdateSafeCountInput = (
@@ -253,25 +329,69 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     setEditingCofre(countCopy);
   };
 
-  const handleSaveCofreCountEdit = async () => {
+  const handleSaveCofreCountEdit = async (shouldLock?: boolean) => {
     if (!editingCofre) return;
     
+    const finalizeLock = shouldLock === true;
+    
     // Ensure fund fields are parsed
-    const updatedCount = {
+    const updatedCount: CofreCount = {
       ...editingCofre,
       fundosCount: Number(editingCofre.fundosCount),
       fundosValuePerFundo: Number(editingCofre.fundosValuePerFundo),
       fundosTotal: Number(editingCofre.fundosCount) * Number(editingCofre.fundosValuePerFundo),
       moedasProsegur: Number(editingCofre.moedasProsegur || 0),
+      isLocked: finalizeLock ? true : (editingCofre.isLocked || false),
     };
 
     try {
       await saveCofreCount(restaurantId, updatedCount);
       setEditingCofre(null);
-      loadData();
+      await loadData();
+      if (finalizeLock) {
+        alert("Contagem validada e bloqueada com sucesso!");
+      } else {
+        alert("Contagem guardada em rascunho temporário.");
+      }
     } catch (err) {
       console.error(err);
       alert("Erro ao gravar contagem de cofre.");
+    }
+  };
+
+  const handleCloseDay = async (date: string) => {
+    const day = groupedDays.find(d => d.date === date);
+    if (!day || !day.abertura || !day.tarde || !day.fecho) {
+      alert("Erro: Certifique-se de que os 3 turnos foram criados antes de encerrar.");
+      return;
+    }
+
+    if (!day.abertura.isLocked || !day.tarde.isLocked || !day.fecho.isLocked) {
+      alert("Erro: Certifique-se de que todas as 3 contagens do dia foram finalizadas e validadas (bloqueadas) antes de encerrar o dia.");
+      return;
+    }
+
+    if (confirm(`Deseja mesmo encerrar o dia ${date}? Esta ação é definitiva e as contagens ficarão bloqueadas.`)) {
+      setIsLoading(true);
+      try {
+        const updatedAbertura = { ...day.abertura, isLocked: true, isDayClosed: true };
+        const updatedTarde = { ...day.tarde, isLocked: true, isDayClosed: true };
+        const updatedFecho = { ...day.fecho, isLocked: true, isDayClosed: true };
+
+        await Promise.all([
+          saveCofreCount(restaurantId, updatedAbertura),
+          saveCofreCount(restaurantId, updatedTarde),
+          saveCofreCount(restaurantId, updatedFecho)
+        ]);
+
+        alert(`Dia ${date} encerrado com sucesso!`);
+        await loadData();
+      } catch (err) {
+        console.error("Error closing day:", err);
+        alert("Erro ao encerrar o dia.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -398,8 +518,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <ArrowLeft size={18} />
               </button>
               <div>
-                <h3 className="text-xl font-extrabold text-slate-800 uppercase tracking-tighter">
-                  Registar Contagem de Cofre
+                <h3 className="text-xl font-extrabold text-slate-800 uppercase tracking-tighter flex items-center gap-2">
+                  Registar Contagem de Cofre {editingCofre.isLocked && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border">🔒 Validado & Bloqueado</span>}
                 </h3>
                 <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
                   McDonald's Via Catarina
@@ -414,14 +534,30 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               >
                 <Printer size={16} /> Print/Imprimir
               </button>
-              <button
-                onClick={handleSaveCofreCountEdit}
-                className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 font-bold text-xs transition-all uppercase tracking-wider shadow-md shadow-emerald-100"
-              >
-                <Save size={16} /> Guardar Contagem
-              </button>
+              {editingCofre.isLocked ? (
+                <button
+                  onClick={() => setEditingCofre(null)}
+                  className="flex items-center gap-2 bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all uppercase tracking-wider cursor-not-allowed"
+                  disabled
+                >
+                  <Lock size={16} /> Bloqueado
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSaveCofreCountEdit(false)}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-bold text-xs transition-all uppercase tracking-wider shadow-md shadow-blue-100"
+                >
+                  <Save size={16} /> Guardar Rascunho
+                </button>
+              )}
             </div>
           </div>
+
+          {editingCofre.isLocked && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3 rounded-xl font-bold flex items-center gap-2 print:hidden">
+              <span>🔒 Esta contagem está validada e bloqueada pelo gerente. Os campos de inserção de dados estão desativados para edição.</span>
+            </div>
+          )}
 
           {/* Form Meta Setup */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 print:bg-white print:border-0 print:grid-cols-4 print:p-2">
@@ -431,9 +567,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                 <input 
                   type="date"
+                  disabled={editingCofre.isLocked}
                   value={editingCofre.date}
                   onChange={(e) => setEditingCofre({ ...editingCofre, date: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-emerald-500 print:border-0 print:pl-0"
+                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -443,12 +580,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <div className="relative">
                 <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                 <select
+                  disabled={editingCofre.isLocked}
                   value={editingCofre.turn}
                   onChange={(e) => setEditingCofre({ ...editingCofre, turn: e.target.value as any })}
-                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-emerald-500 print:border-0 print:pl-0 appearance-none"
+                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="Abertura">Abertura</option>
-                  <option value="Tarde">Tarde / Mudança Turno</option>
+                  <option value="Tarde">Intermédio (Tarde)</option>
                   <option value="Fecho">Fecho</option>
                 </select>
               </div>
@@ -459,9 +597,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                 <select
+                  disabled={editingCofre.isLocked}
                   value={editingCofre.managerId}
                   onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-emerald-500 print:border-0 print:pl-0 appearance-none"
+                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   {employees.map(e => (
                     <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
@@ -475,6 +614,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <div className="flex gap-2 items-center print:hidden">
                 <input 
                   type="number"
+                  disabled={editingCofre.isLocked}
                   placeholder="Qtd (Ex: 4)"
                   value={editingCofre.fundosCount}
                   onChange={(e) => {
@@ -485,10 +625,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       fundosTotal: cnt * (editingCofre.fundosValuePerFundo)
                     });
                   }}
-                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 <input 
                   type="number"
+                  disabled={editingCofre.isLocked}
                   placeholder="Valor"
                   value={editingCofre.fundosValuePerFundo}
                   onChange={(e) => {
@@ -499,7 +640,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       fundosTotal: (editingCofre.fundosCount) * val
                     });
                   }}
-                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
               <div className="text-xs font-black text-slate-800 mt-2">
@@ -512,33 +653,33 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           <div className="flex border-b border-gray-100 gap-6 print:hidden">
             <button
               onClick={() => setSafeEditorTab('contagem')}
-              className={`pb-3 font-bold text-sm transition-all relative ${safeEditorTab === 'contagem' ? 'text-emerald-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`pb-3 font-bold text-sm transition-all relative ${safeEditorTab === 'contagem' ? 'text-blue-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
             >
               Contagem Física (Fundo & Cofre)
-              {safeEditorTab === 'contagem' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-full"></span>}
+              {safeEditorTab === 'contagem' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
             </button>
             <button
               onClick={() => setSafeEditorTab('faturas')}
-              className={`pb-3 font-bold text-sm transition-all relative flex items-center gap-2 ${safeEditorTab === 'faturas' ? 'text-emerald-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`pb-3 font-bold text-sm transition-all relative flex items-center gap-2 ${safeEditorTab === 'faturas' ? 'text-blue-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
             >
               Faturas Registadas
               <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-2 py-0.5 rounded-full">
                 {editingCofre.invoices.length}
               </span>
-              {safeEditorTab === 'faturas' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-full"></span>}
+              {safeEditorTab === 'faturas' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
             </button>
           </div>
 
           {safeEditorTab === 'contagem' ? (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
               
-              {/* CARD 1: FUNDO DE GERENTE */}
-              <div className="border border-[#c6dfc6] rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-[#e2f0e2] text-[#2c532c] px-4 py-3 flex justify-between items-center border-b border-[#c6dfc6]">
+              {/* CARD 1: FUNDO DE GERENTE (AZUL ESCURO) */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
                   <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
-                    <User size={14} /> FUNDO DE GERENTE
+                    <User size={14} className="text-blue-400" /> FUNDO DE GERENTE
                   </h4>
-                  <div className="bg-white text-emerald-800 px-3 py-1 rounded-lg border border-[#add0ad] font-black text-sm">
+                  <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
                     {formatEuro(editingCofre.fundoGerente.total)}
                   </div>
                 </div>
@@ -557,11 +698,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
                           <input 
                             type="number"
+                            disabled={editingCofre.isLocked}
                             min="0"
                             placeholder="Rolos"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', coinKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0"
+                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
                           />
                           <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
                             {formatEuro(qty * coin.rollValue)}
@@ -574,11 +716,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <span className="text-xs font-extrabold text-blue-600 w-24">Moedas Soltas</span>
                       <input 
                         type="number"
+                        disabled={editingCofre.isLocked}
                         step="0.01"
                         placeholder="Valor €"
                         value={editingCofre.fundoGerente.moedas.loose || ''}
                         onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white"
+                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -596,11 +739,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
                           <input 
                             type="number"
+                            disabled={editingCofre.isLocked}
                             min="0"
                             placeholder="Qtd"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'notas', noteKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0"
+                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
                           />
                           <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
                             {formatEuro(qty * note.value)}
@@ -612,13 +756,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 </div>
               </div>
 
-              {/* CARD 2: COFRE */}
-              <div className="border border-[#c6dfc6] rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-[#e2f0e2] text-[#2c532c] px-4 py-3 flex justify-between items-center border-b border-[#c6dfc6]">
+              {/* CARD 2: COFRE (AZUL ESCURO) */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
                   <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
-                    <Coins size={14} /> COFRE (VAULT)
+                    <Coins size={14} className="text-blue-400" /> COFRE (VAULT)
                   </h4>
-                  <div className="bg-white text-emerald-800 px-3 py-1 rounded-lg border border-[#add0ad] font-black text-sm">
+                  <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
                     {formatEuro(editingCofre.cofre.total)}
                   </div>
                 </div>
@@ -637,11 +781,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
                           <input 
                             type="number"
+                            disabled={editingCofre.isLocked}
                             min="0"
                             placeholder="Rolos"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', coinKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0"
+                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
                           />
                           <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
                             {formatEuro(qty * coin.rollValue)}
@@ -654,11 +799,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <span className="text-xs font-extrabold text-blue-600 w-24">Moedas Soltas</span>
                       <input 
                         type="number"
+                        disabled={editingCofre.isLocked}
                         step="0.01"
                         placeholder="Valor €"
                         value={editingCofre.cofre.moedas.loose || ''}
                         onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white"
+                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -676,11 +822,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
                           <input 
                             type="number"
+                            disabled={editingCofre.isLocked}
                             min="0"
                             placeholder="Qtd"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('cofre', 'notas', noteKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0"
+                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
                           />
                           <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
                             {formatEuro(qty * note.value)}
@@ -697,58 +844,64 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             
             /* TAB INVOICES: inserir e listar as faturas registadas */
             <div className="space-y-6">
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 max-w-xl space-y-4">
-                <h4 className="font-extrabold text-[#2c532c] text-xs uppercase tracking-wider">
-                  Registar Nova Fatura do Fornecedor / Outros
-                </h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                      Nº Documento
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: FT-101"
-                      value={invNum}
-                      onChange={(e) => setInvNum(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                    />
+              {!editingCofre.isLocked ? (
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 max-w-xl space-y-4">
+                  <h4 className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
+                    Registar Nova Fatura do Fornecedor / Outros
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
+                        Nº Documento
+                      </label>
+                      <input 
+                        type="text"
+                        placeholder="Ex: FT-101"
+                        value={invNum}
+                        onChange={(e) => setInvNum(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
+                        Fornecedor
+                      </label>
+                      <input 
+                        type="text"
+                        placeholder="Ex: Makro, Maia"
+                        value={invSupplier}
+                        onChange={(e) => setInvSupplier(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
+                        Valor (€)
+                      </label>
+                      <input 
+                        type="text"
+                        placeholder="Ex: 12.50"
+                        value={invAmt}
+                        onChange={(e) => setInvAmt(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                      Fornecedor
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: Makro, Maia"
-                      value={invSupplier}
-                      onChange={(e) => setInvSupplier(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                      Valor (€)
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: 12.50"
-                      value={invAmt}
-                      onChange={(e) => setInvAmt(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                    />
-                  </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleAddInvoiceToSafe}
-                  className="flex items-center gap-1.5 ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all"
-                >
-                  <Plus size={14} /> Adicionar Fatura
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={handleAddInvoiceToSafe}
+                    className="flex items-center gap-1.5 ml-auto bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
+                  >
+                    <Plus size={14} /> Adicionar Fatura
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-4 rounded-2xl border text-xs text-slate-500 font-bold max-w-xl">
+                  ℹ️ Visualização de faturas em modo de leitura. Esta contagem de cofre encontra-se bloqueada.
+                </div>
+              )}
 
               {/* Invoices List */}
               <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
@@ -776,16 +929,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block uppercase tracking-wider mb-0.5">Valor</span>
-                            <span className="text-emerald-700 font-extrabold">{formatEuro(inv.amount)}</span>
+                            <span className="text-blue-700 font-extrabold">{formatEuro(inv.amount)}</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveInvoiceFromSafe(inv.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {!editingCofre.isLocked && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveInvoiceFromSafe(inv.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -794,11 +949,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           )}
 
-          {/* BOTTOM SUMMARY - GRID LAYOUT MATCHING EXCEL MOCKUP */}
-          <div className="bg-[#e9f2e9] border border-[#c3dfc3] p-5 rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6 items-center print:bg-white print:border-t">
+          {/* BOTTOM SUMMARY - SYSTEM DARK BLUE STYLE */}
+          <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6 items-center print:bg-white print:border-t">
             
             {/* Total Invoices */}
-            <div className="bg-white p-4 rounded-xl border border-[#d6ebd6] text-center">
+            <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm">
               <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                 Total Faturas
               </span>
@@ -809,17 +964,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
 
             {/* Moedas Prosegur Manual input */}
-            <div className="bg-white p-4 rounded-xl border border-[#d6ebd6]">
-              <span className="block text-[10px] font-black text-[#2c532c] uppercase tracking-widest text-center mb-1">
-                Moedas Prosegur (Valor manual)
+            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
+              <span className="block text-[10px] font-black text-blue-900 uppercase tracking-widest text-center mb-1">
+                Moedas Prosegur
               </span>
               <div className="relative mt-1">
                 <input 
                   type="number"
+                  disabled={editingCofre.isLocked}
                   placeholder="0,00 €"
                   value={editingCofre.moedasProsegur || ''}
                   onChange={(e) => setEditingCofre({ ...editingCofre, moedasProsegur: Number(e.target.value) })}
-                  className="w-full text-center py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 font-bold font-mono text-xs"
+                  className="w-full text-center py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-550 font-bold font-mono text-xs disabled:opacity-50"
                 />
               </div>
             </div>
@@ -829,7 +985,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                 Total Geral (Fundo + Cofre + Faturas)
               </span>
-              <span className="text-2xl font-black text-[#2c532c] tracking-tighter">
+              <span className="text-2xl font-black text-blue-900 tracking-tighter">
                 {formatEuro(editingCofre.totalGeral)}
               </span>
               <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">
@@ -837,18 +993,19 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </p>
             </div>
 
-            {/* Diferença with Red / Green Color Indicator */}
-            <div className="bg-white p-4 rounded-xl border border-[#d6ebd6] flex flex-col justify-center items-center">
+            {/* Diferença input */}
+            <div className="bg-white p-4 rounded-xl border border-blue-100 flex flex-col justify-center items-center shadow-sm">
               <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                 DIFERENÇA (Saldo Teórico)
               </span>
               <div className="flex gap-2">
                 <input 
                   type="number"
-                  placeholder="Inserir Expected"
+                  disabled={editingCofre.isLocked}
+                  placeholder="Saldo Esperado"
                   value={editingCofre.diferenca || ''}
                   onChange={(e) => setEditingCofre({ ...editingCofre, diferenca: Number(e.target.value) })}
-                  className="w-24 text-center py-1 bg-gray-50 border rounded-lg text-xs font-bold"
+                  className="w-24 text-center py-1 bg-gray-50 border rounded-lg text-xs font-bold disabled:opacity-50"
                 />
               </div>
               <div className="font-extrabold font-mono text-xs text-red-600 mt-2">
@@ -859,18 +1016,39 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           </div>
 
           <div className="print:hidden flex justify-end gap-3 pt-4 border-t">
-            <button
-              onClick={() => setEditingCofre(null)}
-              className="px-5 py-2 hover:bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs uppercase"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSaveCofreCountEdit}
-              className="bg-emerald-600 text-white px-6 py-2 rounded-xl hover:bg-emerald-700 font-bold text-xs uppercase tracking-wider shadow-md shadow-emerald-50"
-            >
-              Gravar Contagem
-            </button>
+            {editingCofre.isLocked ? (
+              <button
+                onClick={() => setEditingCofre(null)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
+              >
+                Fechar Visualização
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => setEditingCofre(null)}
+                  className="px-5 py-2 hover:bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs uppercase"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleSaveCofreCountEdit(false)}
+                  className="bg-slate-600 text-white px-5 py-2 rounded-xl hover:bg-slate-700 font-bold text-xs uppercase tracking-wider shadow-sm"
+                >
+                  Guardar como Rascunho
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Deseja mesmo VALIDAR e CONFIGURAR como CONCLUÍDO? A contagem será bloqueada permanentemente e não poderá sofrer mais alterações.")) {
+                      handleSaveCofreCountEdit(true);
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 font-bold text-xs uppercase tracking-wider shadow-md shadow-blue-50"
+                >
+                  Validar e Bloquear 🔒
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : editingDeposit ? (
@@ -1127,86 +1305,289 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* Tab 1: CONTAGEM DE COFRE */}
           {activeTab === 'cofre' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border">
+            <div className="space-y-6">
+              
+              {/* Selector area to add past or other days for counting */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Histórico de Contagem Diária (3x ao Dia)</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Fundo Managers, Cofres e Faturas Fornecedores</p>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Turnos e Fecho Diário de Cofre</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão alinhada por dia. 3 contagens por dia são necessárias para encerrar o dia.</p>
                 </div>
-                <button
-                  onClick={handleAddNewSafeCount}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-50"
-                >
-                  <Plus size={16} /> Registar Cofre
-                </button>
+                
+                <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                  <input 
+                    type="date"
+                    value={customDateInput}
+                    onChange={(e) => setCustomDateInput(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!customDateInput) return;
+                      // Add to custom dates list if not already there
+                      if (!extraDates.includes(customDateInput)) {
+                        setExtraDates([...extraDates, customDateInput]);
+                      }
+                      alert(`Dia ${customDateInput} iniciado. Veja a linha correspondente abaixo.`);
+                    }}
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
+                  >
+                    <Plus size={14} /> Iniciar Outro Dia
+                  </button>
+                </div>
               </div>
 
               {isLoading ? (
                 <div className="p-12 text-center text-xs text-gray-400 font-black tracking-widest uppercase">
                   A carregar dados do banco...
                 </div>
-              ) : cofreCounts.length === 0 ? (
-                <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
-                  <Coins size={36} className="text-gray-300 mx-auto mb-3" />
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Ainda não há registos de cofre</p>
-                  <button onClick={handleAddNewSafeCount} className="text-blue-600 text-xs font-black uppercase tracking-wider underline mt-2 block mx-auto">
-                    Iniciar Nova Contagem Diária
-                  </button>
-                </div>
               ) : (
-                <div className="border rounded-2xl border-gray-100 overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        <th className="px-6 py-3.5">Data / Turno</th>
-                        <th className="px-6 py-3.5">Supervisor de Turno</th>
-                        <th className="px-6 py-3.5 text-right">F. Gerente</th>
-                        <th className="px-6 py-3.5 text-right">Fisico Cofre</th>
-                        <th className="px-6 py-3.5 text-right">Faturas</th>
-                        <th className="px-6 py-3.5 text-right">Total Geral</th>
-                        <th className="px-6 py-3.5 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y text-xs font-bold text-gray-700">
-                      {cofreCounts.map(count => {
-                        const mName = employees.find(e => e.id === count.managerId)?.name || 'Outro';
+                <div className="space-y-8">
+                  
+                  {/* SECTION 1: DIAS EM CURSO (ACTIVE DAYS) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        Contagens Diárias em Curso (Dias no Turno)
+                      </h3>
+                      <span className="text-[10px] bg-amber-50 text-amber-700 font-black px-2.5 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
+                        {groupedDays.filter(d => !d.isClosed).length} Dias Ativos
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {groupedDays.filter(d => !d.isClosed).map(day => {
+                        const hasAbertura = !!day.abertura;
+                        const hasTarde = !!day.tarde;
+                        const hasFecho = !!day.fecho;
+
+                        const isAberturaLocked = day.abertura?.isLocked || false;
+                        const isTardeLocked = day.tarde?.isLocked || false;
+                        const isFechoLocked = day.fecho?.isLocked || false;
+
+                        const allThreeDone = hasAbertura && hasTarde && hasFecho && isAberturaLocked && isTardeLocked && isFechoLocked;
+
                         return (
-                          <tr key={count.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">
-                              <span className="text-slate-800 block text-xs font-extrabold">{count.date}</span>
-                              <span className="text-[10px] text-gray-400 uppercase tracking-wider block font-black mt-0.5">{count.turn}</span>
-                            </td>
-                            <td className="px-6 py-4">{mName}</td>
-                            <td className="px-6 py-4 text-right font-mono">{formatEuro(count.fundoGerente?.total || 0)}</td>
-                            <td className="px-6 py-4 text-right font-mono">{formatEuro(count.cofre?.total || 0)}</td>
-                            <td className="px-6 py-4 text-right font-mono text-blue-600">{formatEuro(count.totalFaturas || 0)}</td>
-                            <td className="px-6 py-4 text-right font-mono text-emerald-700 font-extrabold">{formatEuro(count.totalGeral || 0)}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-1">
-                                <button 
-                                  onClick={() => {
-                                    setEditingCofre(count);
-                                    setSafeEditorTab('contagem');
-                                  }}
-                                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Editar Contagem"
-                                >
-                                  <Edit2 size={15} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteCofreCountAction(count.id)}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                  title="Remover Contagem"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
+                          <div key={`day_row_${day.date}`} className="bg-white rounded-2xl border border-slate-100 hover:shadow-md transition-all p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                            
+                            {/* Date Column */}
+                            <div className="lg:col-span-3 flex items-center gap-3">
+                              <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-blue-600 shrink-0">
+                                <Calendar size={18} />
                               </div>
-                            </td>
-                          </tr>
+                              <div>
+                                <span className="text-sm font-extrabold text-slate-800 block">{day.date}</span>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                  {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'long' })}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Turns Columns */}
+                            <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              
+                              {/* TURN 1: ABERTURA */}
+                              <button
+                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Abertura')}
+                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
+                                  !hasAbertura 
+                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
+                                    : !isAberturaLocked
+                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
+                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
+                                }`}
+                              >
+                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno da Abertura</span>
+                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
+                                  {!hasAbertura ? '+ Iniciar Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Rascunho Abertura'}
+                                </span>
+                                {hasAbertura && (
+                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
+                                    {formatEuro(day.abertura!.totalGeral)}
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* TURN 2: INTERMÉDIO (TARDE) */}
+                              <button
+                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Tarde')}
+                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
+                                  !hasTarde 
+                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
+                                    : !isTardeLocked
+                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
+                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
+                                }`}
+                              >
+                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno Intermédio</span>
+                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
+                                  {!hasTarde ? '+ Iniciar Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Rascunho Interm.'}
+                                </span>
+                                {hasTarde && (
+                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
+                                    {formatEuro(day.tarde!.totalGeral)}
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* TURN 3: FECHO */}
+                              <button
+                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Fecho')}
+                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
+                                  !hasFecho 
+                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
+                                    : !isFechoLocked
+                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
+                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
+                                }`}
+                              >
+                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno do Fecho</span>
+                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
+                                  {!hasFecho ? '+ Iniciar Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Rascunho Fecho'}
+                                </span>
+                                {hasFecho && (
+                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
+                                    {formatEuro(day.fecho!.totalGeral)}
+                                  </span>
+                                )}
+                              </button>
+
+                            </div>
+
+                            {/* Close Day Action Column */}
+                            <div className="lg:col-span-3 lg:text-right">
+                              {allThreeDone ? (
+                                <button
+                                  onClick={() => handleCloseDay(day.date)}
+                                  className="w-full flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md shadow-blue-100"
+                                >
+                                  🔒 Encerrar Dia
+                                </button>
+                              ) : (
+                                <div className="text-center lg:text-right">
+                                  <button
+                                    disabled
+                                    className="w-full bg-gray-100 border text-gray-400 font-extrabold text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl cursor-not-allowed"
+                                  >
+                                    Encerrar Dia
+                                  </button>
+                                  <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 block">
+                                    {!hasAbertura || !hasTarde || !hasFecho ? 'Faltam criar turnos' : 'Falta validar turnos'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: DIAS CONTADOS / ENCERRADOS */}
+                  <div className="space-y-3 pt-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCheck size={16} className="text-blue-600" />
+                        Histórico de Dias Contados e Encerrados
+                      </h3>
+                      <span className="text-[10px] bg-blue-50 text-blue-700 font-black px-2.5 py-1 rounded-full border border-blue-100 uppercase tracking-wider">
+                        {groupedDays.filter(d => d.isClosed).length} Dias Encerrados
+                      </span>
+                    </div>
+
+                    {groupedDays.filter(d => d.isClosed).length === 0 ? (
+                      <div className="p-10 text-center border border-dashed rounded-2xl text-gray-400 font-bold text-xs uppercase tracking-wider">
+                        Ainda não há dias completamente encerrados nesta unidade.
+                      </div>
+                    ) : (
+                      <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-900 border-b text-[10px] font-black uppercase text-white tracking-wider">
+                              <th className="px-6 py-3.5">Data do Dia</th>
+                              <th className="px-6 py-3.5 text-right">Abertura</th>
+                              <th className="px-6 py-3.5 text-right">Intermédio</th>
+                              <th className="px-6 py-3.5 text-right">Fecho</th>
+                              <th className="px-6 py-3.5 text-center">Estado</th>
+                              <th className="px-6 py-3.5 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y text-xs font-bold text-gray-700">
+                            {groupedDays.filter(d => d.isClosed).map(day => {
+                              return (
+                                <tr key={`closed_${day.date}`} className="hover:bg-slate-50/50">
+                                  <td className="px-6 py-4">
+                                    <span className="text-slate-800 block text-xs font-extrabold">{day.date}</span>
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-black">
+                                      {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'short' })}
+                                    </span>
+                                  </td>
+                                  
+                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
+                                    {day.abertura ? formatEuro(day.abertura.totalGeral) : '-'}
+                                  </td>
+                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
+                                    {day.tarde ? formatEuro(day.tarde.totalGeral) : '-'}
+                                  </td>
+                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
+                                    {day.fecho ? formatEuro(day.fecho.totalGeral) : '-'}
+                                  </td>
+                                  
+                                  <td className="px-6 py-4 text-center">
+                                    <span className="inline-flex items-center gap-1 text-[9px] bg-slate-100 text-slate-700 font-extrabold uppercase px-2.5 py-0.5 rounded-full border">
+                                      🔒 Fechado
+                                    </span>
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button 
+                                        onClick={() => {
+                                          if (day.abertura) {
+                                            setEditingCofre(day.abertura);
+                                            setSafeEditorTab('contagem');
+                                          }
+                                        }}
+                                        className="text-[10px] uppercase font-black text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100/60 px-2.5 py-1 rounded-lg transition-all"
+                                      >
+                                        Inspecionar
+                                      </button>
+                                      
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm(`Pretende eliminar todo o histórico de contagens do dia ${day.date}? Esta ação é irreversível.`)) {
+                                            try {
+                                              const deletePromises: Promise<any>[] = [];
+                                              if (day.abertura) deletePromises.push(deleteCofreCount(restaurantId, day.abertura.id));
+                                              if (day.tarde) deletePromises.push(deleteCofreCount(restaurantId, day.tarde.id));
+                                              if (day.fecho) deletePromises.push(deleteCofreCount(restaurantId, day.fecho.id));
+                                              
+                                              await Promise.all(deletePromises);
+                                              alert("Histórico do dia removido com sucesso.");
+                                              await loadData();
+                                            } catch (e) {
+                                              console.error("Erro deletando dia:", e);
+                                            }
+                                          }
+                                        }}
+                                        className="p-1 text-red-400 hover:text-red-600 rounded"
+                                        title="Apagar Dia Completo"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               )}
             </div>
