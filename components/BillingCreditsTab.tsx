@@ -346,12 +346,12 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
         
         if (info.totalValue) {
           setValueHavi(info.totalValue);
-          setValueMyStore(info.totalValue); // Auto-fill with the same value
+          setValueMyStore(0); // Set to 0 for manual insertion as requested
         }
         if (info.productName) setProduct(info.productName);
         if (info.quantity) setQuantity(info.quantity);
 
-        setExtractedInfo(`Ligado com sucesso! Dados obtidos do PDF:\nNº Doc: ${info.documentNumber || '-'}\nTotal: ${info.totalValue || '0'} €\nGrupo: ${info.productGroup || '-'}`);
+        setExtractedInfo(`Ligado com sucesso! Dados obtidos do PDF:\nNº Doc: ${info.documentNumber || '-'}\nTotal HAVI: ${info.totalValue || '0'} €\nGrupo: ${info.productGroup || '-'}\n\nNota: O valor MyStore foi configurado a 0,00 € para inserção manual.`);
       }
     } catch (err: any) {
       console.error(err);

@@ -105,11 +105,52 @@ const normalizeName = (name: string): string => {
     .trim();
 };
 
+const normalizeCategoryName = (name: string): string => {
+  if (!name) return '';
+  const clean = name.trim().toLowerCase();
+  
+  if (clean.includes('comida') || clean.includes('alimento')) {
+    return 'Comida';
+  }
+  if (clean.includes('papel') || clean.includes('embalagem') || clean.includes('embalagens')) {
+    return 'Papel';
+  }
+  if (clean.includes('operaciona') || clean.includes('f. operacionais') || clean.includes('ops') || clean.includes('f.operacionais')) {
+    return 'F. Operacionais';
+  }
+  if (clean.includes('material adm') || clean.includes('adm') || clean.includes('administrativo')) {
+    return 'Material Adm';
+  }
+  if (clean.includes('happy') || clean.includes('happy meal')) {
+    return 'Happy Meal';
+  }
+  if (clean.includes('outro')) {
+    return 'Outros';
+  }
+  
+  // Try exact lookup ignoring case
+  const lowerMapped: Record<string, string> = {
+    'comida': 'Comida',
+    'papel': 'Papel',
+    'f. operacionais': 'F. Operacionais',
+    'f.operacionais': 'F. Operacionais',
+    'operacionais': 'F. Operacionais',
+    'ops': 'F. Operacionais',
+    'material adm': 'Material Adm',
+    'adm': 'Material Adm',
+    'happy meal': 'Happy Meal',
+    'outros': 'Outros'
+  };
+  
+  return lowerMapped[clean] || name; // fallback
+};
+
 export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ record, employees, onSave, onBack }) => {
   const [local, setLocal] = useState<DeliveryRecord>(record);
   const managerName = employees.find(e => e.id === local.managerId)?.name || '-';
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [isProcessingDelivery, setIsProcessingDelivery] = useState(false);
+  const [deliveryFilesCount, setDeliveryFilesCount] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const deliveryInputRef = useRef<HTMLInputElement>(null);
   
@@ -299,17 +340,24 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
     if (!files || files.length === 0) return;
 
     setIsProcessingDelivery(true);
+    setDeliveryFilesCount(files.length);
     try {
       const accumulated: Record<string, number> = {};
       const documentInfos: string[] = [];
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const result = await processDeliveryPdf(file);
-        
+      // Process all selected files concurrently using Promise.all to drastically reduce loading times
+      const fileList = Array.from(files) as File[];
+      const results = await Promise.all(
+        fileList.map(async (file) => {
+          const result = await processDeliveryPdf(file);
+          return { file, result };
+        })
+      );
+
+      for (const { file, result } of results) {
         if (result && result.valores) {
           result.valores.forEach((v: any) => {
-            const cat = v.categoryName; 
+            const cat = normalizeCategoryName(v.categoryName); 
             const amt = v.totalVal || 0;
             accumulated[cat] = (accumulated[cat] || 0) + amt;
           });
@@ -323,9 +371,9 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
         const updatedSmsValues = prev.smsValues.map(sms => {
           const accVal = accumulated[sms.description];
           if (accVal !== undefined) {
-            return {
+             return {
               ...sms,
-              amount: accVal
+              amount: sms.amount + accVal
             };
           }
           return sms;
@@ -351,6 +399,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       }
     } finally {
       setIsProcessingDelivery(false);
+      setDeliveryFilesCount(0);
       if (deliveryInputRef.current) deliveryInputRef.current.value = '';
     }
   };
@@ -370,7 +419,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
            </button>
            <button onClick={() => deliveryInputRef.current?.click()} disabled={isProcessingPdf || isProcessingDelivery} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-100 font-bold border border-emerald-200 transition-all disabled:opacity-50 shadow-sm">
               {isProcessingDelivery ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
-              {isProcessingDelivery ? "A carregar..." : "Carregar Entrega"}
+              {isProcessingDelivery ? (deliveryFilesCount > 1 ? `A processar (${deliveryFilesCount})...` : "A carregar...") : "Carregar Entrega"}
            </button>
            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>

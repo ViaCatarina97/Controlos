@@ -744,6 +744,14 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page {
+            size: landscape !important;
+            margin: 5mm !important;
+          }
+        }
+      `}} />
       <div className="flex flex-col h-full space-y-4 animate-fade-in print:hidden">
         {/* Header Bar: Date & Shift Manager selection */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-5">
