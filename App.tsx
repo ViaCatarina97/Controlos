@@ -565,6 +565,12 @@ const App: React.FC = () => {
                 <Calculator size={20} /> {sidebarOpen && <span>Contagem de Cofre</span>}
               </button>
               <button 
+                onClick={() => setActiveTab('faturas')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'faturas' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <FileText size={20} /> {sidebarOpen && <span>Faturas</span>}
+              </button>
+              <button 
                 onClick={() => setActiveTab('depositos')} 
                 className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'depositos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
               >
@@ -699,7 +705,7 @@ const App: React.FC = () => {
 
           {activeModule === 'finance' && (
             <>
-              {(['cofre', 'depositos', 'prosegur', 'finance_settings'].includes(activeTab)) && (
+              {(['cofre', 'depositos', 'prosegur', 'faturas', 'finance_settings'].includes(activeTab)) && (
                 <FinanceControl 
                   restaurantId={activeRestaurant.restaurantId} 
                   employees={currentEmployees} 

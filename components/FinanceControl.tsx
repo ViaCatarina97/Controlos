@@ -19,7 +19,7 @@ interface FinanceControlProps {
   employees: Employee[];
   settings: AppSettings;
   onSaveSettings: (updated: AppSettings) => void;
-  activeSubTab: 'cofre' | 'depositos' | 'prosegur' | 'settings';
+  activeSubTab: 'cofre' | 'faturas' | 'depositos' | 'prosegur' | 'settings';
   onTabChange: (tab: string) => void;
 }
 
@@ -38,6 +38,21 @@ const DENOMINATIONS_NOTES = [
   { value: 50.00, label: '50,00 €' },
   { value: 100.00, label: '100,00 €' },
   { value: 200.00, label: '200,00 €' },
+];
+
+const INVOICE_CATEGORIES = [
+  'Plano Motivacional',
+  'Plano Ourlounge',
+  'Plano LRM',
+  'Farmácia',
+  'Papelaria',
+  'Correios',
+  'Combustível',
+  'Formação',
+  'Parque Estacionamento',
+  'Equipamento&Peq Untensílio',
+  'Outros',
+  'Cheque'
 ];
 
 export const FinanceControl: React.FC<FinanceControlProps> = ({ 
@@ -66,6 +81,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [invNum, setInvNum] = useState('');
   const [invSupplier, setInvSupplier] = useState('');
   const [invAmt, setInvAmt] = useState('');
+
+  // Main Faturas page inputs
+  const [invoiceDateInput, setInvoiceDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceTurnInput, setInvoiceTurnInput] = useState<'Abertura' | 'Tarde' | 'Fecho'>('Abertura');
+  const [invoiceSupplierInput, setInvoiceSupplierInput] = useState('');
+  const [invoiceNumInput, setInvoiceNumInput] = useState('');
+  const [invoiceAmtInput, setInvoiceAmtInput] = useState('');
+  const [invoiceCategoryInput, setInvoiceCategoryInput] = useState('Plano Motivacional');
+  const [selectedMonth, setSelectedMonth] = useState<string>('All');
 
   // Default Drawer configurations from setting or defaults
   const devDefaultGavetaCount = settings.fundoGavetaCount ?? 4;
@@ -109,6 +133,59 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     onSaveSettings(updated);
     alert("Definições financeiras guardadas com sucesso!");
   };
+
+  // Memoized lists of faturas (all invoices aggregated from cofreCounts)
+  const allInvoicesList = useMemo(() => {
+    const list: Array<{
+      date: string;
+      turn: 'Abertura' | 'Tarde' | 'Fecho';
+      invoice: FinanceInvoice;
+      cofreCountId: string;
+      isLocked: boolean;
+      invoiceUniqueId: string;
+    }> = [];
+
+    cofreCounts.forEach(c => {
+      if (c.invoices && c.invoices.length > 0) {
+        c.invoices.forEach(inv => {
+          list.push({
+            date: c.date,
+            turn: c.turn,
+            invoice: inv,
+            cofreCountId: c.id,
+            isLocked: !!c.isLocked,
+            invoiceUniqueId: `${c.id}_${inv.id}`
+          });
+        });
+      }
+    });
+
+    list.sort((a,b) => b.date.localeCompare(a.date) || b.turn.localeCompare(a.turn));
+    return list;
+  }, [cofreCounts]);
+
+  // Unique months available for selection
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    allInvoicesList.forEach(item => {
+      if (item.date) {
+        monthsSet.add(item.date.substring(0, 7)); // "YYYY-MM"
+      }
+    });
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [allInvoicesList]);
+
+  // Filtered list based on selectedMonth
+  const filteredInvoices = useMemo(() => {
+    if (selectedMonth === 'All') return allInvoicesList;
+    return allInvoicesList.filter(item => item.date && item.date.startsWith(selectedMonth));
+  }, [allInvoicesList, selectedMonth]);
+
+  const totalAllInvoices = useMemo(() => {
+    return filteredInvoices
+      .filter(item => item.invoice.status !== 'arquivada')
+      .reduce((sum, item) => sum + item.invoice.amount, 0);
+  }, [filteredInvoices]);
 
   // Helper to create an empty FundoCofrePart configuration
   const createEmptyPart = (): any => ({
@@ -264,22 +341,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const fGerenteTot = countCopy.fundoGerente.total;
     const cofreTot = countCopy.cofre.total;
     const faturasTot = countCopy.totalFaturas;
+    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const moedasPros = prosegurDeposits
+      .filter(p => p.date === countCopy.date)
+      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
 
-    // Total Geral = Safe (Cofre) + Manager Fund + Recorded Invoices
-    const computedTotal = fGerenteTot + cofreTot + faturasTot;
+    // Total Geral = Safe (Cofre) + Manager Fund + Recorded Invoices + Drawer Funds + Moedas Prosegur
+    const computedTotal = fGerenteTot + cofreTot + faturasTot + fundosTot + moedasPros;
+    const computedDiferenca = (1000 + fundosTot) - computedTotal;
 
-    // Diferença = we can compute the difference between Count (Total Geral) and EXPECTED/THEORETICAL vault?
-    // Let's check how the difference can be computed or if we have an expected value field.
-    // Let's create an input field "Saldo Teórico" (Expected Vault Balance) or calculate it.
-    // If we have "Saldo Teórico" input or let user adjust "Moedas Prosegur" and calculate a discrepancy?
-    // Let's define Difference = Total Geral - (Expected Manager Fund (e.g. 300) + Expected Safe/Theoretical Value)
-    // Or we can just let "Moedas Prosegur" and a "Saldo Teórico" or make it difference = Total Geral - Expected or let them enter.
-    // In the excelsheet: difference is 0.80.
-    // Let's check: 3141 (Total Geral) - 3140 (Expected value) = 1.00, or 3140.80 - 3140.00 = 0.80!
-    // Let's provide a field "Saldo Teórico de Sistema" on the bottom (defaulting to the rounded-down total or let them type it)
-    // with a helper "Diferença = Total Geral - Saldo Teórico"
-    // This gives absolute control and works 100% like real restaurants!
     countCopy.totalGeral = computedTotal;
+    countCopy.diferenca = computedDiferenca;
 
     setEditingCofre(countCopy);
   };
@@ -308,8 +380,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.invoices = [...countCopy.invoices, newInv];
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
-    // Recalculate Total Geral
-    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas;
+    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const moedasPros = prosegurDeposits
+      .filter(p => p.date === countCopy.date)
+      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+
+    // Recalculate Total Geral and Diferenca with Drawer Funds included
+    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
+    countCopy.diferenca = (1000 + fundosTot) - countCopy.totalGeral;
 
     setEditingCofre(countCopy);
     setInvNum('');
@@ -323,8 +401,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.invoices = countCopy.invoices.filter(i => i.id !== id);
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
-    // Recalculate Total Geral
-    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas;
+    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const moedasPros = prosegurDeposits
+      .filter(p => p.date === countCopy.date)
+      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+
+    // Recalculate Total Geral and Diferenca with Drawer Funds included
+    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
+    countCopy.diferenca = (1000 + fundosTot) - countCopy.totalGeral;
 
     setEditingCofre(countCopy);
   };
@@ -334,13 +418,21 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     
     const finalizeLock = shouldLock === true;
     
-    // Ensure fund fields are parsed
+    const autoMoedasPros = prosegurDeposits
+      .filter(p => p.date === editingCofre.date)
+      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+    const fundosTotalVal = Number(editingCofre.fundosCount || 0) * Number(editingCofre.fundosValuePerFundo || 0);
+    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasPros + fundosTotalVal;
+    const autoDiferenca = (1000 + fundosTotalVal) - autoTotalGeral;
+
     const updatedCount: CofreCount = {
       ...editingCofre,
       fundosCount: Number(editingCofre.fundosCount),
       fundosValuePerFundo: Number(editingCofre.fundosValuePerFundo),
-      fundosTotal: Number(editingCofre.fundosCount) * Number(editingCofre.fundosValuePerFundo),
-      moedasProsegur: Number(editingCofre.moedasProsegur || 0),
+      fundosTotal: fundosTotalVal,
+      moedasProsegur: autoMoedasPros,
+      totalGeral: autoTotalGeral,
+      diferenca: autoDiferenca,
       isLocked: finalizeLock ? true : (editingCofre.isLocked || false),
     };
 
@@ -403,6 +495,205 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  const handleRegisterInvoiceMainPage = async () => {
+    if (!invoiceSupplierInput || !invoiceAmtInput) {
+      alert("Por favor, preencha o Fornecedor e o Valor da Fatura.");
+      return;
+    }
+
+    const amt = Number(invoiceAmtInput);
+    if (isNaN(amt) || amt <= 0) {
+      alert("Por favor, insira um valor válido de fatura.");
+      return;
+    }
+
+    // Try finding existing cofre count for the selected date
+    let existing = cofreCounts.find(c => c.date === invoiceDateInput);
+
+    if (existing && existing.isLocked) {
+      alert("Não é possível registar faturas nesta data, pois a contagem correspondente já se encontra Validada e Bloqueada.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const newInv: FinanceInvoice = {
+        id: `inv_${Date.now()}`,
+        number: '', // Categoria will serve as primary classifier, number is empty/unused per request
+        supplier: invoiceSupplierInput,
+        amount: amt,
+        category: invoiceCategoryInput,
+        status: 'aberta'
+      };
+
+      let updatedCount: CofreCount;
+      if (existing) {
+        const updatedInvoices = [...(existing.invoices || []), newInv];
+        const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
+        
+        // Auto moedas prosegur for recalculating Saved totalGeral:
+        const currentMoedasProsegur = prosegurDeposits
+          .filter(p => p.date === existing!.date)
+          .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+
+        const fundosTotalVal = Number(existing.fundosCount || 0) * Number(existing.fundosValuePerFundo || 0);
+
+        const updatedTotalGeral = (existing.fundoGerente?.total || 0) + (existing.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
+        const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
+
+        updatedCount = {
+          ...existing,
+          invoices: updatedInvoices,
+          totalFaturas: updatedTotalFaturas,
+          totalGeral: updatedTotalGeral,
+          diferenca: updatedDiferenca
+        };
+      } else {
+        // Create safe count on-the-fly for Abertura of that date
+        const fundosTotalVal = devDefaultGavetaCount * devDefaultGavetaValue;
+        updatedCount = {
+          id: `cofre_${invoiceDateInput}_Abertura_${Date.now()}`,
+          date: invoiceDateInput,
+          turn: 'Abertura',
+          managerId: employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '',
+          fundoGerente: createEmptyPart(),
+          cofre: createEmptyPart(),
+          invoices: [newInv],
+          totalFaturas: amt,
+          fundosCount: devDefaultGavetaCount,
+          fundosValuePerFundo: devDefaultGavetaValue,
+          fundosTotal: fundosTotalVal,
+          moedasProsegur: prosegurDeposits.filter(p => p.date === invoiceDateInput).reduce((sum, p) => sum + (p.amountCoins || 0), 0),
+          totalGeral: fundosTotalVal + amt,
+          diferenca: (1000 + fundosTotalVal) - (fundosTotalVal + amt),
+          observacoes: '',
+          isLocked: false,
+          isDayClosed: false
+        };
+        updatedCount.fundoGerente = calculatePartTotals(updatedCount.fundoGerente);
+        updatedCount.cofre = calculatePartTotals(updatedCount.cofre);
+        
+        // final recalc for new
+        const newTotalGeral = updatedCount.fundoGerente.total + updatedCount.cofre.total + updatedCount.totalFaturas + updatedCount.moedasProsegur + fundosTotalVal;
+        updatedCount.totalGeral = newTotalGeral;
+        updatedCount.diferenca = (1000 + fundosTotalVal) - newTotalGeral;
+      }
+
+      await saveCofreCount(restaurantId, updatedCount);
+      alert("Fatura lançada com sucesso!");
+      
+      // Clear inputs
+      setInvoiceSupplierInput('');
+      setInvoiceAmtInput('');
+      
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao gravar registo de fatura.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleArchiveInvoice = async (cofreCountId: string, invoiceId: string) => {
+    const managerName = prompt("Por favor, introduza o nome do gerente que está a arquivar esta fatura:");
+    if (managerName === null) return; // Cancelled
+    if (!managerName.trim()) {
+      alert("O nome do gerente é obrigatório para arquivar a fatura.");
+      return;
+    }
+
+    const parentCount = cofreCounts.find(c => c.id === cofreCountId);
+    if (!parentCount) return;
+
+    setIsLoading(true);
+    try {
+      const updatedInvoices = (parentCount.invoices || []).map(inv => {
+        if (inv.id === invoiceId) {
+          return {
+            ...inv,
+            status: 'arquivada' as const,
+            archivedBy: managerName.trim(),
+            archivedAt: new Date().toISOString()
+          };
+        }
+        return inv;
+      });
+
+      const updatedTotalFaturas = updatedInvoices
+        .filter(i => i.status !== 'arquivada')
+        .reduce((s, i) => s + i.amount, 0);
+
+      const currentMoedasProsegur = prosegurDeposits
+        .filter(p => p.date === parentCount.date)
+        .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+
+      const fundosTotalVal = Number(parentCount.fundosCount || 0) * Number(parentCount.fundosValuePerFundo || 0);
+
+      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
+      const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
+
+      const updatedCount: CofreCount = {
+        ...parentCount,
+        invoices: updatedInvoices,
+        totalFaturas: updatedTotalFaturas,
+        totalGeral: updatedTotalGeral,
+        diferenca: updatedDiferenca
+      };
+
+      await saveCofreCount(restaurantId, updatedCount);
+      alert("Fatura arquivada com sucesso!");
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao arquivar faturas.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteInvoiceMainPage = async (cofreCountId: string, invoiceId: string) => {
+    const parentCount = cofreCounts.find(c => c.id === cofreCountId);
+    if (!parentCount) return;
+
+    if (parentCount.isLocked) {
+      alert("A contagem correspondente está Validada e Bloqueada. Não é possível remover esta fatura.");
+      return;
+    }
+
+    if (!confirm("Deseja mesmo eliminar esta fatura?")) return;
+
+    setIsLoading(true);
+    try {
+      const updatedInvoices = (parentCount.invoices || []).filter(i => i.id !== invoiceId);
+      const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
+      
+      const currentMoedasProsegur = prosegurDeposits
+        .filter(p => p.date === parentCount.date)
+        .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+
+      const fundosTotalVal = Number(parentCount.fundosCount || 0) * Number(parentCount.fundosValuePerFundo || 0);
+      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
+
+      const updatedCount = {
+        ...parentCount,
+        invoices: updatedInvoices,
+        totalFaturas: updatedTotalFaturas,
+        totalGeral: updatedTotalGeral,
+        diferenca: (1000 + fundosTotalVal) - updatedTotalGeral
+      };
+
+      await saveCofreCount(restaurantId, updatedCount);
+      alert("Fatura eliminada com sucesso!");
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao eliminar fatura.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -502,6 +793,26 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(val);
   };
 
+  const formatDateToDMY = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const formatMonthLabel = (yearMonth: string) => {
+    if (!yearMonth) return '';
+    const [year, month] = yearMonth.split('-');
+    const monthNamesPt = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+    const idx = parseInt(month, 10) - 1;
+    return `${monthNamesPt[idx] || month} ${year}`;
+  };
+
   return (
     <div id="finance-control-root" className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden animate-fade-in print:border-0 print:shadow-none p-6">
       
@@ -532,24 +843,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 onClick={() => window.print()}
                 className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-200 font-bold text-xs transition-all uppercase tracking-wider"
               >
-                <Printer size={16} /> Print/Imprimir
+                <Printer size={16} /> Imprimir
               </button>
-              {editingCofre.isLocked ? (
-                <button
-                  onClick={() => setEditingCofre(null)}
-                  className="flex items-center gap-2 bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all uppercase tracking-wider cursor-not-allowed"
-                  disabled
-                >
-                  <Lock size={16} /> Bloqueado
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleSaveCofreCountEdit(false)}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-bold text-xs transition-all uppercase tracking-wider shadow-md shadow-blue-100"
-                >
-                  <Save size={16} /> Guardar Rascunho
-                </button>
-              )}
             </div>
           </div>
 
@@ -586,92 +881,89 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="Abertura">Abertura</option>
-                  <option value="Tarde">Intermédio (Tarde)</option>
+                  <option value="Tarde">Intermédio</option>
                   <option value="Fecho">Fecho</option>
                 </select>
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente de Turno</label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
-                <select
-                  disabled={editingCofre.isLocked}
-                  value={editingCofre.managerId}
-                  onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                  ))}
-                </select>
+            {editingCofre.turn === 'Tarde' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:col-span-2">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente Abertura</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
+                    <select
+                      disabled={editingCofre.isLocked}
+                      value={editingCofre.managerId}
+                      onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      {employees.filter(e => e.role === 'GERENTE').map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente de Fecho</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
+                    <select
+                      disabled={editingCofre.isLocked}
+                      value={editingCofre.managerId2 || ''}
+                      onChange={(e) => setEditingCofre({ ...editingCofre, managerId2: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">-- Selecione o Gerente de Fecho --</option>
+                      {employees.filter(e => e.role === 'GERENTE').map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente de Turno</label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
+                  <select
+                    disabled={editingCofre.isLocked}
+                    value={editingCofre.managerId}
+                    onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    {employees.filter(e => e.role === 'GERENTE').map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Fundos de Gaveta</label>
-              <div className="flex gap-2 items-center print:hidden">
+              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Fundos de Gaveta 🔒</label>
+              <div className="flex gap-2 items-center">
                 <input 
                   type="number"
-                  disabled={editingCofre.isLocked}
-                  placeholder="Qtd (Ex: 4)"
+                  disabled={true}
+                  placeholder="Qtd"
                   value={editingCofre.fundosCount}
-                  onChange={(e) => {
-                    const cnt = Number(e.target.value);
-                    setEditingCofre({ 
-                      ...editingCofre, 
-                      fundosCount: cnt,
-                      fundosTotal: cnt * (editingCofre.fundosValuePerFundo)
-                    });
-                  }}
-                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl font-bold text-xs text-center cursor-not-allowed outline-none"
                 />
                 <input 
                   type="number"
-                  disabled={editingCofre.isLocked}
+                  disabled={true}
                   placeholder="Valor"
                   value={editingCofre.fundosValuePerFundo}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setEditingCofre({ 
-                      ...editingCofre, 
-                      fundosValuePerFundo: val,
-                      fundosTotal: (editingCofre.fundosCount) * val
-                    });
-                  }}
-                  className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 text-center outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl font-bold text-xs text-center cursor-not-allowed outline-none"
                 />
-              </div>
-              <div className="text-xs font-black text-slate-800 mt-2">
-                Total Fundos: {formatEuro(editingCofre.fundosCount * editingCofre.fundosValuePerFundo)} ({editingCofre.fundosCount} x {formatEuro(editingCofre.fundosValuePerFundo)})
               </div>
             </div>
           </div>
 
-          {/* Form Tabs */}
-          <div className="flex border-b border-gray-100 gap-6 print:hidden">
-            <button
-              onClick={() => setSafeEditorTab('contagem')}
-              className={`pb-3 font-bold text-sm transition-all relative ${safeEditorTab === 'contagem' ? 'text-blue-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              Contagem Física (Fundo & Cofre)
-              {safeEditorTab === 'contagem' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-            <button
-              onClick={() => setSafeEditorTab('faturas')}
-              className={`pb-3 font-bold text-sm transition-all relative flex items-center gap-2 ${safeEditorTab === 'faturas' ? 'text-blue-600 font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              Faturas Registadas
-              <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-                {editingCofre.invoices.length}
-              </span>
-              {safeEditorTab === 'faturas' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-          </div>
-
-          {safeEditorTab === 'contagem' ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
               
               {/* CARD 1: FUNDO DE GERENTE (AZUL ESCURO) */}
               <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -687,8 +979,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Moedas */}
                   <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-black text-[10px] uppercase text-center border">
-                      MOEDAS (ROLOGENS)
+                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                      Moedas
                     </div>
                     {DENOMINATIONS_COINS.map(coin => {
                       const coinKey = coin.value.toFixed(2);
@@ -700,7 +992,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             type="number"
                             disabled={editingCofre.isLocked}
                             min="0"
-                            placeholder="Rolos"
+                            placeholder="Qtd"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', coinKey, Number(e.target.value))}
                             className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
@@ -712,8 +1004,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       );
                     })}
                     {/* Loose/Soltas */}
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed">
-                      <span className="text-xs font-extrabold text-blue-600 w-24">Moedas Soltas</span>
+                    <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
+                      <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
                       <input 
                         type="number"
                         disabled={editingCofre.isLocked}
@@ -721,15 +1013,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         placeholder="Valor €"
                         value={editingCofre.fundoGerente.moedas.loose || ''}
                         onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
+                        className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
                       />
                     </div>
                   </div>
 
                   {/* Notas */}
                   <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-black text-[10px] uppercase text-center border">
-                      NOTAS (UNIDADES)
+                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                      Notas
                     </div>
                     {DENOMINATIONS_NOTES.map(note => {
                       const noteKey = note.value.toString();
@@ -760,7 +1052,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
                   <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
-                    <Coins size={14} className="text-blue-400" /> COFRE (VAULT)
+                    <Coins size={14} className="text-blue-400" /> Cofre
                   </h4>
                   <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
                     {formatEuro(editingCofre.cofre.total)}
@@ -770,8 +1062,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Moedas */}
                   <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-black text-[10px] uppercase text-center border">
-                      MOEDAS (ROLOGENS)
+                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                      Moedas
                     </div>
                     {DENOMINATIONS_COINS.map(coin => {
                       const coinKey = coin.value.toFixed(2);
@@ -783,7 +1075,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             type="number"
                             disabled={editingCofre.isLocked}
                             min="0"
-                            placeholder="Rolos"
+                            placeholder="Qtd"
                             value={qty || ''}
                             onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', coinKey, Number(e.target.value))}
                             className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
@@ -795,8 +1087,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       );
                     })}
                     {/* Loose/Soltas */}
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed">
-                      <span className="text-xs font-extrabold text-blue-600 w-24">Moedas Soltas</span>
+                    <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
+                      <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
                       <input 
                         type="number"
                         disabled={editingCofre.isLocked}
@@ -804,15 +1096,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         placeholder="Valor €"
                         value={editingCofre.cofre.moedas.loose || ''}
                         onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-20 h-8 text-right px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
+                        className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
                       />
                     </div>
                   </div>
 
                   {/* Notas */}
                   <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-black text-[10px] uppercase text-center border">
-                      NOTAS (UNIDADES)
+                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                      Notas
                     </div>
                     {DENOMINATIONS_NOTES.map(note => {
                       const noteKey = note.value.toString();
@@ -840,180 +1132,59 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
 
             </div>
-          ) : (
-            
-            /* TAB INVOICES: inserir e listar as faturas registadas */
-            <div className="space-y-6">
-              {!editingCofre.isLocked ? (
-                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 max-w-xl space-y-4">
-                  <h4 className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
-                    Registar Nova Fatura do Fornecedor / Outros
-                  </h4>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                        Nº Documento
-                      </label>
-                      <input 
-                        type="text"
-                        placeholder="Ex: FT-101"
-                        value={invNum}
-                        onChange={(e) => setInvNum(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                        Fornecedor
-                      </label>
-                      <input 
-                        type="text"
-                        placeholder="Ex: Makro, Maia"
-                        value={invSupplier}
-                        onChange={(e) => setInvSupplier(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-black text-gray-400 uppercase tracking-wider mb-1">
-                        Valor (€)
-                      </label>
-                      <input 
-                        type="text"
-                        placeholder="Ex: 12.50"
-                        value={invAmt}
-                        onChange={(e) => setInvAmt(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAddInvoiceToSafe}
-                    className="flex items-center gap-1.5 ml-auto bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
-                  >
-                    <Plus size={14} /> Adicionar Fatura
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-slate-50 p-4 rounded-2xl border text-xs text-slate-500 font-bold max-w-xl">
-                  ℹ️ Visualização de faturas em modo de leitura. Esta contagem de cofre encontra-se bloqueada.
-                </div>
-              )}
-
-              {/* Invoices List */}
-              <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-4 py-3 border-b text-xs font-black text-slate-700 uppercase tracking-wider flex justify-between">
-                  <span>Lista de Faturas Associadas à Contagem</span>
-                  <span>Total Faturas: {formatEuro(editingCofre.totalFaturas)}</span>
-                </div>
-
-                {editingCofre.invoices.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-gray-400 font-bold uppercase tracking-wider">
-                    Nenhuma fatura associada a este dia/turno.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50">
-                    {editingCofre.invoices.map(inv => (
-                      <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-gray-50 text-xs font-bold">
-                        <div className="grid grid-cols-3 gap-6 flex-1 max-w-xl">
-                          <div>
-                            <span className="text-[10px] text-gray-400 block uppercase tracking-wider mb-0.5">Nº Documento</span>
-                            <span className="text-slate-800">{inv.number}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-gray-400 block uppercase tracking-wider mb-0.5">Fornecedor</span>
-                            <span className="text-slate-800">{inv.supplier}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-gray-400 block uppercase tracking-wider mb-0.5">Valor</span>
-                            <span className="text-blue-700 font-extrabold">{formatEuro(inv.amount)}</span>
-                          </div>
-                        </div>
-                        {!editingCofre.isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveInvoiceFromSafe(inv.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-all"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* BOTTOM SUMMARY - SYSTEM DARK BLUE STYLE */}
-          <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6 items-center print:bg-white print:border-t">
-            
-            {/* Total Invoices */}
-            <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm">
-              <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Total Faturas
-              </span>
-              <span className="text-base font-extrabold text-slate-800">
-                {formatEuro(editingCofre.totalFaturas)}
-              </span>
-              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">Refletido no total</p>
-            </div>
+          {(() => {
+            const autoMoedasProsegurVal = prosegurDeposits
+              .filter(p => p.date === editingCofre.date)
+              .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+            const autoTotalVal = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
+            const autoDiferencaVal = 1000 - autoTotalVal;
 
-            {/* Moedas Prosegur Manual input */}
-            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
-              <span className="block text-[10px] font-black text-blue-900 uppercase tracking-widest text-center mb-1">
-                Moedas Prosegur
-              </span>
-              <div className="relative mt-1">
-                <input 
-                  type="number"
-                  disabled={editingCofre.isLocked}
-                  placeholder="0,00 €"
-                  value={editingCofre.moedasProsegur || ''}
-                  onChange={(e) => setEditingCofre({ ...editingCofre, moedasProsegur: Number(e.target.value) })}
-                  className="w-full text-center py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-550 font-bold font-mono text-xs disabled:opacity-50"
-                />
+            return (
+              <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6 items-center print:bg-white print:border-t">
+                {/* Total Faturas */}
+                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Total Faturas
+                  </span>
+                  <span className="text-base font-extrabold text-slate-800">
+                    {formatEuro(editingCofre.totalFaturas)}
+                  </span>
+                </div>
+
+                {/* Moedas Prosegur Automatic display */}
+                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                  <span className="block text-[10px] font-black text-blue-900 uppercase tracking-widest mb-1">
+                    Moedas Prosegur
+                  </span>
+                  <span className="text-base font-extrabold text-blue-900 font-mono">
+                    {formatEuro(autoMoedasProsegurVal)}
+                  </span>
+                </div>
+
+                {/* Total Display */}
+                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Total
+                  </span>
+                  <span className="text-xl font-black text-slate-800">
+                    {formatEuro(autoTotalVal)}
+                  </span>
+                </div>
+
+                {/* Diferença box */}
+                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                  <span className="block text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">
+                    Diferença
+                  </span>
+                  <span className={`text-base font-black font-mono ${autoDiferencaVal !== 0 ? "text-red-600" : "text-green-600"}`}>
+                    {formatEuro(autoDiferencaVal)}
+                  </span>
+                </div>
               </div>
-            </div>
-
-            {/* Total Geral Display */}
-            <div className="p-4 rounded-xl text-center">
-              <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Total Geral (Fundo + Cofre + Faturas)
-              </span>
-              <span className="text-2xl font-black text-blue-900 tracking-tighter">
-                {formatEuro(editingCofre.totalGeral)}
-              </span>
-              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">
-                (Aprov. {Math.round(editingCofre.totalGeral)} €)
-              </p>
-            </div>
-
-            {/* Diferença input */}
-            <div className="bg-white p-4 rounded-xl border border-blue-100 flex flex-col justify-center items-center shadow-sm">
-              <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                DIFERENÇA (Saldo Teórico)
-              </span>
-              <div className="flex gap-2">
-                <input 
-                  type="number"
-                  disabled={editingCofre.isLocked}
-                  placeholder="Saldo Esperado"
-                  value={editingCofre.diferenca || ''}
-                  onChange={(e) => setEditingCofre({ ...editingCofre, diferenca: Number(e.target.value) })}
-                  className="w-24 text-center py-1 bg-gray-50 border rounded-lg text-xs font-bold disabled:opacity-50"
-                />
-              </div>
-              <div className="font-extrabold font-mono text-xs text-red-600 mt-2">
-                Discrepância: {formatEuro(editingCofre.diferenca)}
-              </div>
-            </div>
-
-          </div>
+            );
+          })()}
 
           <div className="print:hidden flex justify-end gap-3 pt-4 border-t">
             {editingCofre.isLocked ? (
@@ -1021,7 +1192,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 onClick={() => setEditingCofre(null)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
               >
-                Fechar Visualização
+                Voltar
               </button>
             ) : (
               <>
@@ -1029,23 +1200,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   onClick={() => setEditingCofre(null)}
                   className="px-5 py-2 hover:bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs uppercase"
                 >
-                  Cancelar
+                  Voltar
                 </button>
                 <button
                   onClick={() => handleSaveCofreCountEdit(false)}
                   className="bg-slate-600 text-white px-5 py-2 rounded-xl hover:bg-slate-700 font-bold text-xs uppercase tracking-wider shadow-sm"
                 >
-                  Guardar como Rascunho
+                  Guardar
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm("Deseja mesmo VALIDAR e CONFIGURAR como CONCLUÍDO? A contagem será bloqueada permanentemente e não poderá sofrer mais alterações.")) {
+                    if (confirm("Deseja mesmo submeter? A contagem será bloqueada permanentemente e não poderá sofrer mais alterações.")) {
                       handleSaveCofreCountEdit(true);
                     }
                   }}
                   className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 font-bold text-xs uppercase tracking-wider shadow-md shadow-blue-50"
                 >
-                  Validar e Bloquear 🔒
+                  Submeter 🔒
                 </button>
               </>
             )}
@@ -1104,7 +1275,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   onChange={(e) => setEditingDeposit({ ...editingDeposit, managerId: e.target.value })}
                   className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
                 >
-                  {employees.map(e => (
+                  {employees.filter(e => e.role === 'GERENTE').map(e => (
                     <option key={e.id} value={e.id}>{e.name}</option>
                   ))}
                 </select>
@@ -1268,40 +1439,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         
         /* ------------------ LIST / LANDING TABS ------------------ */
         <div className="space-y-6">
-          {/* Main Top Navigation Tabs */}
-          <div className="flex flex-wrap border-b border-gray-100 gap-6 md:gap-10 pb-1.5">
-            <button
-              onClick={() => setActiveTab('cofre')}
-              className={`pb-4 font-black uppercase text-xs tracking-wider transition-all relative flex items-center gap-2 ${activeTab === 'cofre' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <Calculator size={16} /> Contagem de Cofre
-              {activeTab === 'cofre' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('depositos')}
-              className={`pb-4 font-black uppercase text-xs tracking-wider transition-all relative flex items-center gap-2 ${activeTab === 'depositos' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <Landmark size={16} /> Depósito Bancário
-              {activeTab === 'depositos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('prosegur')}
-              className={`pb-4 font-black uppercase text-xs tracking-wider transition-all relative flex items-center gap-2 ${activeTab === 'prosegur' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <CreditCard size={16} /> Depósito Prosegur
-              {activeTab === 'prosegur' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`pb-4 font-black uppercase text-xs tracking-wider transition-all relative flex items-center gap-2 ${activeTab === 'settings' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <Sliders size={16} /> Definições
-              {activeTab === 'settings' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>}
-            </button>
-          </div>
 
           {/* Tab 1: CONTAGEM DE COFRE */}
           {activeTab === 'cofre' && (
@@ -1309,10 +1446,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               
               {/* Selector area to add past or other days for counting */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 gap-4">
-                <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Turnos e Fecho Diário de Cofre</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão alinhada por dia. 3 contagens por dia são necessárias para encerrar o dia.</p>
-                </div>
+                <div></div>
                 
                 <div className="flex items-center gap-2 self-stretch sm:self-auto">
                   <input 
@@ -1332,7 +1466,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     }}
                     className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
                   >
-                    <Plus size={14} /> Iniciar Outro Dia
+                    <Plus size={14} /> Nova Contagem
                   </button>
                 </div>
               </div>
@@ -1349,7 +1483,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <div className="flex items-center justify-between border-b pb-2">
                       <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                        Contagens Diárias em Curso (Dias no Turno)
+                        Contagens Abertas
                       </h3>
                       <span className="text-[10px] bg-amber-50 text-amber-700 font-black px-2.5 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
                         {groupedDays.filter(d => !d.isClosed).length} Dias Ativos
@@ -1377,7 +1511,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 <Calendar size={18} />
                               </div>
                               <div>
-                                <span className="text-sm font-extrabold text-slate-800 block">{day.date}</span>
+                                <span className="text-sm font-extrabold text-slate-800 block">{formatDateToDMY(day.date)}</span>
                                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                                   {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'long' })}
                                 </span>
@@ -1398,9 +1532,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
                                 }`}
                               >
-                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno da Abertura</span>
-                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
-                                  {!hasAbertura ? '+ Iniciar Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Rascunho Abertura'}
+                                <span className="text-xs font-bold block whitespace-nowrap">
+                                  {!hasAbertura ? 'Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
                                 </span>
                                 {hasAbertura && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
@@ -1420,9 +1553,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
                                 }`}
                               >
-                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno Intermédio</span>
-                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
-                                  {!hasTarde ? '+ Iniciar Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Rascunho Interm.'}
+                                <span className="text-xs font-bold block whitespace-nowrap">
+                                  {!hasTarde ? 'Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
                                 </span>
                                 {hasTarde && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
@@ -1442,9 +1574,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
                                 }`}
                               >
-                                <span className="block text-[8px] font-black uppercase tracking-wider text-slate-400">Turno do Fecho</span>
-                                <span className="text-xs font-bold block mt-0.5 whitespace-nowrap">
-                                  {!hasFecho ? '+ Iniciar Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Rascunho Fecho'}
+                                <span className="text-xs font-bold block whitespace-nowrap">
+                                  {!hasFecho ? 'Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
                                 </span>
                                 {hasFecho && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
@@ -1473,7 +1604,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     Encerrar Dia
                                   </button>
                                   <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 block">
-                                    {!hasAbertura || !hasTarde || !hasFecho ? 'Faltam criar turnos' : 'Falta validar turnos'}
+                                    {!hasAbertura || !hasTarde || !hasFecho ? '' : 'Falta validar turnos'}
                                   </span>
                                 </div>
                               )}
@@ -1490,7 +1621,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <div className="flex items-center justify-between border-b pb-2">
                       <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
                         <CheckCheck size={16} className="text-blue-600" />
-                        Histórico de Dias Contados e Encerrados
+                        Histórico de Contagens
                       </h3>
                       <span className="text-[10px] bg-blue-50 text-blue-700 font-black px-2.5 py-1 rounded-full border border-blue-100 uppercase tracking-wider">
                         {groupedDays.filter(d => d.isClosed).length} Dias Encerrados
@@ -1519,7 +1650,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               return (
                                 <tr key={`closed_${day.date}`} className="hover:bg-slate-50/50">
                                   <td className="px-6 py-4">
-                                    <span className="text-slate-800 block text-xs font-extrabold">{day.date}</span>
+                                    <span className="text-slate-800 block text-xs font-extrabold">{formatDateToDMY(day.date)}</span>
                                     <span className="text-[10px] text-gray-400 uppercase tracking-wider font-black">
                                       {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'short' })}
                                     </span>
@@ -1639,7 +1770,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         const mName = employees.find(e => e.id === dep.managerId)?.name || 'Outro';
                         return (
                           <tr key={dep.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">{dep.date}</td>
+                            <td className="px-6 py-4">{formatDateToDMY(dep.date)}</td>
                             <td className="px-6 py-4 text-slate-800">{dep.bank}</td>
                             <td className="px-6 py-4 font-mono font-extrabold text-blue-600">{dep.ref}</td>
                             <td className="px-6 py-4">{mName}</td>
@@ -1717,7 +1848,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       {prosegurDeposits.map(pros => {
                         return (
                           <tr key={pros.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">{pros.date}</td>
+                            <td className="px-6 py-4">{formatDateToDMY(pros.date)}</td>
                             <td className="px-6 py-4 font-mono font-extrabold text-[#2c532c]">{pros.prosegurReceipt}</td>
                             <td className="px-6 py-4 font-mono text-slate-500">{pros.bagNumber}</td>
                             <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountNotes)}</td>
@@ -1755,6 +1886,240 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: LISTA DE FATURAS */}
+          {activeTab === 'faturas' && (
+            <div className="space-y-6">
+              {/* Header metrics card */}
+              <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                    <FileText size={18} className="text-blue-500" /> Lista de Faturas
+                  </h3>
+                </div>
+                <div className="bg-white px-5 py-3 rounded-xl border border-blue-100 shadow-sm flex flex-col items-center sm:items-end justify-center">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
+                    {selectedMonth === 'All' ? 'Total Geral Faturas' : 'Total Faturas (Mês Selecionado)'}
+                  </span>
+                  <span className="text-lg font-black text-blue-900 font-mono">
+                    {formatEuro(totalAllInvoices)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                
+                {/* Left side form - Adicionar Fatura */}
+                <div className="xl:col-span-4 space-y-4">
+                  <div className="border bg-slate-50/50 p-5 rounded-2xl space-y-4 border-slate-100">
+                    <div>
+                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Lançar Nova Fatura</h4>
+                    </div>
+
+                    <div className="space-y-3.5">
+                      {/* Date Input */}
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          Data da Fatura
+                        </label>
+                        <input 
+                          type="date"
+                          value={invoiceDateInput}
+                          onChange={(e) => setInvoiceDateInput(e.target.value)}
+                          className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {/* Categoria Selector */}
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          Categoria
+                        </label>
+                        <select
+                          value={invoiceCategoryInput}
+                          onChange={(e) => setInvoiceCategoryInput(e.target.value)}
+                          className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-gray-705 outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          {INVOICE_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Fornecedor Input */}
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          Fornecedor
+                        </label>
+                        <input 
+                          type="text"
+                          placeholder="Ex: Makro, Supermercado..."
+                          value={invoiceSupplierInput}
+                          onChange={(e) => setInvoiceSupplierInput(e.target.value)}
+                          className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {/* Valor Input */}
+                      <div>
+                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          Valor (€)
+                        </label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00 €"
+                          value={invoiceAmtInput || ''}
+                          onChange={(e) => setInvoiceAmtInput(e.target.value)}
+                          className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {/* Action Button */}
+                      <button
+                        onClick={handleRegisterInvoiceMainPage}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md mt-4 flex justify-center items-center gap-2"
+                      >
+                        <Plus size={14} /> Lançar Fatura
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side list - Lista de Faturas */}
+                <div className="xl:col-span-8 flex flex-col justify-start">
+                  
+                  {/* Month filter bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-150 mb-4 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Filtrar por Mês:</span>
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="px-4 py-1.5 border rounded-xl font-bold text-xs bg-white text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="All">Todos os Meses</option>
+                        {availableMonths.map(m => (
+                          <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Visual legend info */}
+                    <div className="flex items-center gap-4 text-[9px] font-extrabold text-gray-400 uppercase tracking-wider">
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <span>Em Aberto</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span>Arquivado</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredInvoices.length === 0 ? (
+                    <div className="bg-white border rounded-2xl p-12 text-center shadow-sm">
+                      <FileText size={40} className="text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                        Não existem faturas para mostrar
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1">
+                        Selecione outro mês ou utilize o formulário ao lado para lançar uma nova fatura.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-150 rounded-2xl overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-gray-700">
+                          <thead>
+                            <tr className="bg-slate-50/70 border-b text-slate-400 font-black text-[9px] uppercase tracking-wider">
+                              <th className="px-5 py-3">Data</th>
+                              <th className="px-5 py-3">Categoria</th>
+                              <th className="px-5 py-3">Fornecedor</th>
+                              <th className="px-5 py-3 text-right">Valor</th>
+                              <th className="px-5 py-3 text-center">Estado</th>
+                              <th className="px-5 py-3 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y text-xs font-bold">
+                            {filteredInvoices.map((item) => {
+                              const isArchived = item.invoice.status === 'arquivada';
+                              return (
+                                <tr key={item.invoiceUniqueId} className={`hover:bg-slate-50/50 transition-colors ${isArchived ? "bg-slate-50/30 opacity-80" : ""}`}>
+                                  <td className="px-5 py-3.5 whitespace-nowrap text-slate-800">
+                                    {formatDateToDMY(item.date)}
+                                  </td>
+                                  <td className="px-5 py-3.5 whitespace-nowrap">
+                                    <span className="bg-blue-50 text-blue-800 rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase">
+                                      {item.invoice.category || 'Outros'}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3.5 text-slate-700">
+                                    {item.invoice.supplier}
+                                  </td>
+                                  <td className="px-5 py-3.5 text-right font-mono text-slate-800 font-extrabold">
+                                    {formatEuro(item.invoice.amount)}
+                                  </td>
+                                  <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                                    {isArchived ? (
+                                      <div className="flex flex-col items-center">
+                                        <span className="inline-flex items-center gap-1 text-[9px] bg-slate-100 text-slate-600 font-extrabold px-2 py-0.5 rounded-md border border-slate-200 uppercase tracking-wide">
+                                          📦 Arquivada
+                                        </span>
+                                        {item.invoice.archivedBy && (
+                                          <span className="text-[8px] text-gray-400 mt-0.5 uppercase font-medium">Por: {item.invoice.archivedBy}</span>
+                                        )}
+                                      </div>
+                                    ) : item.isLocked ? (
+                                      <span className="inline-flex items-center gap-1 text-[9px] bg-blue-50 text-blue-700 font-extrabold px-2 py-0.5 rounded-md border border-blue-100 uppercase tracking-wide">
+                                        🔒 Validada
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-50 text-emerald-700 font-extrabold px-2 py-0.5 rounded-md border border-emerald-100 uppercase tracking-wide">
+                                        🟢 Em Aberto
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-5 py-3.5 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      {!isArchived && (
+                                        <button
+                                          onClick={() => handleArchiveInvoice(item.cofreCountId, item.invoice.id)}
+                                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase rounded-lg transition-all shadow-sm"
+                                          title="Arquivar fatura"
+                                        >
+                                          Arquivar
+                                        </button>
+                                      )}
+
+                                      <button
+                                        disabled={item.isLocked || isArchived}
+                                        onClick={() => handleDeleteInvoiceMainPage(item.cofreCountId, item.invoice.id)}
+                                        className={`p-1.5 rounded-lg border transition-all ${
+                                          (item.isLocked || isArchived)
+                                            ? 'text-gray-300 bg-gray-50 border-gray-100 cursor-not-allowed' 
+                                            : 'text-red-500 hover:bg-red-50 hover:border-red-200 border-gray-100'
+                                        }`}
+                                        title={isArchived ? 'Fatura arquivada' : item.isLocked ? 'Contagem bloqueada' : 'Eliminar fatura'}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
             </div>
           )}
 

@@ -171,6 +171,10 @@ export interface FinanceInvoice {
   number: string;
   supplier: string;
   amount: number;
+  category?: string;
+  status?: 'aberta' | 'arquivada';
+  archivedBy?: string;
+  archivedAt?: string;
 }
 
 export interface FundoCofrePart {
@@ -200,6 +204,7 @@ export interface CofreCount {
   date: string;
   turn: 'Abertura' | 'Tarde' | 'Fecho';
   managerId: string;
+  managerId2?: string;
   fundoGerente: FundoCofrePart;
   cofre: FundoCofrePart;
   invoices: FinanceInvoice[];
