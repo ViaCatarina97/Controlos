@@ -6,6 +6,7 @@ export interface Employee {
   name: string;
   role: RoleType;
   isActive: boolean;
+  mecanografico?: string;
 }
 
 export type RestaurantTypology = 'Loja de Rua' | 'Drive' | 'Shopping';
@@ -220,14 +221,28 @@ export interface CofreCount {
   isDayClosed?: boolean;
 }
 
+export interface DepositRow {
+  caixa: string;
+  colaboradorNo?: string;
+  colaboradorNome: string;
+  valorRapport: number;
+  sangria: number;
+  dinheiro: number;
+  multibanco: number;
+  tickets: number;
+  delivery: number;
+  mop: number;
+  diferenca: number;
+}
+
 export interface DepositRecord {
   id: string;
   date: string;
-  amount: number;
-  ref: string;
+  turn: 'Abertura' | 'Fecho';
   managerId: string;
-  bank: string;
-  comment: string;
+  rows: DepositRow[];
+  comments: string;
+  isLocked?: boolean;
 }
 
 export interface ProsegurDepositRecord {

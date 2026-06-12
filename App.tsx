@@ -709,6 +709,7 @@ const App: React.FC = () => {
                 <FinanceControl 
                   restaurantId={activeRestaurant.restaurantId} 
                   employees={currentEmployees} 
+                  onSaveEmployees={setCurrentEmployees}
                   settings={activeRestaurant}
                   onSaveSettings={handleSaveRestaurantSettings}
                   activeSubTab={activeTab === 'finance_settings' ? 'settings' : activeTab as any}

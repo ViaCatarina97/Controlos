@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Employee, AppSettings, CofreCount, DepositRecord, ProsegurDepositRecord, FinanceInvoice 
+  Employee, AppSettings, CofreCount, DepositRecord, DepositRow, ProsegurDepositRecord, FinanceInvoice 
 } from '../types';
 import { 
   getCofreCounts, saveCofreCount, deleteCofreCount,
@@ -17,6 +17,7 @@ import {
 interface FinanceControlProps {
   restaurantId: string;
   employees: Employee[];
+  onSaveEmployees?: (updated: Employee[]) => void;
   settings: AppSettings;
   onSaveSettings: (updated: AppSettings) => void;
   activeSubTab: 'cofre' | 'faturas' | 'depositos' | 'prosegur' | 'settings';
@@ -56,7 +57,7 @@ const INVOICE_CATEGORIES = [
 ];
 
 export const FinanceControl: React.FC<FinanceControlProps> = ({ 
-  restaurantId, employees, settings, onSaveSettings, activeSubTab, onTabChange
+  restaurantId, employees, onSaveEmployees, settings, onSaveSettings, activeSubTab, onTabChange
 }) => {
   const activeTab = activeSubTab;
   const setActiveTab = onTabChange;
@@ -68,6 +69,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   
   // App Loading state
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Settings Tab Navigation & local employees editing copy
+  const [settingsSubTab, setSettingsSubTab] = useState<'geral' | 'mecanograficos'>('geral');
+  const [localEmployees, setLocalEmployees] = useState<Employee[]>(employees);
+
+  useEffect(() => {
+    setLocalEmployees(employees);
+  }, [employees]);
   
   // Active/Detail editors
   const [editingCofre, setEditingCofre] = useState<CofreCount | null>(null);
@@ -281,6 +290,49 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     list.sort((a, b) => b.date.localeCompare(a.date));
     return list;
   }, [cofreCounts, extraDates]);
+
+  interface DepositDayState {
+    date: string;
+    abertura?: DepositRecord;
+    fecho?: DepositRecord;
+  }
+
+  const groupedDeposits = useMemo(() => {
+    const groups: { [date: string]: DepositDayState } = {};
+
+    deposits.forEach(dep => {
+      if (!groups[dep.date]) {
+        groups[dep.date] = {
+          date: dep.date
+        };
+      }
+      const turnKey = dep.turn?.toLowerCase();
+      if (turnKey === 'abertura') {
+        groups[dep.date].abertura = dep;
+      } else if (turnKey === 'fecho') {
+        groups[dep.date].fecho = dep;
+      }
+    });
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!groups[todayStr]) {
+      groups[todayStr] = {
+        date: todayStr
+      };
+    }
+
+    extraDates.forEach(d => {
+      if (!groups[d]) {
+        groups[d] = {
+          date: d
+        };
+      }
+    });
+
+    const list = Object.values(groups);
+    list.sort((a, b) => b.date.localeCompare(a.date));
+    return list;
+  }, [deposits, extraDates]);
 
   // Safe Count detailed actions
   const handleAddNewSafeCountForTurn = (date: string, turn: 'Abertura' | 'Tarde' | 'Fecho') => {
@@ -698,32 +750,54 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   // --- DEPOSIT RECORD ACTIONS ---
-  const handleAddNewDeposit = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setEditingDeposit({
-      id: `dep_${today}_${Date.now()}`,
-      date: today,
-      amount: 0,
-      ref: '',
-      managerId: employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '',
-      bank: 'Novo Banco',
-      comment: ''
-    });
-  };
+  const createDefaultDepositRows = (): DepositRow[] => [
+    { caixa: '4', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '4', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '5', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '5', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '6', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '6', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '34', colaboradorNo: '', colaboradorNome: 'UberEats', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '34', colaboradorNo: '', colaboradorNome: 'Glovo', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
+    { caixa: '61', colaboradorNo: '', colaboradorNome: 'MOP', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 }
+  ];
 
-  const handleSaveDepositEdit = async () => {
-    if (!editingDeposit) return;
-    if (editingDeposit.amount <= 0) {
-      alert("Insira um valor válido de depósito.");
+  const handleAddNewDepositForTurn = (date: string, turn: 'Abertura' | 'Fecho') => {
+    const existing = deposits.find(d => d.date === date && d.turn === turn);
+    if (existing) {
+      setEditingDeposit(existing);
       return;
     }
+
+    const defaultRows = createDefaultDepositRows();
+    const defaultManagerId = employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '';
+
+    const newDep: DepositRecord = {
+      id: `dep_${date}_${turn}_${Date.now()}`,
+      date: date,
+      turn: turn,
+      managerId: defaultManagerId,
+      rows: defaultRows,
+      comments: '',
+      isLocked: false
+    };
+
+    setEditingDeposit(newDep);
+  };
+
+  const handleSaveDepositEdit = async (forceLock?: boolean) => {
+    if (!editingDeposit) return;
     try {
-      await saveDeposit(restaurantId, editingDeposit);
+      const recordToSave: DepositRecord = {
+        ...editingDeposit,
+        isLocked: forceLock === true ? true : (editingDeposit.isLocked || false)
+      };
+      await saveDeposit(restaurantId, recordToSave);
       setEditingDeposit(null);
-      loadData();
+      await loadData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao gravar depósito.");
+      alert("Erro ao gravar folha de depósito.");
     }
   };
 
@@ -731,11 +805,90 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     if (confirm("Desejas eliminar este depósito?")) {
       try {
         await deleteDeposit(restaurantId, id);
-        loadData();
+        await loadData();
       } catch (err) {
         console.error(err);
       }
     }
+  };
+
+  const handleCloseDayDeposits = async (date: string, dayState: any) => {
+    if (!dayState.abertura && !dayState.fecho) {
+      alert("Por favor, preencha pelo menos um turno de depósito (Abertura ou Fecho) antes de encerrar o dia.");
+      return;
+    }
+    if (confirm(`Tem a certeza que deseja encerrar o dia ${formatDateToDMY(date)}? Todos os turnos de depósito registados para este dia serão bloqueados.`)) {
+      try {
+        if (dayState.abertura) {
+          await saveDeposit(restaurantId, { ...dayState.abertura, isLocked: true });
+        }
+        if (dayState.fecho) {
+          await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true });
+        }
+        await loadData();
+        alert("Dia encerrado e validado com sucesso! 🔒");
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao encerrar o dia.");
+      }
+    }
+  };
+
+  const handleRowChange = (index: number, field: keyof DepositRow, value: any) => {
+    if (!editingDeposit) return;
+    const updatedRows = [...editingDeposit.rows];
+    let val = value;
+    if (field !== 'colaboradorNo' && field !== 'colaboradorNome' && field !== 'caixa') {
+      val = value === '' ? 0 : Number(value);
+    }
+    
+    updatedRows[index] = {
+      ...updatedRows[index],
+      [field]: val
+    };
+
+    if (field === 'colaboradorNo' && val) {
+      const trimmedVal = String(val).trim();
+      if (trimmedVal) {
+        const foundEmp = employees.find(emp => emp.mecanografico && String(emp.mecanografico).trim() === trimmedVal);
+        if (foundEmp) {
+          updatedRows[index].colaboradorNome = foundEmp.name;
+        }
+      }
+    }
+
+    const row = updatedRows[index];
+    const rowTotal = (row.sangria || 0) + (row.dinheiro || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
+    row.diferenca = rowTotal - (row.valorRapport || 0);
+
+    setEditingDeposit({
+      ...editingDeposit,
+      rows: updatedRows
+    });
+  };
+
+  const getDepositRecordTotal = (dep?: DepositRecord): number => {
+    if (!dep) return 0;
+    if (!dep.rows) return (dep as any).amount || 0;
+    return dep.rows.reduce((sum, row) => {
+      return sum + (row.dinheiro || 0) + (row.sangria || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
+    }, 0);
+  };
+
+  const getDepositRecordCash = (dep?: DepositRecord): number => {
+    if (!dep) return 0;
+    if (!dep.rows) return (dep as any).amount || 0;
+    return dep.rows.reduce((sum, row) => {
+      return sum + (row.dinheiro || 0) + (row.sangria || 0);
+    }, 0);
+  };
+
+  const getDepositRecordFieldTotal = (depToSum: DepositRecord, field: keyof DepositRow): number => {
+    if (!depToSum || !depToSum.rows) return 0;
+    return depToSum.rows.reduce((sum, row) => {
+      const val = row[field];
+      return sum + (typeof val === 'number' ? val : 0);
+    }, 0);
   };
 
   // --- PROSEGUR DEPOSIT ACTIONS ---
@@ -800,6 +953,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return dateStr;
+  };
+
+  const getWeekdayName = (dateStr: string) => {
+    if (!dateStr) return '';
+    // Use an explicit offset-splitting to avoid timezone shift on plain date strings
+    const parts = dateStr.split('-');
+    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const dayName = date.toLocaleDateString('pt-PT', { weekday: 'long' });
+    return dayName.charAt(0).toUpperCase() + dayName.slice(1);
   };
 
   const formatMonthLabel = (yearMonth: string) => {
@@ -1224,100 +1386,411 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         </div>
       ) : editingDeposit ? (
         
-        /* DEPÓSITO FORM */
-        <div className="space-y-6 max-w-xl mx-auto">
-          <div className="border-b pb-4">
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">
-              {editingDeposit.id ? 'Editar Depósito Bancário' : 'Novo Depósito Bancário'}
-            </h3>
-            <p className="text-xs text-gray-400 font-bold uppercase">Registo de Fluxo de Caixa no Banco</p>
+        /* DEPÓSITO FORM (SPREADSHEET MULTI-ROW) */
+        <div className="space-y-6 max-w-7xl mx-auto bg-white p-6 rounded-3xl border shadow-sm">
+          {/* Main Excel Styled Brand Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-5 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500 text-white p-2.5 rounded-2xl shadow-sm">
+                <Landmark size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                  FOLHA DE DEPÓSITO McD VIA CATARINA
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                  Reconciliação e Fecho de Turno de Caixa — {editingDeposit.turn}
+                </p>
+              </div>
+            </div>
+
+            {editingDeposit.isLocked && (
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-[10px] font-black uppercase tracking-wider">
+                🔒 Validado & Bloqueado
+              </span>
+            )}
           </div>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Data</label>
-                <input 
-                  type="date"
-                  value={editingDeposit.date}
-                  onChange={(e) => setEditingDeposit({ ...editingDeposit, date: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Valor do Depósito (€)</label>
-                <input 
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={editingDeposit.amount || ''}
-                  onChange={(e) => setEditingDeposit({ ...editingDeposit, amount: Number(e.target.value) })}
-                  className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Nº Comprovativo / Talão</label>
-                <input 
-                  type="text"
-                  placeholder="Ex: BANCO-492"
-                  value={editingDeposit.ref}
-                  onChange={(e) => setEditingDeposit({ ...editingDeposit, ref: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente Responsável</label>
-                <select
-                  value={editingDeposit.managerId}
-                  onChange={(e) => setEditingDeposit({ ...editingDeposit, managerId: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
-                >
-                  {employees.filter(e => e.role === 'GERENTE').map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
+          {/* Form Metadata Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Banco Destinatário</label>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data do Depósito</label>
               <input 
-                type="text"
-                placeholder="Ex: Novo Banco / Millenium"
-                value={editingDeposit.bank}
-                onChange={(e) => setEditingDeposit({ ...editingDeposit, bank: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl font-bold text-xs"
+                type="date"
+                value={editingDeposit.date}
+                disabled={editingDeposit.isLocked}
+                onChange={(e) => setEditingDeposit({ ...editingDeposit, date: e.target.value })}
+                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700 focus:ring-1 focus:ring-amber-500"
               />
             </div>
-
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Observações</label>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Turno</label>
+              <select
+                value={editingDeposit.turn}
+                disabled={editingDeposit.isLocked}
+                onChange={(e) => setEditingDeposit({ ...editingDeposit, turn: e.target.value as 'Abertura' | 'Fecho' })}
+                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700"
+              >
+                <option value="Abertura">Abertura</option>
+                <option value="Fecho">Fecho</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Gerente Responsável</label>
+              <select
+                value={editingDeposit.managerId}
+                disabled={editingDeposit.isLocked}
+                onChange={(e) => setEditingDeposit({ ...editingDeposit, managerId: e.target.value })}
+                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700"
+              >
+                {employees.filter(e => e.role === 'GERENTE').map(e => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Spreadsheet-like Table Board */}
+          <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-inner bg-white">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wide">
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-16">Caixa</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Nº Colab.</th>
+                  <th className="px-3 py-3 border-r border-slate-200 w-44">Nome Colaborador</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Valor Rapport</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Sangria</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Dinheiro €</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Multibanco</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Tickets</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Delivery</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Mop</th>
+                  <th className="px-3 py-3 text-right w-28">Diferença</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                {editingDeposit.rows.map((row, idx) => {
+                  const isDeliveryOrMop = row.colaboradorNome === 'UberEats' || row.colaboradorNome === 'Glovo' || row.colaboradorNome === 'MOP';
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      {/* CAIXA */}
+                      <td className="border-r border-slate-150 p-1 bg-slate-50/75 text-center">
+                        <input
+                          type="text"
+                          disabled={editingDeposit.isLocked}
+                          value={row.caixa}
+                          onChange={(e) => handleRowChange(idx, 'caixa', e.target.value)}
+                          className="w-full text-center p-1 bg-transparent border-none text-slate-800 font-extrabold text-xs focus:outline-none"
+                        />
+                      </td>
+
+                      {/* COLABORADOR Nº */}
+                      <td className="border-r border-slate-150 p-1 text-center">
+                        <input
+                          type="text"
+                          disabled={editingDeposit.isLocked}
+                          value={row.colaboradorNo || ''}
+                          onChange={(e) => handleRowChange(idx, 'colaboradorNo', e.target.value)}
+                          className="w-full text-center p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-700"
+                          placeholder="—"
+                        />
+                      </td>
+
+                      {/* COLABORADOR NOME */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="text"
+                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                          value={row.colaboradorNome}
+                          onChange={(e) => handleRowChange(idx, 'colaboradorNome', e.target.value)}
+                          className={`w-full p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded text-xs ${isDeliveryOrMop ? 'font-extrabold text-amber-800' : 'text-slate-850 font-medium'}`}
+                          placeholder="Nome..."
+                        />
+                      </td>
+
+                      {/* VALOR RAPPORT */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked}
+                          value={row.valorRapport || ''}
+                          onChange={(e) => handleRowChange(idx, 'valorRapport', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-800"
+                          placeholder="0.00"
+                        />
+                      </td>
+
+                      {/* SANGRIA */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                          value={row.sangria || ''}
+                          onChange={(e) => handleRowChange(idx, 'sangria', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* DINHEIRO € */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                          value={row.dinheiro || ''}
+                          onChange={(e) => handleRowChange(idx, 'dinheiro', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* MULTIBANCO */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                          value={row.multibanco || ''}
+                          onChange={(e) => handleRowChange(idx, 'multibanco', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* TICKETS */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                          value={row.tickets || ''}
+                          onChange={(e) => handleRowChange(idx, 'tickets', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* DELIVERY */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || !isDeliveryOrMop || row.colaboradorNome === 'MOP'}
+                          value={row.delivery || ''}
+                          onChange={(e) => handleRowChange(idx, 'delivery', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={(!isDeliveryOrMop || row.colaboradorNome === 'MOP') ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* MOP */}
+                      <td className="border-r border-slate-150 p-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          disabled={editingDeposit.isLocked || row.colaboradorNome !== 'MOP'}
+                          value={row.mop || ''}
+                          onChange={(e) => handleRowChange(idx, 'mop', e.target.value)}
+                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                          placeholder={row.colaboradorNome !== 'MOP' ? "—" : "0.00"}
+                        />
+                      </td>
+
+                      {/* DIFERENÇA */}
+                      <td className="p-1 text-right font-mono font-black text-xs bg-slate-50/40">
+                        <span className={row.diferenca === 0 ? "text-green-600" : row.diferenca > 0 ? "text-blue-600" : "text-red-600 font-extrabold"}>
+                          {row.diferenca > 0 ? `+` : ''}{formatEuro(row.diferenca)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* Grid Totals Row */}
+                {(() => {
+                  const totRapport = getDepositRecordFieldTotal(editingDeposit, 'valorRapport');
+                  const totSangria = getDepositRecordFieldTotal(editingDeposit, 'sangria');
+                  const totDinheiro = getDepositRecordFieldTotal(editingDeposit, 'dinheiro');
+                  const totMultibanco = getDepositRecordFieldTotal(editingDeposit, 'multibanco');
+                  const totTickets = getDepositRecordFieldTotal(editingDeposit, 'tickets');
+                  const totDelivery = getDepositRecordFieldTotal(editingDeposit, 'delivery');
+                  const totMOP = getDepositRecordFieldTotal(editingDeposit, 'mop');
+                  const totDiferenca = getDepositRecordFieldTotal(editingDeposit, 'diferenca');
+
+                  return (
+                    <tr className="bg-slate-50/75 font-mono font-black text-xs border-t-2 border-slate-200">
+                      <td colSpan={3} className="px-3 py-3 border-r border-slate-200 text-center text-[10px] font-black uppercase text-slate-500 tracking-wider">TOTAL</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totRapport)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totSangria)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totDinheiro)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totMultibanco)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totTickets)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totDelivery)}</td>
+                      <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totMOP)}</td>
+                      <td className="px-3 py-3 text-right">
+                        <span className={totDiferenca === 0 ? "text-green-600" : totDiferenca > 0 ? "text-blue-600" : "text-red-600"}>
+                          {totDiferenca > 0 ? `+` : ''}{formatEuro(totDiferenca)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom Layout: Aligned cards, then Comment Section */}
+          <div className="space-y-6 pt-4">
+            {/* Cards Grid */}
+            {(() => {
+              const totSangria = getDepositRecordFieldTotal(editingDeposit, 'sangria');
+              const totDinheiro = getDepositRecordFieldTotal(editingDeposit, 'dinheiro');
+              const totMultibanco = getDepositRecordFieldTotal(editingDeposit, 'multibanco');
+              const totTickets = getDepositRecordFieldTotal(editingDeposit, 'tickets');
+              const totDelivery = getDepositRecordFieldTotal(editingDeposit, 'delivery');
+              const totMOP = getDepositRecordFieldTotal(editingDeposit, 'mop');
+
+              const cashTotalVal = totDinheiro + totSangria;
+              const grandTotalVal = cashTotalVal + totMultibanco + totTickets + totDelivery + totMOP;
+
+              const cardClass = (val: number) => 
+                val > 0 
+                  ? "bg-amber-55/35 border border-amber-250 p-4 rounded-2xl shadow-sm text-slate-805 flex flex-col justify-between h-20 transition-all" 
+                  : "bg-white border border-dashed border-slate-200 p-4 rounded-2xl text-slate-400 flex flex-col justify-between h-20 transition-all";
+
+              return (
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-amber-900 uppercase tracking-widest border-b border-slate-100 pb-2">
+                    Resumo da Folha de Depósito
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
+                    {/* Dinheiro Card */}
+                    <div className={cardClass(cashTotalVal)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Dinheiro</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${cashTotalVal > 0 ? 'text-slate-805' : 'text-slate-350'}`}>{formatEuro(cashTotalVal)}</span>
+                    </div>
+
+                    {/* Multibanco Card */}
+                    <div className={cardClass(totMultibanco)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Multibanco</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${totMultibanco > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totMultibanco)}</span>
+                    </div>
+
+                    {/* Tickets Card */}
+                    <div className={cardClass(totTickets)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Tickets</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${totTickets > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totTickets)}</span>
+                    </div>
+
+                    {/* Delivery Card */}
+                    <div className={cardClass(totDelivery)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Delivery</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${totDelivery > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totDelivery)}</span>
+                    </div>
+
+                    {/* Mop Card */}
+                    <div className={cardClass(totMOP)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">MOP</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${totMOP > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totMOP)}</span>
+                    </div>
+
+                    {/* Total Card */}
+                    <div className="bg-amber-100/40 border border-amber-305/75 p-4 rounded-2xl shadow-sm text-slate-900 flex flex-col justify-between h-20 font-bold transition-all">
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-amber-900">Total</span>
+                      <span className="block font-mono font-black text-sm text-amber-955 mt-1">{formatEuro(grandTotalVal)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Comment Section (Notas) */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Notas</label>
               <textarea 
-                rows={3}
-                placeholder="Ex: Depósito correspondente ao fecho de fim-de-semana..."
-                value={editingDeposit.comment}
-                onChange={(e) => setEditingDeposit({ ...editingDeposit, comment: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl text-xs"
+                rows={2}
+                disabled={editingDeposit.isLocked}
+                placeholder=""
+                value={editingDeposit.comments || ''}
+                onChange={(e) => setEditingDeposit({ ...editingDeposit, comments: e.target.value })}
+                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:ring-1 focus:ring-amber-500 shadow-sm"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              onClick={() => setEditingDeposit(null)}
-              className="px-5 py-2 hover:bg-gray-50 border rounded-xl font-bold text-xs uppercase"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSaveDepositEdit}
-              className="bg-emerald-600 text-white px-5 py-2 rounded-xl hover:bg-emerald-700 font-bold text-xs uppercase"
-            >
-              Gravar Depósito
-            </button>
+          {/* Controller Actions Panel */}
+          <div className="flex justify-between pt-6 border-t border-slate-100">
+            {editingDeposit.isLocked ? (
+              <div className="w-full flex justify-between gap-3">
+                <button
+                  onClick={() => {
+                    if (confirm("Deseja desbloquear esta folha? Isto permitirá novas alterações e re-gravar valores.")) {
+                      setEditingDeposit({ ...editingDeposit, isLocked: false });
+                    }
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors"
+                >
+                  🔓 Desbloquear Folha
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingDeposit(null)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
+                >
+                  Sair da Visualização
+                </button>
+              </div>
+            ) : (
+              <div className="w-full flex justify-between">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Deseja repovoar a folha com os valores padrão zerados? Esta alteração perderá dados temporários.")) {
+                        setEditingDeposit({
+                          ...editingDeposit,
+                          rows: createDefaultDepositRows()
+                        });
+                      }
+                    }}
+                    className="px-4 py-2 border border-dashed border-red-350 text-red-500 hover:bg-red-50 text-xs font-bold uppercase rounded-xl transition-colors"
+                  >
+                    Recomeçar Tabela
+                  </button>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDeposit(null)}
+                    className="px-5 py-2 hover:bg-slate-50 border rounded-xl font-bold text-xs uppercase text-slate-600"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveDepositEdit(false)}
+                    className="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-colors"
+                  >
+                    Guardar Rascunho
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Deseja validar e encerrar este depósito? A folha ficará bloqueada secundariamente para edição.")) {
+                        handleSaveDepositEdit(true);
+                      }
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md shadow-amber-50 transition-colors"
+                  >
+                    Validar e Fechar 🔒
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : editingProsegur ? (
@@ -1726,78 +2199,180 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* Tab 2: DEPÓSITO BANCÁRIO */}
           {activeTab === 'depositos' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border">
+            <div className="space-y-6">
+              {/* Header Box */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Controlo de Depósitos Bancários</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Controlo de talões físicos e reconciliação com o banco</p>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Folha de Depósito</h4>
                 </div>
-                <button
-                  onClick={handleAddNewDeposit}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-50"
-                >
-                  <Plus size={16} /> Registar Depósito
-                </button>
-              </div>
 
-              {isLoading ? (
-                <div className="p-12 text-center text-xs text-gray-400 font-black tracking-widest uppercase">
-                  A carregar dados do banco...
-                </div>
-              ) : deposits.length === 0 ? (
-                <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
-                  <Landmark size={36} className="text-gray-300 mx-auto mb-3" />
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhum depósito bancário registado</p>
-                  <button onClick={handleAddNewDeposit} className="text-blue-600 text-xs font-black uppercase tracking-wider underline mt-2 block mx-auto">
-                    Efetuar Primeiro Depósito
+                {/* Add Custom Date Tool */}
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="date"
+                    value={customDateInput}
+                    onChange={(e) => setCustomDateInput(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-705 focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!customDateInput) return;
+                      if (!extraDates.includes(customDateInput)) {
+                        setExtraDates([...extraDates, customDateInput]);
+                      }
+                      alert(`Dia ${customDateInput} iniciado. Agora pode carregar nas ações abaixo para registar os depósitos.`);
+                    }}
+                    className="flex items-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black text-[10px] px-3.5 py-2 uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-50"
+                  >
+                    <Plus size={14} /> Inserir Depósito
                   </button>
                 </div>
-              ) : (
-                <div className="border rounded-2xl border-gray-100 overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        <th className="px-6 py-3.5">Data</th>
-                        <th className="px-6 py-3.5">Banco</th>
-                        <th className="px-6 py-3.5">Comprovativo / Talão</th>
-                        <th className="px-6 py-3.5">Entregue por</th>
-                        <th className="px-6 py-3.5 text-right">Valor Depositado</th>
-                        <th className="px-6 py-3.5 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y text-xs font-bold text-gray-700">
-                      {deposits.map(dep => {
-                        const mName = employees.find(e => e.id === dep.managerId)?.name || 'Outro';
+              </div>
+
+              {/* Grouped Lists: Active vs Archived */}
+              <div className="space-y-6">
+                {/* Active Days */}
+                <div>
+                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+                    Dias de Trabalho Activos ({groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).length})
+                  </h5>
+
+                  {groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).length === 0 ? (
+                    <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-xl">
+                      <p className="text-xs text-gray-400 font-extrabold uppercase">Não há dias ativos pendentes de depósito.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).map(day => {
+                        const wName = getWeekdayName(day.date);
+                        const hasAbertura = !!day.abertura;
+                        const hasFecho = !!day.fecho;
+
+                        const isAberturaLocked = day.abertura?.isLocked || false;
+                        const isFechoLocked = day.fecho?.isLocked || false;
+
                         return (
-                          <tr key={dep.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">{formatDateToDMY(dep.date)}</td>
-                            <td className="px-6 py-4 text-slate-800">{dep.bank}</td>
-                            <td className="px-6 py-4 font-mono font-extrabold text-blue-600">{dep.ref}</td>
-                            <td className="px-6 py-4">{mName}</td>
-                            <td className="px-6 py-4 text-right font-mono font-extrabold text-emerald-700">{formatEuro(dep.amount)}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-1">
-                                <button 
-                                  onClick={() => setEditingDeposit(dep)}
-                                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                >
-                                  <Edit2 size={15} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteDepositAction(dep.id)}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
+                          <div key={day.date} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-slate-250 transition-all">
+                            <div className="flex justify-between items-start border-b pb-2.5 mb-3">
+                              <div>
+                                <span className="block text-[10px] font-black text-slate-400 tracking-widest uppercase">{wName}</span>
+                                <span className="text-sm font-extrabold text-slate-800">{formatDateToDMY(day.date)}</span>
                               </div>
-                            </td>
-                          </tr>
+                              <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-[9px] font-black uppercase text-amber-700 rounded-lg">Em Aberto</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Abertura Column */}
+                              <button
+                                onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                className={`rounded-xl px-3 py-2.5 text-left border transition-all flex flex-col ${
+                                  !hasAbertura 
+                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
+                                    : !isAberturaLocked
+                                      ? 'border-amber-200 bg-amber-50/20 text-slate-850 hover:bg-amber-50'
+                                      : 'border-blue-105 bg-blue-50/25 text-blue-900'
+                                }`}
+                              >
+                                <span className="text-[10px] font-black block">
+                                  {!hasAbertura ? '➕ Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
+                                </span>
+                                {hasAbertura && (
+                                  <span className="font-mono text-[10px] font-extrabold text-slate-650 block mt-0.5">
+                                    {formatEuro(getDepositRecordTotal(day.abertura))}
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* Fecho Column */}
+                              <button
+                                onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                className={`rounded-xl px-3 py-2.5 text-left border transition-all flex flex-col ${
+                                  !hasFecho 
+                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
+                                    : !isFechoLocked
+                                      ? 'border-amber-200 bg-amber-50/20 text-slate-850 hover:bg-amber-50'
+                                      : 'border-blue-105 bg-blue-50/25 text-blue-900'
+                                }`}
+                              >
+                                <span className="text-[10px] font-black block">
+                                  {!hasFecho ? '➕ Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
+                                </span>
+                                {hasFecho && (
+                                  <span className="font-mono text-[10px] font-extrabold text-slate-650 block mt-0.5">
+                                    {formatEuro(getDepositRecordTotal(day.fecho))}
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCloseDayDeposits(day.date, day)}
+                              className="mt-3 w-full flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-650 font-black text-[10px] uppercase tracking-wider py-2 rounded-xl transition-all border border-red-200/40"
+                            >
+                              🔒 Encerrar o Dia
+                            </button>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Closed/Locked Days */}
+                <div>
+                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+                    Histórico Encerrado & Validado ({groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).length})
+                  </h5>
+
+                  {groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).length === 0 ? (
+                    <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/30">
+                      <p className="text-xs text-gray-400 font-extrabold uppercase">Nenhum dia de depósito totalmente encerrado ainda.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).map(day => {
+                        const wName = getWeekdayName(day.date);
+                        return (
+                          <div key={day.date} className="bg-slate-50/40 p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between hover:bg-slate-50 transition-all">
+                            <div className="flex justify-between items-start border-b pb-2 mb-2">
+                              <div>
+                                <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">{wName}</span>
+                                <span className="text-xs font-extrabold text-slate-700">{formatDateToDMY(day.date)}</span>
+                              </div>
+                              <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-[9px] font-black uppercase text-blue-700 rounded-lg">Encerrado 🔒</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              {/* Abertura View */}
+                              <button
+                                onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                className="rounded-xl px-3 py-2 text-left border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all flex flex-col"
+                              >
+                                <span className="text-[10px] font-black block">🔒 Abertura</span>
+                                <span className="font-mono text-[9px] font-extrabold text-indigo-700 mt-0.5">
+                                  {formatEuro(getDepositRecordTotal(day.abertura))}
+                                </span>
+                              </button>
+
+                              {/* Fecho View */}
+                              <button
+                                onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                className="rounded-xl px-3 py-2 text-left border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all flex flex-col"
+                              >
+                                <span className="text-[10px] font-black block">🔒 Fecho</span>
+                                <span className="font-mono text-[9px] font-extrabold text-indigo-700 mt-0.5">
+                                  {formatEuro(getDepositRecordTotal(day.fecho))}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -2123,78 +2698,172 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           )}
 
-          {/* Tab 4: DEFINIÇÕES DE CAIXA / COFRE */}
+                       {/* Tab 4: DEFINIÇÕES DE CAIXA / COFRE */}
           {activeTab === 'settings' && (
             <div className="max-w-xl">
               <div className="border bg-slate-50 p-5 rounded-2xl space-y-4">
-                <div>
-                  <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Definições Globais do Cofre</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                    Configuração de gavetas iniciais por fundo, e padrões da base de gerente
-                  </p>
+                {/* Switcher Internal Settings Tabs */}
+                <div className="flex border-b border-slate-250/60 pb-1.5 mb-2 gap-4">
+                  <button
+                    onClick={() => setSettingsSubTab('geral')}
+                    type="button"
+                    className={`pb-1 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${
+                      settingsSubTab === 'geral'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    Gerais
+                  </button>
+                  <button
+                    onClick={() => setSettingsSubTab('mecanograficos')}
+                    type="button"
+                    className={`pb-1 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${
+                      settingsSubTab === 'mecanograficos'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    Nº Mecanográficos
+                  </button>
                 </div>
 
-                <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
-                  <div className="grid grid-cols-2 gap-4">
+                {settingsSubTab === 'geral' ? (
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
-                        Nº de Fundos de Gaveta (Registers)
-                      </label>
-                      <input 
-                        type="number"
-                        value={fundoGavetaCountInput}
-                        onChange={(e) => setFundoGavetaCountInput(Number(e.target.value))}
-                        className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                        min="1"
-                      />
+                      <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Definições Globais do Cofre</h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                        Configuração de gavetas iniciais por fundo, e padrões da base de gerente
+                      </p>
                     </div>
+
+                    <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                            Nº de Fundos de Gaveta (Registers)
+                          </label>
+                          <input 
+                            type="number"
+                            value={fundoGavetaCountInput}
+                            onChange={(e) => setFundoGavetaCountInput(Number(e.target.value))}
+                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                            Valor Unitário por Gaveta (€)
+                          </label>
+                          <input 
+                            type="number"
+                            value={fundoGavetaValueInput}
+                            onChange={(e) => setFundoGavetaValueInput(Number(e.target.value))}
+                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                            min="1"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          Fundo Base de Gerente Predefinido (€)
+                        </label>
+                        <input 
+                          type="number"
+                          value={defaultManagerFundExpected}
+                          onChange={(e) => setDefaultManagerFundExpected(Number(e.target.value))}
+                          className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                          min="1"
+                        />
+                      </div>
+
+                      <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 p-3.5 rounded-xl text-xs space-y-1">
+                        <p className="font-extrabold uppercase text-[10px] flex items-center gap-1.5 text-emerald-700">
+                          <ShieldCheck size={14} /> Repercussão de Configurações:
+                        </p>
+                        <p className="font-bold">
+                          • Fundo de gaveta acumulado considerado na contagem: 
+                          <strong className="ml-1 text-slate-800">{formatEuro(fundoGavetaCountInput * fundoGavetaValueInput)}</strong>
+                        </p>
+                        <p className="text-[10px] text-emerald-700 font-bold">
+                          Estes parâmetros são automaticamente precarregados em cada nova contagem criada.
+                        </p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md ml-auto"
+                      >
+                        <Save size={16} /> Guardar Parâmetros
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
-                        Valor Unitário por Gaveta (€)
-                      </label>
-                      <input 
-                        type="number"
-                        value={fundoGavetaValueInput}
-                        onChange={(e) => setFundoGavetaValueInput(Number(e.target.value))}
-                        className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                        min="1"
-                      />
+                      <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Nºs Mecanográficos</h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                        Associe o código de colaborador de cada funcionário e gerente para preenchimento automático na folha de depósito
+                      </p>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
-                      Fundo Base de Gerente Predefinido (€)
-                    </label>
-                    <input 
-                      type="number"
-                      value={defaultManagerFundExpected}
-                      onChange={(e) => setDefaultManagerFundExpected(Number(e.target.value))}
-                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
-                      min="1"
-                    />
-                  </div>
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white max-h-[300px] overflow-y-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                            <th className="px-4 py-2.5">Nome</th>
+                            <th className="px-4 py-2.5">Cargo</th>
+                            <th className="px-4 py-2.5 w-36">Nº Mecanográfico</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                          {localEmployees.map((emp, index) => (
+                            <tr key={emp.id} className="hover:bg-slate-50/40">
+                              <td className="px-4 py-2.5 text-slate-800 font-extrabold">{emp.name}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded-lg border ${
+                                  emp.role === 'GERENTE' 
+                                    ? 'bg-blue-50 border-blue-100 text-blue-700' 
+                                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                                }`}>
+                                  {emp.role}
+                                </span>
+                              </td>
+                              <td className="px-4 py-1.5">
+                                <input 
+                                  type="text"
+                                  value={emp.mecanografico || ''}
+                                  onChange={(e) => {
+                                    const updatedVal = e.target.value;
+                                    const newEmployees = [...localEmployees];
+                                    newEmployees[index] = { ...newEmployees[index], mecanografico: updatedVal };
+                                    setLocalEmployees(newEmployees);
+                                  }}
+                                  placeholder="Ex: 1004"
+                                  className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-blue-500"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
-                  <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 p-3.5 rounded-xl text-xs space-y-1">
-                    <p className="font-extrabold uppercase text-[10px] flex items-center gap-1.5 text-emerald-700">
-                      <ShieldCheck size={14} /> Repercussão de Configurações:
-                    </p>
-                    <p className="font-bold">
-                      • Fundo de gaveta acumulado considerado na contagem: 
-                      <strong className="ml-1 text-slate-800">{formatEuro(fundoGavetaCountInput * fundoGavetaValueInput)}</strong>
-                    </p>
-                    <p className="text-[10px] text-emerald-700 font-bold">
-                      Estes parâmetros são automaticamente precarregados em cada nova contagem criada.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSaveEmployees) {
+                          onSaveEmployees(localEmployees);
+                          alert("Números mecanográficos gravados com sucesso!");
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md ml-auto"
+                    >
+                      <Save size={16} /> Guardar Números
+                    </button>
                   </div>
-
-                  <button
-                    type="submit"
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md ml-auto"
-                  >
-                    <Save size={16} /> Guardar Parâmetros
-                  </button>
-                </form>
+                )}
               </div>
             </div>
           )}
