@@ -372,31 +372,46 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
        {/* Sales Forecast Adjustments */}
        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-             {/* Summary */}
-             <div className="col-span-1 border-r border-gray-100 pr-6">
-               <span className="text-xs text-gray-400 font-black uppercase">Resumo da Planificação</span>
-               <div className="mt-2 text-xl font-black text-slate-800">{averageData?.totalSales || 0}€ Vendas / {averageData?.totalGC || 0} GC</div>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+             <div className="flex items-center gap-4">
+                <div className="p-3 bg-slate-800 rounded-lg text-emerald-400">
+                    <TrendingUp size={24} />
+                </div>
+                <div>
+                    <span className="text-xs text-gray-400 font-black uppercase">Planificação</span>
+                    <div className="text-xl font-black text-slate-800">{averageData?.totalSales || 0}€ Vendas / {averageData?.totalGC || 0} GC <span className="text-xs font-normal text-slate-500">({selectedIds.size} dias selecionados)</span></div>
+                </div>
              </div>
-             {/* Factors */}
-             <div className="col-span-1">
-                <label className="text-xs text-gray-400 font-black uppercase block mb-2">Fator Vendas</label>
-                <input type="number" step="0.1" value={salesFactor} onChange={e => setSalesFactor(parseFloat(e.target.value) || 1)} className="w-full p-2 border border-gray-300 rounded-lg font-bold" />
+             
+             <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-400 font-black uppercase">Fator Vendas</label>
+                    <input type="number" step="0.1" placeholder="Ex: 1.2" value={salesFactor === 0 ? '' : salesFactor} onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        setSalesFactor(isNaN(val) ? 0 : val);
+                    }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
+                </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-400 font-black uppercase">Fator GC</label>
+                    <input type="number" step="0.1" placeholder="Ex: 1.2" value={gcFactor === 0 ? '' : gcFactor} onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        setGcFactor(isNaN(val) ? 0 : val);
+                    }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
+                </div>
+                <div className="flex flex-col gap-1 ml-4 border-l border-gray-200 pl-4">
+                    <span className="text-xs text-gray-400 font-black uppercase">Planificação a considerar</span>
+                    <div className="text-xl font-black text-blue-600">{finalPlanning?.sales || 0}€ Vendas / {finalPlanning?.gc || 0} GC</div>
+                </div>
              </div>
-             <div className="col-span-1">
-                <label className="text-xs text-gray-400 font-black uppercase block mb-2">Fator GC</label>
-                <input type="number" step="0.1" value={gcFactor} onChange={e => setGcFactor(parseFloat(e.target.value) || 1)} className="w-full p-2 border border-gray-300 rounded-lg font-bold" />
-             </div>
-             {/* Final */}
-             <div className="col-span-1 border-l border-gray-100 pl-6">
-                <span className="text-xs text-gray-400 font-black uppercase">Planificação Final</span>
-                <div className="mt-2 text-xl font-black text-blue-600">{finalPlanning?.sales || 0}€ Vendas / {finalPlanning?.gc || 0} GC</div>
-             </div>
+
+             <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105 active:scale-95' : 'bg-slate-300 text-slate-600 cursor-not-allowed'}`}>
+                Definir como Previsão Ativa <ArrowRight size={18} />
+             </button>
           </div>
        </div>
 
        {/* Tabela com Cabeçalho Sticky Offset */}
-      <div className="flex-1 overflow-visible bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
+       <div className="flex-1 overflow-visible bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-separate border-spacing-0">
            <thead className="text-[11px] font-black text-gray-700 uppercase tracking-tighter">
              <tr>
@@ -455,22 +470,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
              )}
            </tbody>
         </table>
-      </div>
-
-      <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 animate-slide-up sticky bottom-2 z-30 border border-slate-700">
-        <div className="flex items-center gap-4">
-             <div className="p-3 bg-slate-800 rounded-lg"><CheckCircle size={24} className={selectedIds.size > 0 ? "text-emerald-400" : "text-gray-600"} /></div>
-             <div>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-widest">Previsão Baseada na Média</p>
-                <div className="text-2xl font-bold flex items-baseline gap-2">
-                    {averageData ? formatCurrency(averageData.totalSales) : '---'}
-                    <span className="text-xs font-normal text-slate-400">({selectedIds.size} dias selecionados)</span>
-                </div>
-             </div>
-        </div>
-        <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105 active:scale-95' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>
-            Definir como Previsão Ativa <ArrowRight size={18} />
-        </button>
       </div>
     </div>
   );
