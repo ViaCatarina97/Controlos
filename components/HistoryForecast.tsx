@@ -386,15 +386,15 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
              <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-gray-400 font-black uppercase">Fator Vendas</label>
-                    <input type="number" step="0.1" placeholder="Ex: 1.2" value={salesFactor === 0 ? '' : salesFactor} onChange={e => {
-                        const val = parseFloat(e.target.value);
+                    <input type="text" placeholder="Ex: 1,2" value={salesFactor.toString().replace('.', ',')} onChange={e => {
+                        const val = parseFloat(e.target.value.replace(',', '.'));
                         setSalesFactor(isNaN(val) ? 0 : val);
                     }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
                 </div>
                 <div className="flex flex-col gap-1">
                     <label className="text-xs text-gray-400 font-black uppercase">Fator GC</label>
-                    <input type="number" step="0.1" placeholder="Ex: 1.2" value={gcFactor === 0 ? '' : gcFactor} onChange={e => {
-                        const val = parseFloat(e.target.value);
+                    <input type="text" placeholder="Ex: 1,2" value={gcFactor.toString().replace('.', ',')} onChange={e => {
+                        const val = parseFloat(e.target.value.replace(',', '.'));
                         setGcFactor(isNaN(val) ? 0 : val);
                     }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
                 </div>
