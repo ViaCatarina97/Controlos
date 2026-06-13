@@ -33,6 +33,8 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   // Agora suporta múltiplos dias selecionados
   const [dayFilters, setDayFilters] = useState<number[]>([]);
   const [yearFilters, setYearFilters] = useState<string[]>([]);
+  const [salesFactor, setSalesFactor] = useState(1);
+  const [gcFactor, setGcFactor] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,20 +132,28 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     return { totalSales: avgTotalSales, totalGC: avgTotalGC, slots: slotsAverage };
   }, [selectedIds, history]);
 
+  const finalPlanning = useMemo(() => {
+    if (!averageData) return null;
+    return {
+        sales: Math.round(averageData.totalSales * salesFactor),
+        gc: Math.round(averageData.totalGC * gcFactor)
+    };
+  }, [averageData, salesFactor, gcFactor]);
+
   const handleApplyForecast = () => {
-    if (!averageData) return;
-    setTargetSales(averageData.totalSales);
+    if (!averageData || !finalPlanning) return;
+    setTargetSales(finalPlanning.sales);
     const hourlyProjections: HourlyProjection[] = TIME_SLOTS_KEYS.map(slotKey => {
       const metrics = averageData.slots[slotKey];
       return {
         hour: slotKey.replace(/:00/g, 'h'), 
-        totalSales: metrics.sales,
-        totalGC: metrics.gc,
+        totalSales: Math.round(metrics.sales * salesFactor),
+        totalGC: Math.round(metrics.gc * gcFactor),
         channelGC: {
-          counter: Math.round(metrics.gc * 0.15),
-          sok: Math.round(metrics.gc * 0.73),
-          drive: Math.round(metrics.gc * 0.05),
-          delivery: Math.round(metrics.gc * 0.07)
+          counter: Math.round(metrics.gc * gcFactor * 0.15),
+          sok: Math.round(metrics.gc * gcFactor * 0.73),
+          drive: Math.round(metrics.gc * gcFactor * 0.05),
+          delivery: Math.round(metrics.gc * gcFactor * 0.07)
         }
       };
     });
@@ -360,7 +370,32 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         </div>
       </div>
 
-      {/* Tabela com Cabeçalho Sticky Offset */}
+       {/* Sales Forecast Adjustments */}
+       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+             {/* Summary */}
+             <div className="col-span-1 border-r border-gray-100 pr-6">
+               <span className="text-xs text-gray-400 font-black uppercase">Resumo da Planificação</span>
+               <div className="mt-2 text-xl font-black text-slate-800">{averageData?.totalSales || 0}€ Vendas / {averageData?.totalGC || 0} GC</div>
+             </div>
+             {/* Factors */}
+             <div className="col-span-1">
+                <label className="text-xs text-gray-400 font-black uppercase block mb-2">Fator Vendas</label>
+                <input type="number" step="0.1" value={salesFactor} onChange={e => setSalesFactor(parseFloat(e.target.value) || 1)} className="w-full p-2 border border-gray-300 rounded-lg font-bold" />
+             </div>
+             <div className="col-span-1">
+                <label className="text-xs text-gray-400 font-black uppercase block mb-2">Fator GC</label>
+                <input type="number" step="0.1" value={gcFactor} onChange={e => setGcFactor(parseFloat(e.target.value) || 1)} className="w-full p-2 border border-gray-300 rounded-lg font-bold" />
+             </div>
+             {/* Final */}
+             <div className="col-span-1 border-l border-gray-100 pl-6">
+                <span className="text-xs text-gray-400 font-black uppercase">Planificação Final</span>
+                <div className="mt-2 text-xl font-black text-blue-600">{finalPlanning?.sales || 0}€ Vendas / {finalPlanning?.gc || 0} GC</div>
+             </div>
+          </div>
+       </div>
+
+       {/* Tabela com Cabeçalho Sticky Offset */}
       <div className="flex-1 overflow-visible bg-white rounded-xl shadow border border-gray-200 relative min-h-[300px]">
         <table className="w-full text-sm text-center border-separate border-spacing-0">
            <thead className="text-[11px] font-black text-gray-700 uppercase tracking-tighter">

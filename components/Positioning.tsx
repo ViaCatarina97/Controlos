@@ -564,9 +564,18 @@ export const Positioning: React.FC<PositioningProps> = ({
     return chosenIds;
   }, [sortedStaffingTable, activeSalesData.totalSales, activeStations]);
 
-  const handleManagerChange = (empId: string) => {
+  const handleManagerChange = (field: 'leader' | 'support', empId: string) => {
       if (isShiftLocked) return;
-      setSchedule({ ...schedule, shiftManagers: { ...schedule.shiftManagers, [selectedShift]: empId } });
+      setSchedule({ 
+        ...schedule, 
+        shiftManagers: { 
+          ...schedule.shiftManagers, 
+          [selectedShift]: { 
+            ...(typeof schedule.shiftManagers?.[selectedShift] === 'object' ? schedule.shiftManagers?.[selectedShift] : {}),
+            [field]: empId 
+          } 
+        } 
+      });
   };
 
   const handleObjectiveChange = (field: 'turnObjective' | 'productionObjective', value: string) => {
@@ -771,10 +780,27 @@ export const Positioning: React.FC<PositioningProps> = ({
             <div className="flex items-center gap-3.5 w-full md:w-auto">
                 <div className="p-3 bg-purple-50 text-purple-600 rounded-xl shrink-0 shadow-sm"><UserCircle size={20} /></div>
                 <div className="flex-1 w-full md:w-auto">
-                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Turno LÍDER</p>
+                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Turno</p>
                     <select 
-                      value={schedule.shiftManagers?.[selectedShift] || ''} 
-                      onChange={(e) => handleManagerChange(e.target.value)} 
+                      value={schedule.shiftManagers?.[selectedShift]?.leader || ''} 
+                      onChange={(e) => handleManagerChange('leader', e.target.value)} 
+                      disabled={isShiftLocked} 
+                      className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
+                    >
+                      <option value="">Selecione o Gerente...</option>
+                      {employees
+                        .filter(e => e.role === 'GERENTE')
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
+                        .map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
+                </div>
+                <div className="flex-1 w-full md:w-auto">
+                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Apoio</p>
+                    <select 
+                      value={schedule.shiftManagers?.[selectedShift]?.support || ''} 
+                      onChange={(e) => handleManagerChange('support', e.target.value)} 
                       disabled={isShiftLocked} 
                       className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
                     >
@@ -788,6 +814,32 @@ export const Positioning: React.FC<PositioningProps> = ({
                     </select>
                 </div>
             </div>
+        </div>
+
+        {/* Console de Botões */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4">
+             <button onClick={() => onSaveSchedule(schedule)} className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold">Gravar Rascunho</button>
+             <button onClick={() => onSaveSchedule({ ...schedule, status: 'CONCLUIDO' })} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold">Submeter Posicionamento</button>
+             <div className="flex-1"></div>
+             <button 
+                onClick={() => {
+                   const pass = prompt('Introduza a password das definições:');
+                   if (pass === settings.password) {
+                      const val = prompt('Indique o número de funcionários a acrescentar:');
+                      if (val) {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) {
+                             setSchedule({ ...schedule, manualAdjustment: (schedule.manualAdjustment || 0) + num });
+                          }
+                      }
+                   } else {
+                     alert('Password incorreta!');
+                   }
+                }}
+                className="px-6 py-2 bg-amber-600 text-white rounded-lg font-bold"
+             >
+                Ajuste Manual
+             </button>
         </div>
 
         {/* Shift selector container: Modern Segment Controller pill bar */}
