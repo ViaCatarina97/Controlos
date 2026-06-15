@@ -85,7 +85,19 @@ export interface DailySchedule {
     [key in ShiftType]?: StationAssignment;
   };
   shiftManagers?: {
-    [key in ShiftType]?: string; 
+    [key in ShiftType]?: {
+      leader?: string;
+      support?: string;
+    }; 
+  };
+  hourlyProjections?: {
+    [key in ShiftType]?: HourlyProjection[];
+  };
+  projectedSales?: {
+    [key in ShiftType]?: number;
+  };
+  manualAdjustments?: {
+    [key in ShiftType]?: number;
   };
   shiftManagersCounted?: boolean;
   shiftObjectives?: {

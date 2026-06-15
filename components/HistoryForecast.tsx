@@ -16,6 +16,7 @@ interface HistoryForecastProps {
   onNavigateToPositioning: () => void;
   isSyncing?: boolean;
   lastSync?: string;
+  selectedShift: string;
 }
 
 export const HistoryForecast: React.FC<HistoryForecastProps> = ({ 
@@ -27,14 +28,30 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   setHourlyData,
   onNavigateToPositioning,
   isSyncing = false,
-  lastSync = null
+  lastSync = null,
+  selectedShift
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Agora suporta múltiplos dias selecionados
   const [dayFilters, setDayFilters] = useState<number[]>([]);
   const [yearFilters, setYearFilters] = useState<string[]>([]);
-  const [salesFactor, setSalesFactor] = useState(1);
-  const [gcFactor, setGcFactor] = useState(1);
+  const [salesFactorInput, setSalesFactorInput] = useState('');
+  const [gcFactorInput, setGcFactorInput] = useState('');
+  
+  const salesPercentageFactor = useMemo(() => {
+    if (!salesFactorInput) return 0;
+    const clean = salesFactorInput.replace(',', '.');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  }, [salesFactorInput]);
+
+  const gcPercentageFactor = useMemo(() => {
+    if (!gcFactorInput) return 0;
+    const clean = gcFactorInput.replace(',', '.');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  }, [gcFactorInput]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,10 +152,10 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   const finalPlanning = useMemo(() => {
     if (!averageData) return null;
     return {
-        sales: Math.round(averageData.totalSales * salesFactor),
-        gc: Math.round(averageData.totalGC * gcFactor)
+        sales: Math.round(averageData.totalSales * (1 + salesPercentageFactor / 100)),
+        gc: Math.round(averageData.totalGC * (1 + gcPercentageFactor / 100))
     };
-  }, [averageData, salesFactor, gcFactor]);
+  }, [averageData, salesPercentageFactor, gcPercentageFactor]);
 
   const handleApplyForecast = () => {
     if (!averageData || !finalPlanning) return;
@@ -147,13 +164,13 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       const metrics = averageData.slots[slotKey];
       return {
         hour: slotKey.replace(/:00/g, 'h'), 
-        totalSales: Math.round(metrics.sales * salesFactor),
-        totalGC: Math.round(metrics.gc * gcFactor),
+        totalSales: Math.round(metrics.sales * (1 + salesPercentageFactor / 100)),
+        totalGC: Math.round(metrics.gc * (1 + gcPercentageFactor / 100)),
         channelGC: {
-          counter: Math.round(metrics.gc * gcFactor * 0.15),
-          sok: Math.round(metrics.gc * gcFactor * 0.73),
-          drive: Math.round(metrics.gc * gcFactor * 0.05),
-          delivery: Math.round(metrics.gc * gcFactor * 0.07)
+          counter: Math.round(metrics.gc * (1 + gcPercentageFactor / 100) * 0.15),
+          sok: Math.round(metrics.gc * (1 + gcPercentageFactor / 100) * 0.73),
+          drive: Math.round(metrics.gc * (1 + gcPercentageFactor / 100) * 0.05),
+          delivery: Math.round(metrics.gc * (1 + gcPercentageFactor / 100) * 0.07)
         }
       };
     });

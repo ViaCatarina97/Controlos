@@ -82,6 +82,13 @@ const App: React.FC = () => {
   const [targetShift, setTargetShift] = useState<ShiftType | null>(null);
   const [targetSales, setTargetSales] = useState(0);
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
+  const [selectedShift, setSelectedShift] = useState<ShiftType>('ABERTURA');
+
+  useEffect(() => {
+    if (targetShift) {
+      setSelectedShift(targetShift);
+    }
+  }, [targetShift]); 
 
   const [currentSchedule, setCurrentSchedule] = useState<DailySchedule>({
     date: targetDate,
@@ -663,7 +670,24 @@ const App: React.FC = () => {
           
           {activeModule === 'positioning' && (
             <>
-              {activeTab === 'positioning' && <Positioning date={targetDate} setDate={setTargetDate} projectedSales={targetSales} employees={currentEmployees.filter(e => e.isActive)} staffingTable={currentStaffingTable} schedule={currentSchedule} setSchedule={handleUpdateSchedule} settings={activeRestaurant} hourlyData={hourlyData} onSaveSchedule={handleSaveSchedule} initialShift={targetShift} onShiftChangeComplete={() => setTargetShift(null)} />}
+              {activeTab === 'positioning' && (
+                <Positioning 
+                  date={targetDate} 
+                  setDate={setTargetDate} 
+                  projectedSales={currentSchedule.projectedSales?.[selectedShift] || 0} 
+                  employees={currentEmployees.filter(e => e.isActive)} 
+                  staffingTable={currentStaffingTable} 
+                  schedule={currentSchedule} 
+                  setSchedule={handleUpdateSchedule} 
+                  settings={activeRestaurant} 
+                  hourlyData={currentSchedule.hourlyProjections?.[selectedShift] || []} 
+                  onSaveSchedule={handleSaveSchedule} 
+                  initialShift={selectedShift} 
+                  onShiftChangeComplete={() => {}} 
+                  selectedShift={selectedShift}
+                  setSelectedShift={setSelectedShift}
+                />
+              )}
               
               {activeTab === 'staffing' && renderProtectedTab(
                 <Criteria 
@@ -678,12 +702,31 @@ const App: React.FC = () => {
                   setHistory={setHistoryEntries} 
                   targetDate={targetDate} 
                   setTargetDate={setTargetDate} 
-                  targetSales={targetSales} 
-                  setTargetSales={setTargetSales} 
-                  setHourlyData={setHourlyData} 
+                  targetSales={currentSchedule.projectedSales?.[selectedShift] || 0} 
+                  setTargetSales={(val) => {
+                    const updated = {
+                      ...currentSchedule,
+                      projectedSales: {
+                        ...(currentSchedule.projectedSales || {}),
+                        [selectedShift]: val
+                      }
+                    };
+                    handleUpdateSchedule(updated);
+                  }} 
+                  setHourlyData={(data) => {
+                    const updated = {
+                      ...currentSchedule,
+                      hourlyProjections: {
+                        ...(currentSchedule.hourlyProjections || {}),
+                        [selectedShift]: data
+                      }
+                    };
+                    handleUpdateSchedule(updated);
+                  }} 
                   onNavigateToPositioning={() => setActiveTab('positioning')} 
                   isSyncing={isSyncing}
                   lastSync={lastSync}
+                  selectedShift={selectedShift}
                 />
               )}
               {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
