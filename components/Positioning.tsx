@@ -455,7 +455,18 @@ export const Positioning: React.FC<PositioningProps> = ({
     return { count: 0, label: '0' };
   };
 
-  const requirement = useMemo(() => getRequiredStaff(activeSalesData.totalSales), [activeSalesData, staffingTable]);
+  const manualAdj = useMemo(() => {
+    if (!schedule) return 0;
+    return schedule.manualAdjustments?.[selectedShift] || schedule.manualAdjustment || 0;
+  }, [schedule, selectedShift]);
+
+  const requirement = useMemo(() => {
+    const base = getRequiredStaff(activeSalesData.totalSales);
+    return {
+      count: Math.max(0, base.count + manualAdj),
+      label: base.label
+    };
+  }, [activeSalesData.totalSales, staffingTable, manualAdj]);
 
   const currentAssignedCount = useMemo(() => {
      const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
@@ -527,6 +538,29 @@ export const Positioning: React.FC<PositioningProps> = ({
         finalMatchIdx = sortedStaffingTable.length - 1;
       }
     }
+
+    if (manualAdj !== 0 && sortedStaffingTable.length > 0) {
+      const baseStaffCount = finalMatchIdx !== -1 ? sortedStaffingTable[finalMatchIdx].staffCount : 0;
+      const targetStaffCount = Math.max(0, baseStaffCount + manualAdj);
+      
+      let adjustedMatchIdx = sortedStaffingTable.findIndex(row => row.staffCount === targetStaffCount);
+      
+      if (adjustedMatchIdx === -1) {
+        const lastLeIndex = [...sortedStaffingTable].reverse().findIndex(row => row.staffCount <= targetStaffCount);
+        if (lastLeIndex !== -1) {
+          adjustedMatchIdx = sortedStaffingTable.length - 1 - lastLeIndex;
+        } else {
+          adjustedMatchIdx = -1;
+        }
+      }
+      
+      const maxStaffInTable = sortedStaffingTable[sortedStaffingTable.length - 1].staffCount;
+      if (targetStaffCount >= maxStaffInTable) {
+        adjustedMatchIdx = sortedStaffingTable.length - 1;
+      }
+
+      finalMatchIdx = adjustedMatchIdx;
+    }
     
     // 2. Os postos a abrir são os que estão na coluna da descrição (stationLabel) desde o início (índice 0) até à linha do intervalo de vendas (inclusive)
     const relevantRows = finalMatchIdx !== -1 ? sortedStaffingTable.slice(0, finalMatchIdx + 1) : [];
@@ -564,7 +598,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     }
     
     return chosenIds;
-  }, [sortedStaffingTable, activeSalesData.totalSales, activeStations]);
+  }, [sortedStaffingTable, activeSalesData.totalSales, activeStations, manualAdj]);
 
   const handleManagerChange = (field: 'leader' | 'support', empId: string) => {
       if (isShiftLocked) return;
@@ -819,29 +853,44 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Console de Botões */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
              <button onClick={() => onSaveSchedule(schedule)} className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold">Gravar Rascunho</button>
              <button onClick={() => onSaveSchedule({ ...schedule, status: 'CONCLUIDO' })} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold">Submeter Posicionamento</button>
              <div className="flex-1"></div>
-             <button 
-                onClick={() => {
-                   const pass = prompt('Introduza a password das definições:');
-                   if (pass === settings.password || pass === 'Imperial96') {
-                      const val = prompt('Indique o número de funcionários a acrescentar:');
-                      if (val) {
-                          const num = parseInt(val);
-                          if (!isNaN(num)) {
-                             setSchedule({ ...schedule, manualAdjustment: (schedule.manualAdjustment || 0) + num });
-                          }
+             
+             <div className="flex items-center gap-3">
+                {manualAdj !== 0 && (
+                  <span className="text-xs font-black text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    Ajuste Ativo: {manualAdj > 0 ? `+${manualAdj}` : manualAdj} Colaboradores
+                  </span>
+                )}
+                <button 
+                   onClick={() => {
+                      const pass = prompt('Introduza a password das definições:');
+                      if (pass === settings.password || pass === 'Imperial96') {
+                         const val = prompt('Indique o número de funcionários a acrescentar (ex: 2 para somar, -1 para subtrair, ou 0 para limpar):');
+                         if (val !== null) {
+                             const num = parseInt(val);
+                             if (!isNaN(num)) {
+                                const currentAdjustments = schedule.manualAdjustments || {};
+                                setSchedule({ 
+                                   ...schedule, 
+                                   manualAdjustments: { 
+                                      ...currentAdjustments, 
+                                      [selectedShift]: num 
+                                   } 
+                                });
+                             }
+                         }
+                      } else {
+                        alert('Password incorreta!');
                       }
-                   } else {
-                     alert('Password incorreta!');
-                   }
-                }}
-                className="px-6 py-2 bg-amber-600 text-white rounded-lg font-bold"
-             >
-                Ajuste Manual
-             </button>
+                   }}
+                   className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
+                >
+                   Ajuste Manual
+                </button>
+             </div>
         </div>
 
         {/* Shift selector container: Modern Segment Controller pill bar */}
