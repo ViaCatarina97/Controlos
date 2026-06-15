@@ -854,8 +854,33 @@ export const Positioning: React.FC<PositioningProps> = ({
 
         {/* Console de Botões */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-             <button onClick={() => onSaveSchedule(schedule)} className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold">Gravar Rascunho</button>
-             <button onClick={() => onSaveSchedule({ ...schedule, status: 'CONCLUIDO' })} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold">Submeter Posicionamento</button>
+             <button 
+               onClick={() => {
+                 onSaveSchedule(schedule);
+                 alert("Rascunho do posicionamento guardado com sucesso no histórico!");
+               }} 
+               className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition-all shadow-sm"
+             >
+               Gravar Rascunho
+             </button>
+             <button 
+               onClick={() => {
+                 const currentLocked = schedule.lockedShifts || [];
+                 if (!currentLocked.includes(selectedShift)) {
+                   const updatedSchedule = { 
+                     ...schedule, 
+                     lockedShifts: [...currentLocked, selectedShift] 
+                   };
+                   onSaveSchedule(updatedSchedule);
+                   alert(`Posicionamento do turno submetido e trancado com sucesso!`);
+                 } else {
+                   alert("Este turno já se encontra trancado!");
+                 }
+               }} 
+               className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all shadow-sm"
+             >
+               Submeter Posicionamento
+             </button>
              <div className="flex-1"></div>
              
              <div className="flex items-center gap-3">
@@ -965,12 +990,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                     <div className="grid grid-cols-3 gap-4 w-full">
                         {/* Necessários */}
                         <div className="bg-blue-50/40 rounded-2xl p-5 border border-blue-100 flex flex-col items-center justify-center text-center shadow-inner">
-                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">Necessários</span>
+                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">Previstos</span>
                           <div className="p-2.5 bg-blue-100/60 rounded-xl mb-2 text-blue-600">
                             <Calculator size={20} />
                           </div>
                           <span className="text-3xl font-black text-blue-900 leading-none">{requirement.count}</span>
-                          <span className="text-[9px] text-blue-500 font-bold mt-1.5 uppercase">Colaboradores</span>
                         </div>
                         
                         {/* Posicionados */}
@@ -980,7 +1004,6 @@ export const Positioning: React.FC<PositioningProps> = ({
                             <Users size={20} />
                           </div>
                           <span className="text-3xl font-black text-gray-800 leading-none">{currentAssignedCount}</span>
-                          <span className="text-[9px] text-slate-500 font-bold mt-1.5 uppercase">Na Escala</span>
                         </div>
                         
                         {/* Diferença */}

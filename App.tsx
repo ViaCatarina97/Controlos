@@ -609,7 +609,7 @@ const App: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
             {activeModule === 'billing' ? 'Controlo de Faturação' : 
              activeModule === 'finance' ? 'Controlo Financeiro' :
-             'Gestão Operacional | Posicionamento'}
+             'Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
             <button
