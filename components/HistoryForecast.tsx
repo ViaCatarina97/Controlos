@@ -52,6 +52,18 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
     return isNaN(parsed) ? 0 : parsed;
   }, [gcFactorInput]);
 
+  const handleSalesFactorChange = (val: string) => {
+    if (val === '' || val === '-' || val === '-0' || val.match(/^-?[0-9]*[.,]?[0-9]*$/)) {
+      setSalesFactorInput(val);
+    }
+  };
+
+  const handleGcFactorChange = (val: string) => {
+    if (val === '' || val === '-' || val === '-0' || val.match(/^-?[0-9]*[.,]?[0-9]*$/)) {
+      setGcFactorInput(val);
+    }
+  };
+
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -388,42 +400,99 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
       </div>
 
        {/* Sales Forecast Adjustments */}
-       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-             <div className="flex items-center gap-4">
-                <div className="p-3 bg-slate-800 rounded-lg text-emerald-400">
-                    <TrendingUp size={24} />
-                </div>
-                <div>
-                    <span className="text-xs text-gray-400 font-black uppercase">Planificação</span>
-                    <div className="text-xl font-black text-slate-800">{averageData?.totalSales || 0}€ Vendas / {averageData?.totalGC || 0} GC <span className="text-xs font-normal text-slate-500">({selectedIds.size} dias selecionados)</span></div>
-                </div>
-             </div>
-             
-             <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-400 font-black uppercase">Fator Vendas</label>
-                    <input type="text" placeholder="Ex: 1,2" value={salesFactor.toString().replace('.', ',')} onChange={e => {
-                        const val = parseFloat(e.target.value.replace(',', '.'));
-                        setSalesFactor(isNaN(val) ? 0 : val);
-                    }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
-                </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-400 font-black uppercase">Fator GC</label>
-                    <input type="text" placeholder="Ex: 1,2" value={gcFactor.toString().replace('.', ',')} onChange={e => {
-                        const val = parseFloat(e.target.value.replace(',', '.'));
-                        setGcFactor(isNaN(val) ? 0 : val);
-                    }} className="w-24 p-2 border border-gray-300 rounded-lg font-bold" />
-                </div>
-                <div className="flex flex-col gap-1 ml-4 border-l border-gray-200 pl-4">
-                    <span className="text-xs text-gray-400 font-black uppercase">Planificação a considerar</span>
-                    <div className="text-xl font-black text-blue-600">{finalPlanning?.sales || 0}€ Vendas / {finalPlanning?.gc || 0} GC</div>
-                </div>
-             </div>
+       <div id="sales-forecast-adjustments" className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm mt-4">
+          {/* Section Title & selected days counter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200/60">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="text-blue-600" size={20} />
+              <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm">Resumo da Planificação & Ajustes</h3>
+            </div>
+            <div className="text-xs font-bold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full border border-slate-200">
+              {selectedIds.size} {selectedIds.size === 1 ? 'dia selecionado' : 'dias selecionados'} para a média
+            </div>
+          </div>
 
-             <button onClick={handleApplyForecast} disabled={!averageData} className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg whitespace-nowrap ${averageData ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-105 active:scale-95' : 'bg-slate-300 text-slate-600 cursor-not-allowed'}`}>
-                Definir como Previsão Ativa <ArrowRight size={18} />
-             </button>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            {/* VENDAS */}
+            <div className="lg:col-span-5 bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="w-full md:w-auto text-left">
+                <span className="text-[10px] text-gray-400 font-black uppercase tracking-wider block">Previsão Média (Vendas)</span>
+                <div className="text-lg font-black text-slate-800 mt-1">
+                  {averageData ? formatCurrency(averageData.totalSales) : '0 €'}
+                </div>
+              </div>
+              
+              {/* Factor Input */}
+              <div className="flex flex-col gap-1 w-full md:w-32 text-left">
+                <label className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Fator</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="0" 
+                    value={salesFactorInput} 
+                    onChange={e => handleSalesFactorChange(e.target.value)} 
+                    className="w-full py-2 pl-3 pr-8 border border-gray-300 rounded-xl font-bold text-slate-850 text-center focus:ring-2 focus:ring-blue-500 bg-gray-50/50 outline-none transition-all text-sm" 
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">%</span>
+                </div>
+              </div>
+
+              {/* Final Planning */}
+              <div className="w-full md:w-auto text-left border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4 min-w-[124px]">
+                <span className="text-[10px] text-blue-600 font-black uppercase tracking-wider block">Planificação Final</span>
+                <div className="text-lg font-black text-blue-600 mt-1">
+                  {finalPlanning ? formatCurrency(finalPlanning.sales) : '0 €'}
+                </div>
+              </div>
+            </div>
+
+            {/* GC'S */}
+            <div className="lg:col-span-5 bg-white p-4.5 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="w-full md:w-auto text-left">
+                <span className="text-[10px] text-gray-400 font-black uppercase tracking-wider block">Previsão Média (GC)</span>
+                <div className="text-lg font-black text-slate-800 mt-1">
+                  {averageData ? `${averageData.totalGC} GC` : '0 GC'}
+                </div>
+              </div>
+
+              {/* Factor Input */}
+              <div className="flex flex-col gap-1 w-full md:w-32 text-left">
+                <label className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Fator</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="0" 
+                    value={gcFactorInput} 
+                    onChange={e => handleGcFactorChange(e.target.value)} 
+                    className="w-full py-2 pl-3 pr-8 border border-gray-300 rounded-xl font-bold text-slate-850 text-center focus:ring-2 focus:ring-amber-500 bg-gray-50/50 outline-none transition-all text-sm" 
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">%</span>
+                </div>
+              </div>
+
+              {/* Final Planning */}
+              <div className="w-full md:w-auto text-left border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4 min-w-[104px]">
+                <span className="text-[10px] text-amber-600 font-black uppercase tracking-wider block">Planificação Final</span>
+                <div className="text-lg font-black text-amber-600 mt-1">
+                  {finalPlanning ? `${finalPlanning.gc} GC` : '0 GC'}
+                </div>
+              </div>
+            </div>
+
+            {/* BUTTON */}
+            <div className="lg:col-span-2 w-full flex justify-end">
+              <button 
+                onClick={handleApplyForecast} 
+                disabled={!averageData} 
+                 className={`w-full lg:w-auto px-6 py-4 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-md text-xs uppercase tracking-wider ${
+                   averageData 
+                     ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-[1.02] active:scale-95 shadow-blue-200' 
+                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                <span>Definir Ativa</span> <ArrowRight size={18} />
+              </button>
+            </div>
           </div>
        </div>
 
