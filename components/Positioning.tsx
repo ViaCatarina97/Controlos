@@ -457,7 +457,7 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const manualAdj = useMemo(() => {
     if (!schedule) return 0;
-    return schedule.manualAdjustments?.[selectedShift] || schedule.manualAdjustment || 0;
+    return schedule.manualAdjustments?.[selectedShift] || 0;
   }, [schedule, selectedShift]);
 
   const requirement = useMemo(() => {
