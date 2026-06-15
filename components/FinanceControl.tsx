@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Employee, AppSettings, CofreCount, DepositRecord, DepositRow, ProsegurDepositRecord, FinanceInvoice 
+  Employee, AppSettings, CofreCount, DepositRecord, DepositRow, ProsegurDepositRecord, FinanceInvoice, 
+  ProsegurWeeklyDeposit, ProsegurCoinMovement, ProsegurDailyDeposit
 } from '../types';
 import { 
   getCofreCounts, saveCofreCount, deleteCofreCount,
   getDeposits, saveDeposit, deleteDeposit,
-  getProsegurDeposits, saveProsegurDeposit, deleteProsegurDeposit
+  getProsegurDeposits, saveProsegurDeposit, deleteProsegurDeposit,
+  getProsegurWeeklyDeposits, saveProsegurWeeklyDeposit, deleteProsegurWeeklyDeposit,
+  getProsegurCoinMovements, saveProsegurCoinMovement, deleteProsegurCoinMovement
 } from '../services/firebaseService';
 import { 
   Calculator, Coins, CreditCard, Landmark, Plus, Trash2, Edit2, 
@@ -66,6 +69,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [cofreCounts, setCofreCounts] = useState<CofreCount[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
   const [prosegurDeposits, setProsegurDeposits] = useState<ProsegurDepositRecord[]>([]);
+  const [prosegurWeeklyDeposits, setProsegurWeeklyDeposits] = useState<ProsegurWeeklyDeposit[]>([]);
+  const [prosegurCoinMovements, setProsegurCoinMovements] = useState<ProsegurCoinMovement[]>([]);
   
   // App Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +87,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [editingCofre, setEditingCofre] = useState<CofreCount | null>(null);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
   const [editingProsegur, setEditingProsegur] = useState<ProsegurDepositRecord | null>(null);
+  const [editingWeekly, setEditingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
+  const [editingCoin, setEditingCoin] = useState<ProsegurCoinMovement | null>(null);
+  const [closingWeekly, setClosingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
+  const [prosegurSubTab, setProsegurSubTab] = useState<'semanal' | 'moedas' | 'recolhas'>('semanal');
 
   // Subtabs within Safe Count Editor: 'detalhes' | 'faturas'
   const [safeEditorTab, setSafeEditorTab] = useState<'contagem' | 'faturas'>('contagem');
@@ -108,14 +117,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [counts, deps, pros] = await Promise.all([
+      const [counts, deps, pros, weeklies, coins] = await Promise.all([
         getCofreCounts(restaurantId),
         getDeposits(restaurantId),
-        getProsegurDeposits(restaurantId)
+        getProsegurDeposits(restaurantId),
+        getProsegurWeeklyDeposits(restaurantId),
+        getProsegurCoinMovements(restaurantId)
       ]);
       setCofreCounts(counts.sort((a,b) => b.date.localeCompare(a.date)));
       setDeposits(deps.sort((a,b) => b.date.localeCompare(a.date)));
       setProsegurDeposits(pros.sort((a,b) => b.date.localeCompare(a.date)));
+      setProsegurWeeklyDeposits(weeklies.sort((a,b) => b.startDate.localeCompare(a.startDate)));
+      setProsegurCoinMovements(coins.sort((a,b) => b.date.localeCompare(a.date)));
     } catch (err) {
       console.error("Error loading financial data:", err);
     } finally {
@@ -400,7 +413,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     // Total Geral = Safe (Cofre) + Manager Fund + Recorded Invoices + Drawer Funds + Moedas Prosegur
     const computedTotal = fGerenteTot + cofreTot + faturasTot + fundosTot + moedasPros;
-    const computedDiferenca = (1000 + fundosTot) - computedTotal;
+    const computedDiferenca = 1000 - computedTotal;
 
     countCopy.totalGeral = computedTotal;
     countCopy.diferenca = computedDiferenca;
@@ -439,7 +452,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     // Recalculate Total Geral and Diferenca with Drawer Funds included
     countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
-    countCopy.diferenca = (1000 + fundosTot) - countCopy.totalGeral;
+    countCopy.diferenca = 1000 - countCopy.totalGeral;
 
     setEditingCofre(countCopy);
     setInvNum('');
@@ -460,7 +473,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     // Recalculate Total Geral and Diferenca with Drawer Funds included
     countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
-    countCopy.diferenca = (1000 + fundosTot) - countCopy.totalGeral;
+    countCopy.diferenca = 1000 - countCopy.totalGeral;
 
     setEditingCofre(countCopy);
   };
@@ -475,7 +488,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
     const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
     const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasPros + fundosTotalVal;
-    const autoDiferenca = (1000 + fundosTotalVal) - autoTotalGeral;
+    const autoDiferenca = 1000 - autoTotalGeral;
 
     const updatedCount: CofreCount = {
       ...editingCofre,
@@ -594,7 +607,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         const fundosTotalVal = Number(existing.fundosCount || 0) * 50;
 
         const updatedTotalGeral = (existing.fundoGerente?.total || 0) + (existing.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
-        const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
+        const updatedDiferenca = 1000 - updatedTotalGeral;
 
         updatedCount = {
           ...existing,
@@ -620,7 +633,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           fundosTotal: fundosTotalVal,
           moedasProsegur: prosegurDeposits.filter(p => p.date === invoiceDateInput).reduce((sum, p) => sum + (p.amountCoins || 0), 0),
           totalGeral: fundosTotalVal + amt,
-          diferenca: (1000 + fundosTotalVal) - (fundosTotalVal + amt),
+          diferenca: 1000 - (fundosTotalVal + amt),
           observacoes: '',
           isLocked: false,
           isDayClosed: false
@@ -631,7 +644,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         // final recalc for new
         const newTotalGeral = updatedCount.fundoGerente.total + updatedCount.cofre.total + updatedCount.totalFaturas + updatedCount.moedasProsegur + fundosTotalVal;
         updatedCount.totalGeral = newTotalGeral;
-        updatedCount.diferenca = (1000 + fundosTotalVal) - newTotalGeral;
+        updatedCount.diferenca = 1000 - newTotalGeral;
       }
 
       await saveCofreCount(restaurantId, updatedCount);
@@ -686,7 +699,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
 
       const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
-      const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
+      const updatedDiferenca = 1000 - updatedTotalGeral;
 
       const updatedCount: CofreCount = {
         ...parentCount,
@@ -735,7 +748,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         invoices: updatedInvoices,
         totalFaturas: updatedTotalFaturas,
         totalGeral: updatedTotalGeral,
-        diferenca: (1000 + fundosTotalVal) - updatedTotalGeral
+        diferenca: 1000 - updatedTotalGeral
       };
 
       await saveCofreCount(restaurantId, updatedCount);
@@ -963,6 +976,153 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  // --- PROSEGUR WEEKLY DEPOSITS ACTIONS ---
+  const handleAddNewWeekly = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setEditingWeekly({
+      id: `week_${Date.now()}`,
+      status: 'Aberto',
+      startDate: today,
+      managerOpen: '',
+      dailyDeposits: Array.from({ length: 7 }, (_, i) => ({
+        dayIndex: i,
+        date: '',
+        amount: 0,
+        managerName: ''
+      })),
+      coinDepositsValue1: 0,
+      coinDepositsValue2: 0,
+      totalVal: 0
+    });
+  };
+
+  const handleSaveWeeklyEdit = async (weeklyToSave: ProsegurWeeklyDeposit) => {
+    // Recalculate total value
+    const dailySum = weeklyToSave.dailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const coinSum = Number(weeklyToSave.coinDepositsValue1 || 0) + Number(weeklyToSave.coinDepositsValue2 || 0);
+    weeklyToSave.totalVal = dailySum + coinSum;
+    try {
+      await saveProsegurWeeklyDeposit(restaurantId, weeklyToSave);
+      setEditingWeekly(null);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao gravar registo de depósito semanal.");
+    }
+  };
+
+  const handleDeleteWeeklyAction = async (id: string) => {
+    if (confirm("Tens a certeza que pretendes eliminar este registo de depósito semanal? This action is irreversible.")) {
+      try {
+        await deleteProsegurWeeklyDeposit(restaurantId, id);
+        loadData();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // --- PROSEGUR COIN MOVEMENTS ACTIONS ---
+  const handleAddNewCoin = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setEditingCoin({
+      id: `coin_${Date.now()}`,
+      date: today,
+      type: 'Recebido',
+      amount: 0,
+      managerName: '',
+      comment: ''
+    });
+  };
+
+  const handleSaveCoinEdit = async () => {
+    if (!editingCoin) return;
+    if (Number(editingCoin.amount || 0) <= 0) {
+      alert("Insira um valor válido para o movimento de moedas.");
+      return;
+    }
+    if (!editingCoin.managerName) {
+      alert("Por favor, insira o nome do gerente.");
+      return;
+    }
+    try {
+      await saveProsegurCoinMovement(restaurantId, editingCoin);
+      setEditingCoin(null);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao gravar movimento de moedas.");
+    }
+  };
+
+  const handleDeleteCoinAction = async (id: string) => {
+    if (confirm("Desejas eliminar este movimento de moedas?")) {
+      try {
+        await deleteProsegurCoinMovement(restaurantId, id);
+        loadData();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // --- WEEKLY ENCERRAMENTO ACTIONS ---
+  const handleConfirmCloseWeekly = async (
+    weekly: ProsegurWeeklyDeposit,
+    closingDate: string,
+    managerCloseName: string,
+    prosegurEmployeeName: string,
+    prosegurCredentialNum: string,
+    bagNumberVal: string,
+    prosegurReceiptVal: string
+  ) => {
+    if (!closingDate || !managerCloseName || !prosegurEmployeeName || !prosegurCredentialNum || !prosegurReceiptVal) {
+      alert("Por favor, preencha todos os campos obrigatórios (Data de Fecho, Nome do Gerente, Funcionário Prosegur, Nº Credencial e Nº Guia Prosegur).");
+      return;
+    }
+
+    const dailySum = weekly.dailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const coinSum = Number(weekly.coinDepositsValue1 || 0) + Number(weekly.coinDepositsValue2 || 0);
+    const totalVal = dailySum + coinSum;
+
+    // 1. Create recolha record (ProsegurDepositRecord) matching existing ones
+    const newRecolha: ProsegurDepositRecord = {
+      id: `pros_${closingDate}_${Date.now()}`,
+      date: closingDate,
+      bagNumber: bagNumberVal || prosegurCredentialNum,
+      amountNotes: dailySum,
+      amountCoins: coinSum,
+      amountTotal: totalVal,
+      prosegurReceipt: prosegurReceiptVal,
+      status: 'Recolhido',
+      comment: `Fecho de depósito semanal de ${formatDateToDMY(weekly.startDate)}. Aberto por ${weekly.managerOpen}, Fechado por ${managerCloseName}. Transp: ${prosegurEmployeeName} (${prosegurCredentialNum})`
+    };
+
+    // 2. Mark weekly as closed with filled fields
+    const closedWeekly: ProsegurWeeklyDeposit = {
+      ...weekly,
+      status: 'Encerrado',
+      endDate: closingDate,
+      managerClose: managerCloseName,
+      prosegurEmployee: prosegurEmployeeName,
+      prosegurCredential: prosegurCredentialNum,
+      bagNumber: bagNumberVal,
+      prosegurReceipt: prosegurReceiptVal,
+      totalVal: totalVal
+    };
+
+    try {
+      await saveProsegurDeposit(restaurantId, newRecolha);
+      await saveProsegurWeeklyDeposit(restaurantId, closedWeekly);
+      setClosingWeekly(null);
+      loadData();
+      alert("Depósito Semanal encerrado com sucesso e Guia de Recolha CIT gerada!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao encerrar depósito semanal.");
     }
   };
 
@@ -1327,7 +1487,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
             const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
             const autoTotalVal = fundosTotalVal + (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
-            const autoDiferencaVal = (1000 + fundosTotalVal) - autoTotalVal;
+            const autoDiferencaVal = 1000 - autoTotalVal;
 
             return (
               <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-5 gap-4 items-center print:bg-white print:border-t">
@@ -2441,87 +2601,929 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* Tab 3: DEPÓSITO PROSEGUR */}
           {activeTab === 'prosegur' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border">
+            <div className="space-y-6">
+              {/* Header Box */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Guias e Sacos de Valores Prosegur</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Reconciliação de transporte de dinheiro seguro (Notas e Moedas)</p>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Depósitos e Movimentos Prosegur</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão integrada de depósitos diários, recolha de moedas e guias CIT</p>
                 </div>
-                <button
-                  onClick={handleAddNewProsegur}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-50"
-                >
-                  <Plus size={16} /> Registar Recolha CIT
-                </button>
-              </div>
 
-              {isLoading ? (
-                <div className="p-12 text-center text-xs text-gray-400 font-black tracking-widest uppercase">
-                  A carregar dados do banco...
-                </div>
-              ) : prosegurDeposits.length === 0 ? (
-                <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
-                  <CreditCard size={36} className="text-gray-300 mx-auto mb-3" />
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhuma entrega de selo Prosegur registada</p>
-                  <button onClick={handleAddNewProsegur} className="text-blue-600 text-xs font-black uppercase tracking-wider underline mt-2 block mx-auto">
-                    Criar Nova Entrega de Valores
+                {/* Sub-Tabs Switcher */}
+                <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setProsegurSubTab('semanal')}
+                    className={`px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all ${
+                      prosegurSubTab === 'semanal'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-gray-500 hover:text-slate-800'
+                    }`}
+                  >
+                    🗓️ Depósito Semanal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProsegurSubTab('moedas')}
+                    className={`px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all ${
+                      prosegurSubTab === 'moedas'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-gray-500 hover:text-slate-800'
+                    }`}
+                  >
+                    🪙 Moedas Prossegur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProsegurSubTab('recolhas')}
+                    className={`px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all ${
+                      prosegurSubTab === 'recolhas'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-gray-500 hover:text-slate-800'
+                    }`}
+                  >
+                    🛡️ Guias CIT / Recolhas
                   </button>
                 </div>
-              ) : (
-                <div className="border rounded-2xl border-gray-100 overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        <th className="px-6 py-3.5">Data Recolha</th>
-                        <th className="px-6 py-3.5">Nº Guia Prosegur</th>
-                        <th className="px-6 py-3.5">Nº Selo / Saco</th>
-                        <th className="px-6 py-3.5 text-right">Valor Notas</th>
-                        <th className="px-6 py-3.5 text-right">Valor Moedas</th>
-                        <th className="px-6 py-3.5 text-right">Total Recolha</th>
-                        <th className="px-6 py-3.5 text-center">Estado</th>
-                        <th className="px-6 py-3.5 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y text-xs font-bold text-gray-700">
-                      {prosegurDeposits.map(pros => {
+              </div>
+
+              {/* SECTION 1: DEPÓSITO SEMANAL */}
+              {prosegurSubTab === 'semanal' && (
+                <div className="space-y-6">
+                  {/* Action Section */}
+                  <div className="flex justify-between items-center bg-white p-4 rounded-2xl border">
+                    <div>
+                      <h5 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Semanas de Depósitos em Curso</h5>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Controlo semanal de depósitos de notas (7 dias) e moedas recolhidas</p>
+                    </div>
+                    
+                    {/* Open Week Initiator Button */}
+                    {!editingWeekly && prosegurWeeklyDeposits.filter(w => w.status === 'Aberto').length === 0 && (
+                      <button
+                        onClick={handleAddNewWeekly}
+                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-50"
+                      >
+                        <Plus size={16} /> Lançar Registo
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Open Week Form */}
+                  {editingWeekly && (
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 animate-fade-in">
+                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Abertura de Nova Semana de Depósitos</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data Início de Semana</label>
+                          <input
+                            type="date"
+                            value={editingWeekly.startDate}
+                            onChange={(e) => setEditingWeekly({ ...editingWeekly, startDate: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Gerente de Abertura</label>
+                          <input
+                            type="text"
+                            list="employees-names"
+                            value={editingWeekly.managerOpen}
+                            onChange={(e) => setEditingWeekly({ ...editingWeekly, managerOpen: e.target.value })}
+                            placeholder="Selecione ou insira o nome..."
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingWeekly(null)}
+                          className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!editingWeekly.startDate || !editingWeekly.managerOpen) {
+                              alert("Data e Gerente de Abertura são obrigatórios.");
+                              return;
+                            }
+                            handleSaveWeeklyEdit(editingWeekly);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
+                        >
+                          Iniciar Semana
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Weeks */}
+                  {isLoading ? (
+                    <div className="p-12 text-center text-xs text-gray-400 font-bold uppercase tracking-widest bg-white rounded-2xl border">
+                      A carregar registos prosegur...
+                    </div>
+                  ) : prosegurWeeklyDeposits.length === 0 ? (
+                    <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-white">
+                      <Calendar size={36} className="text-slate-300 mx-auto mb-3" />
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhum registo de depósito semanal aberto</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {prosegurWeeklyDeposits.map((week) => {
+                        const isWeekOpen = week.status === 'Aberto';
+                        const dailySum = week.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                        const coinSum = Number(week.coinDepositsValue1 || 0) + Number(week.coinDepositsValue2 || 0);
+                        const grandTotal = dailySum + coinSum;
+
                         return (
-                          <tr key={pros.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">{formatDateToDMY(pros.date)}</td>
-                            <td className="px-6 py-4 font-mono font-extrabold text-[#2c532c]">{pros.prosegurReceipt}</td>
-                            <td className="px-6 py-4 font-mono text-slate-500">{pros.bagNumber}</td>
-                            <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountNotes)}</td>
-                            <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountCoins)}</td>
-                            <td className="px-6 py-4 text-right font-mono font-extrabold text-emerald-800">{formatEuro(pros.amountTotal)}</td>
-                            <td className="px-6 py-4 text-center">
-                              <span className={`inline-block px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-xl ${
-                                pros.status === 'Confirmado' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                pros.status === 'Recolhido' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                'bg-amber-50 text-amber-700 border border-amber-100'
-                              }`}>
-                                {pros.status === 'Confirmado' ? 'Banco' : pros.status === 'Recolhido' ? 'Transportadora' : 'Saco Selado'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-1">
-                                <button 
-                                  onClick={() => setEditingProsegur(pros)}
-                                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                >
-                                  <Edit2 size={15} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProsegurAction(pros.id)}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
+                          <div 
+                            key={week.id} 
+                            className={`bg-white border rounded-3xl shadow-sm overflow-hidden transition-all ${
+                              isWeekOpen ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'
+                            }`}
+                          >
+                            {/* Card Header */}
+                            <div className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+                              isWeekOpen ? 'bg-amber-50/40 border-b border-amber-100' : 'bg-slate-50/50 border-b border-slate-100'
+                            }`}>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg border ${
+                                    isWeekOpen 
+                                      ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                                  }`}>
+                                    {isWeekOpen ? 'Em Aberto' : 'Encerrada'}
+                                  </span>
+                                  <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">
+                                    Semana de {formatDateToDMY(week.startDate)}
+                                  </h4>
+                                </div>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                                  Iniciada por: <span className="text-slate-650">{week.managerOpen}</span>
+                                  {week.endDate && (
+                                    <> &bull; Fechada em: <span className="text-slate-650">{formatDateToDMY(week.endDate)}</span> por <span className="text-slate-655">{week.managerClose}</span></>
+                                  )}
+                                </p>
                               </div>
-                            </td>
-                          </tr>
+
+                              <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Soma Depósitos Semanal</span>
+                                  <span className="text-sm font-extrabold text-slate-800 font-mono">{formatEuro(grandTotal)}</span>
+                                </div>
+                                
+                                {isWeekOpen && (
+                                  <button
+                                    onClick={() => setClosingWeekly(week)}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
+                                  >
+                                    🔒 Encerrar Semana
+                                  </button>
+                                )}
+
+                                {!isWeekOpen && (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => handleDeleteWeeklyAction(week.id)}
+                                      className="p-1 px-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 uppercase tracking-wider"
+                                    >
+                                      <Trash2 size={13} /> Limpar
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Grid Layout of 7 Daily Deposits + 2 Coin Deposits */}
+                            <div className="p-5 grid grid-cols-1 md:grid-cols-9 gap-4">
+                              {/* Daily Slots */}
+                              {Array.from({ length: 7 }).map((_, idx) => {
+                                const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
+                                const dayNum = idx + 1;
+                                
+                                return (
+                                  <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative group hover:border-blue-200 hover:bg-white transition-all">
+                                    <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md">Dia {dayNum}</span>
+                                    <div>
+                                      <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Depósito</span>
+                                      {existDep && existDep.amount > 0 ? (
+                                        <div className="mt-1">
+                                          <span className="text-xs font-mono font-extrabold text-slate-800">{formatEuro(existDep.amount)}</span>
+                                          <span className="block text-[8px] text-gray-500 truncate mt-0.5">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
+                                          <span className="block text-[8px] text-[#2c532c] font-black truncate">{existDep.managerName}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-300 font-bold block mt-1.5">—</span>
+                                      )}
+                                    </div>
+                                    
+                                    {isWeekOpen && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const inputAmt = prompt("Insira o valor do depósito (€):", existDep?.amount ? String(existDep.amount) : "");
+                                          if (inputAmt === null) return;
+                                          const amtNum = parseFloat(inputAmt.replace(',', '.'));
+                                          if (isNaN(amtNum) || amtNum < 0) {
+                                            alert("Introduza um montante válido.");
+                                            return;
+                                          }
+                                          const inputDate = prompt("Insira a data do depósito (AAAA-MM-DD):", existDep?.date || new Date().toISOString().split('T')[0]);
+                                          if (!inputDate) return;
+                                          const inputManager = prompt("Nome do Gerente de Depósito Confirme:", existDep?.managerName || week.managerOpen);
+                                          if (!inputManager) return;
+
+                                          const updatedDeposits = [...(week.dailyDeposits || [])];
+                                          const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === idx);
+                                          const newDepData = { dayIndex: idx, date: inputDate, amount: amtNum, managerName: inputManager };
+                                          
+                                          if (existingIdx !== -1) {
+                                            updatedDeposits[existingIdx] = newDepData;
+                                          } else {
+                                            updatedDeposits.push(newDepData);
+                                          }
+
+                                          handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
+                                        }}
+                                        className="mt-2 text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
+                                      >
+                                        Lançar
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              {/* Coin 1 Slot */}
+                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
+                                <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Moedas 1</span>
+                                <div>
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                                  {week.coinDepositsValue1 > 0 ? (
+                                    <div className="mt-1">
+                                      <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue1)}</span>
+                                      <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                                  )}
+                                </div>
+                                {isWeekOpen && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      // Popup option or selection
+                                      const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                      let promptMsg = "Insira o montante de moedas correspondente:\n";
+                                      if (unlinkedEnviados.length > 0) {
+                                        promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
+                                          unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                          "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
+                                      } else {
+                                        promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                      }
+
+                                      const userSelectInput = prompt(promptMsg, week.coinDepositsValue1 ? String(week.coinDepositsValue1) : "");
+                                      if (userSelectInput === null) return;
+                                      
+                                      const maybeIdx = parseInt(userSelectInput) - 1;
+                                      if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
+                                        const selectedCoin = unlinkedEnviados[maybeIdx];
+                                        handleSaveWeeklyEdit({
+                                          ...week,
+                                          coinDepositsValue1: selectedCoin.amount,
+                                          coinDepositId1: selectedCoin.id
+                                        });
+                                      } else {
+                                        const customVal = parseFloat(userSelectInput.replace(',', '.'));
+                                        if (isNaN(customVal) || customVal < 0) {
+                                          alert("Valor inválido.");
+                                          return;
+                                        }
+                                        handleSaveWeeklyEdit({
+                                          ...week,
+                                          coinDepositsValue1: customVal
+                                        });
+                                      }
+                                    }}
+                                    className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                                  >
+                                    Associar
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Coin 2 Slot */}
+                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
+                                <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Moedas 2</span>
+                                <div>
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                                  {week.coinDepositsValue2 > 0 ? (
+                                    <div className="mt-1">
+                                      <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue2)}</span>
+                                      <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                                  )}
+                                </div>
+                                {isWeekOpen && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                      let promptMsg = "Insira o montante de moedas correspondente:\n";
+                                      if (unlinkedEnviados.length > 0) {
+                                        promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
+                                          unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                          "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
+                                      } else {
+                                        promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                      }
+
+                                      const userSelectInput = prompt(promptMsg, week.coinDepositsValue2 ? String(week.coinDepositsValue2) : "");
+                                      if (userSelectInput === null) return;
+                                      
+                                      const maybeIdx = parseInt(userSelectInput) - 1;
+                                      if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
+                                        const selectedCoin = unlinkedEnviados[maybeIdx];
+                                        handleSaveWeeklyEdit({
+                                          ...week,
+                                          coinDepositsValue2: selectedCoin.amount,
+                                          coinDepositId2: selectedCoin.id
+                                        });
+                                      } else {
+                                        const customVal = parseFloat(userSelectInput.replace(',', '.'));
+                                        if (isNaN(customVal) || customVal < 0) {
+                                          alert("Valor inválido.");
+                                          return;
+                                        }
+                                        handleSaveWeeklyEdit({
+                                          ...week,
+                                          coinDepositsValue2: customVal
+                                        });
+                                      }
+                                    }}
+                                    className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                                  >
+                                    Associar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
+
+                  {/* Closing Weekly Modal Overlay popup */}
+                  {closingWeekly && (
+                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
+                      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
+                        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
+                          <div>
+                            <span className="text-[10px] uppercase font-black tracking-widest text-amber-400">CIT Recolha Prosegur</span>
+                            <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Encerramento de Depósito de Valores</h3>
+                          </div>
+                          <button 
+                            onClick={() => setClosingWeekly(null)}
+                            className="text-gray-400 hover:text-white transition-all text-xs font-black uppercase p-1.5"
+                          >
+                            ✖️
+                          </button>
+                        </div>
+                        
+                        {/* Summary Block */}
+                        {(() => {
+                          const dailySum = closingWeekly.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                          const coinSum = Number(closingWeekly.coinDepositsValue1 || 0) + Number(closingWeekly.coinDepositsValue2 || 0);
+                          const totalSoma = dailySum + coinSum;
+
+                          return (
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const form = e.currentTarget;
+                                const fd = new FormData(form);
+                                handleConfirmCloseWeekly(
+                                  closingWeekly,
+                                  fd.get('closeDate') as string,
+                                  fd.get('managerClose') as string,
+                                  fd.get('prosegurEmployee') as string,
+                                  fd.get('prosegurCredential') as string,
+                                  fd.get('bagNumber') as string,
+                                  fd.get('prosegurReceipt') as string
+                                );
+                              }}
+                              className="p-6 space-y-4"
+                            >
+                              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 grid grid-cols-3 gap-3 text-center">
+                                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Notas (7 Dias)</span>
+                                  <span className="text-xs font-mono font-black text-slate-800">{formatEuro(dailySum)}</span>
+                                </div>
+                                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Moedas (Saco 1+2)</span>
+                                  <span className="text-xs font-mono font-black text-slate-800">{formatEuro(coinSum)}</span>
+                                </div>
+                                <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                                  <span className="block text-[8px] font-black text-amber-700 uppercase tracking-wider mb-1">Somatório Total</span>
+                                  <span className="text-xs font-mono font-black text-amber-800">{formatEuro(totalSoma)}</span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Data de Fecho / Entrega *</label>
+                                  <input 
+                                    name="closeDate"
+                                    type="date"
+                                    required
+                                    defaultValue={new Date().toISOString().split('T')[0]}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Confirmado Por (Gerente) *</label>
+                                  <input 
+                                    name="managerClose"
+                                    type="text"
+                                    required
+                                    list="employees-names"
+                                    placeholder="Escreva ou selecione..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Funci. Transportadora CIT *</label>
+                                  <input 
+                                    name="prosegurEmployee"
+                                    type="text"
+                                    required
+                                    placeholder="Nome do guarda Prosegur..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Credencial / Rota Guarda *</label>
+                                  <input 
+                                    name="prosegurCredential"
+                                    type="text"
+                                    required
+                                    placeholder="Nº da rota ou credencial..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Selo / Saco Prosegur</label>
+                                  <input 
+                                    name="bagNumber"
+                                    type="text"
+                                    placeholder="Saco de segurança..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Guia de Transporte Prosegur *</label>
+                                  <input 
+                                    name="prosegurReceipt"
+                                    type="text"
+                                    required
+                                    placeholder="Guia de valores Prosegur..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-4 border-t">
+                                <button
+                                  type="button"
+                                  onClick={() => setClosingWeekly(null)}
+                                  className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-50"
+                                >
+                                  ✔️ Gerar Guia CIT & Fechar
+                                </button>
+                              </div>
+                            </form>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION 2: MOEDAS PROSEGUR */}
+              {prosegurSubTab === 'moedas' && (
+                <div className="space-y-6">
+                  {/* Stats Cards */}
+                  {(() => {
+                    const receivedCoinsVal = prosegurCoinMovements.filter(m => m.type === 'Recebido').reduce((s, m) => s + (m.amount || 0), 0);
+                    const sentCoinsVal = prosegurCoinMovements.filter(m => m.type === 'Enviado').reduce((s, m) => s + (m.amount || 0), 0);
+                    const availableCoinsVal = receivedCoinsVal - sentCoinsVal;
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between">
+                          <div>
+                            <span className="block text-[8px] font-black text-emerald-800 uppercase tracking-widest">Moedas Disponíveis no Cofre</span>
+                            <span className="text-xl font-mono font-black text-emerald-900 mt-1 block">{formatEuro(availableCoinsVal)}</span>
+                          </div>
+                          <Coins className="text-emerald-500" size={32} />
+                        </div>
+                        <div className="bg-blue-50 border border-blue-105 p-4 rounded-2xl flex items-center justify-between">
+                          <div>
+                            <span className="block text-[8px] font-black text-blue-800 uppercase tracking-widest">Total de Entradas (Recebidas)</span>
+                            <span className="text-xl font-mono font-black text-blue-905 mt-1 block">{formatEuro(receivedCoinsVal)}</span>
+                          </div>
+                          <ArrowUpRight className="text-blue-500" size={32} />
+                        </div>
+                        <div className="bg-purple-50 border border-purple-105 p-4 rounded-2xl flex items-center justify-between">
+                          <div>
+                            <span className="block text-[8px] font-black text-purple-800 uppercase tracking-widest">Total de Saídas (Enviadas CIT)</span>
+                            <span className="text-xl font-mono font-black text-purple-905 mt-1 block">{formatEuro(sentCoinsVal)}</span>
+                          </div>
+                          <CreditCard className="text-purple-500" size={32} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left Panel: Register Coin Movement Form */}
+                    <div className="lg:col-span-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 h-fit space-y-4">
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Registar Lançamento de Moedas</h4>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Lance as moedas recebidas do banco ou preparadas para envio CIT Prosegur</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Data da Operação</label>
+                          <input 
+                            type="date"
+                            value={editingCoin?.date || new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, date: e.target.value } : { id: `coin_${Date.now()}`, date: e.target.value, type: 'Recebido', amount: 0, managerName: '' })}
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-700"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Tipo de Movimento</label>
+                          <div className="grid grid-cols-2 gap-2 bg-slate-200/50 p-1 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={() => setEditingCoin(editingCoin ? { ...editingCoin, type: 'Recebido' } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: '' })}
+                              className={`py-1.5 font-black text-[9px] uppercase tracking-wider rounded-lg text-center transition-all ${
+                                (editingCoin?.type || 'Recebido') === 'Recebido'
+                                  ? 'bg-blue-600 text-white shadow-sm'
+                                  : 'text-slate-600 hover:text-slate-800'
+                              }`}
+                            >
+                              📥 Entrada (Do Banco)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCoin(editingCoin ? { ...editingCoin, type: 'Enviado' } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Enviado', amount: 0, managerName: '' })}
+                              className={`py-1.5 font-black text-[9px] uppercase tracking-wider rounded-lg text-center transition-all ${
+                                editingCoin?.type === 'Enviado'
+                                  ? 'bg-purple-600 text-white shadow-sm'
+                                  : 'text-slate-600 hover:text-slate-800'
+                              }`}
+                            >
+                              📤 Saída (CIT Prosegur)
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor de Moedas (€)</label>
+                          <input 
+                            type="text"
+                            placeholder="0.00"
+                            value={editingCoin?.amount || ''}
+                            onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, amount: Number(e.target.value.replace(',', '.')) || 0 } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: Number(e.target.value.replace(',', '.')) || 0, managerName: '' })}
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-700"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Gerente Responsável</label>
+                          <input 
+                            type="text"
+                            list="employees-names"
+                            placeholder="Selecione ou insira o gerente..."
+                            value={editingCoin?.managerName || ''}
+                            onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, managerName: e.target.value } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-slate-250 rounded-xl font-bold text-xs bg-white text-gray-700"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Comentário / Selo do Saco</label>
+                          <textarea 
+                            rows={2}
+                            placeholder="Ex: moedas de 0.50€ trocados, ou saco selado..."
+                            value={editingCoin?.comment || ''}
+                            onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, comment: e.target.value } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: '', comment: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750 resize-none"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!editingCoin) {
+                              // Force instantiate if clicking save with default form
+                              setEditingCoin({
+                                id: `coin_${Date.now()}`,
+                                date: new Date().toISOString().split('T')[0],
+                                type: 'Recebido',
+                                amount: 0,
+                                managerName: ''
+                              });
+                              alert("Preencha o formulário antes de guardar.");
+                              return;
+                            }
+                            handleSaveCoinEdit();
+                          }}
+                          className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1.5"
+                        >
+                          <Save size={14} /> Guardar Movimento
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right Panel: Historical Coin Movements list */}
+                    <div className="lg:col-span-8 space-y-4">
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Historial de Fluxo de Moedas</h4>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Cronologia de entradas e saídas de cofres de troco</p>
+                      </div>
+
+                      {prosegurCoinMovements.length === 0 ? (
+                        <div className="p-12 text-center border-2 border-dashed border-slate-105 rounded-3xl bg-white">
+                          <Coins className="text-slate-300 mx-auto mb-3" size={32} />
+                          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Nenhum movimento de moeda registado</p>
+                        </div>
+                      ) : (
+                        <div className="bg-white border rounded-3xl overflow-hidden shadow-sm">
+                          <table className="w-full text-center border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 text-[9px] font-black uppercase text-slate-500 border-b tracking-wider">
+                                <th className="px-5 py-3 text-left">Data</th>
+                                <th className="px-5 py-3">Tipo</th>
+                                <th className="px-5 py-3 text-right">Valor</th>
+                                <th className="px-5 py-3">Gerente</th>
+                                <th className="px-5 py-3 text-left">Descrição</th>
+                                <th className="px-5 py-3">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y text-xs font-bold text-gray-700">
+                              {prosegurCoinMovements.map(coin => {
+                                const isReceived = coin.type === 'Recebido';
+                                return (
+                                  <tr key={coin.id} className="hover:bg-slate-50/50">
+                                    <td className="px-5 py-3.5 text-left">{formatDateToDMY(coin.date)}</td>
+                                    <td className="px-5 py-3.5 text-center">
+                                      <span className={`inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
+                                        isReceived 
+                                          ? 'bg-blue-50 text-blue-700 border-blue-100' 
+                                          : 'bg-purple-50 text-purple-700 border-purple-100'
+                                      }`}>
+                                        {isReceived ? '📥 Entrada / Recebido' : '📤 Saída / Enviado CIT'}
+                                      </span>
+                                    </td>
+                                    <td className={`px-5 py-3.5 text-right font-mono font-black ${
+                                      isReceived ? 'text-blue-900' : 'text-purple-900'
+                                    }`}>
+                                      {formatEuro(coin.amount)}
+                                    </td>
+                                    <td className="px-5 py-3.5">{coin.managerName}</td>
+                                    <td className="px-5 py-3.5 text-left text-gray-500 font-bold max-w-xs truncate">{coin.comment || '—'}</td>
+                                    <td className="px-5 py-3.5">
+                                      <button 
+                                        onClick={() => handleDeleteCoinAction(coin.id)}
+                                        className="p-1 px-2 hover:bg-red-50 text-red-500 hover:text-red-700 rounded-lg transition-all"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 3: RECOLHAS / GUIAS DE TRANSPORTE DE VALORES */}
+              {prosegurSubTab === 'recolhas' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="flex justify-between items-center bg-white p-4 rounded-2xl border">
+                    <div>
+                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Historial de Declaração de Valores CIT</h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Guias de transporte Prosegur geradas aquando do encerramento das recolhas semanais</p>
+                    </div>
+                    <button
+                      onClick={handleAddNewProsegur}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-50"
+                    >
+                      <Plus size={16} /> Registar Recolha CIT Manual
+                    </button>
+                  </div>
+
+                  {/* Manual / Normal Editing prosegur modal popup */}
+                  {editingProsegur && (
+                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
+                      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
+                        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
+                          <div>
+                            <span className="text-[10px] uppercase font-black tracking-widest text-amber-400">Guia Prosegur CIT</span>
+                            <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Registo Manual de Recolha de Valores</h3>
+                          </div>
+                          <button 
+                            onClick={() => setEditingProsegur(null)}
+                            className="text-gray-400 hover:text-white transition-all text-xs font-black p-1.5"
+                          >
+                            ✖️
+                          </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Data de Recolha *</label>
+                              <input 
+                                type="date"
+                                value={editingProsegur.date}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, date: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Guia Prosegur *</label>
+                              <input 
+                                type="text"
+                                placeholder="Nº de guia Prosegur..."
+                                value={editingProsegur.prosegurReceipt}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, prosegurReceipt: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Selo / Saco</label>
+                              <input 
+                                type="text"
+                                placeholder="Saco de segurança..."
+                                value={editingProsegur.bagNumber}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, bagNumber: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor Notas (€)</label>
+                              <input 
+                                type="text"
+                                placeholder="0.00"
+                                value={editingProsegur.amountNotes || ''}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, amountNotes: Number(e.target.value.replace(',', '.')) || 0 })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-750"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor Moedas (€)</label>
+                              <input 
+                                type="text"
+                                placeholder="0.00"
+                                value={editingProsegur.amountCoins || ''}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, amountCoins: Number(e.target.value.replace(',', '.')) || 0 })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-750"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Estado de Liquidação</label>
+                              <select
+                                value={editingProsegur.status}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, status: e.target.value as any })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
+                              >
+                                <option value="Pendente">Saco Selado, Aguarda Recolha</option>
+                                <option value="Recolhido">Recolhido pela CIT</option>
+                                <option value="Confirmado">Validado / Depósito em Banco</option>
+                              </select>
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Comentários / Notas</label>
+                              <textarea 
+                                rows={2}
+                                value={editingProsegur.comment || ''}
+                                onChange={(e) => setEditingProsegur({ ...editingProsegur, comment: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750 resize-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-4 border-t">
+                            <button
+                              type="button"
+                              onClick={() => setEditingProsegur(null)}
+                              className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveProsegurEdit}
+                              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
+                            >
+                              ✔️ Guardar Guia Manuscrita
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {prosegurDeposits.length === 0 ? (
+                    <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-3xl bg-white">
+                      <CreditCard size={36} className="text-gray-300 mx-auto mb-3" />
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhuma guia Prosegur encontrada</p>
+                    </div>
+                  ) : (
+                    <div className="border rounded-3xl border-gray-150 overflow-hidden shadow-sm bg-white">
+                      <table className="w-full text-center border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                            <th className="px-6 py-4 text-left">Data Guia CIT</th>
+                            <th className="px-6 py-4">Nº Guia Prosegur</th>
+                            <th className="px-6 py-4">Nº Selo / Saco</th>
+                            <th className="px-6 py-4 text-right">Valor Notas</th>
+                            <th className="px-6 py-4 text-right">Valor Moedas</th>
+                            <th className="px-6 py-4 text-right">Total Recolha</th>
+                            <th className="px-6 py-4">Estado</th>
+                            <th className="px-6 py-4">Comentários</th>
+                            <th className="px-6 py-4">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y text-xs font-bold text-slate-700">
+                          {prosegurDeposits.map(pros => {
+                            return (
+                              <tr key={pros.id} className="hover:bg-gray-55/50">
+                                <td className="px-6 py-4 text-left">{formatDateToDMY(pros.date)}</td>
+                                <td className="px-6 py-4 font-mono font-extrabold text-[#2c532c]">{pros.prosegurReceipt}</td>
+                                <td className="px-6 py-4 font-mono text-slate-500">{pros.bagNumber || '—'}</td>
+                                <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountNotes)}</td>
+                                <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountCoins)}</td>
+                                <td className="px-6 py-4 text-right font-mono font-extrabold text-emerald-850">{formatEuro(pros.amountTotal)}</td>
+                                <td className="px-6 py-4 text-center">
+                                  <span className={`inline-block px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-xl ${
+                                    pros.status === 'Confirmado' ? 'bg-emerald-50 text-emerald-705 border border-emerald-100' :
+                                    pros.status === 'Recolhido' ? 'bg-blue-50 text-blue-705 border border-blue-100' :
+                                    'bg-amber-50 text-amber-705 border border-amber-100'
+                                  }`}>
+                                    {pros.status === 'Confirmado' ? 'Vali. Banco' : pros.status === 'Recolhido' ? 'Levado CIT' : 'Saco Selado'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-left max-w-xs truncate text-[10px] text-gray-500" title={pros.comment}>{pros.comment || '—'}</td>
+                                <td className="px-6 py-4 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button 
+                                      onClick={() => setEditingProsegur(pros)}
+                                      className="p-1 px-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 border rounded-lg transition-all text-[10px] uppercase font-black"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteProsegurAction(pros.id)}
+                                      className="p-1 px-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent rounded-lg text-xs font-bold transition-all"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

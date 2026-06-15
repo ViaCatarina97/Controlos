@@ -8,7 +8,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { 
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
-  CofreCount, DepositRecord, ProsegurDepositRecord
+  CofreCount, DepositRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1006,3 +1006,154 @@ export async function deleteProsegurDeposit(restaurantId: string, id: string): P
     path
   );
 }
+
+// --- PROSEGUR WEEKLY DEPOSITS ---
+export async function getProsegurWeeklyDeposits(restaurantId: string): Promise<ProsegurWeeklyDeposit[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_weekly_deposits`;
+  return runFirestoreOp<ProsegurWeeklyDeposit[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'prosegur_weekly_deposits');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as ProsegurWeeklyDeposit);
+      localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveProsegurWeeklyDeposit(restaurantId: string, weekly: ProsegurWeeklyDeposit): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_weekly_deposits/${weekly.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_weekly_deposits', weekly.id);
+      await setDoc(dRef, weekly);
+      
+      const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
+      let list: ProsegurWeeklyDeposit[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== weekly.id);
+      list.push(weekly);
+      localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
+      let list: ProsegurWeeklyDeposit[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== weekly.id);
+      list.push(weekly);
+      localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteProsegurWeeklyDeposit(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_weekly_deposits/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_weekly_deposits', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurWeeklyDeposit[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurWeeklyDeposit[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+// --- PROSEGUR COIN MOVEMENTS ---
+export async function getProsegurCoinMovements(restaurantId: string): Promise<ProsegurCoinMovement[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_coin_movements`;
+  return runFirestoreOp<ProsegurCoinMovement[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'prosegur_coin_movements');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as ProsegurCoinMovement);
+      localStorage.setItem(`app_prosegur_coin_movements_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_coin_movements_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveProsegurCoinMovement(restaurantId: string, coin: ProsegurCoinMovement): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_coin_movements/${coin.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_coin_movements', coin.id);
+      await setDoc(dRef, coin);
+      
+      const saved = localStorage.getItem(`app_prosegur_coin_movements_${restaurantId}`);
+      let list: ProsegurCoinMovement[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== coin.id);
+      list.push(coin);
+      localStorage.setItem(`app_prosegur_coin_movements_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_coin_movements_${restaurantId}`);
+      let list: ProsegurCoinMovement[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(d => d.id !== coin.id);
+      list.push(coin);
+      localStorage.setItem(`app_prosegur_coin_movements_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteProsegurCoinMovement(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/prosegur_coin_movements/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_coin_movements', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_prosegur_coin_movements_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurCoinMovement[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_coin_movements_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_prosegur_coin_movements_${restaurantId}`);
+      if (saved) {
+        let list: ProsegurCoinMovement[] = JSON.parse(saved);
+        list = list.filter(d => d.id !== id);
+        localStorage.setItem(`app_prosegur_coin_movements_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+

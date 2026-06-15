@@ -305,3 +305,39 @@ export interface MonthlyOperationalData {
   comprasOpsMaiaPapper: number;
   otherSuppliers: OtherSupplierEntry[];
 }
+
+export interface ProsegurDailyDeposit {
+  dayIndex: number;
+  date: string;
+  amount: number;
+  managerName: string;
+}
+
+export interface ProsegurWeeklyDeposit {
+  id: string;
+  status: 'Aberto' | 'Encerrado';
+  startDate: string;
+  endDate?: string;
+  managerOpen: string;
+  managerClose?: string;
+  prosegurEmployee?: string;
+  prosegurCredential?: string;
+  bagNumber?: string;
+  prosegurReceipt?: string;
+  dailyDeposits: ProsegurDailyDeposit[];
+  coinDepositsValue1: number;
+  coinDepositsValue2: number;
+  coinDepositId1?: string;
+  coinDepositId2?: string;
+  totalVal: number;
+}
+
+export interface ProsegurCoinMovement {
+  id: string;
+  date: string;
+  type: 'Recebido' | 'Enviado';
+  amount: number;
+  managerName: string;
+  comment?: string;
+}
+
