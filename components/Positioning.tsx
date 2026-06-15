@@ -393,12 +393,14 @@ interface PositioningProps {
   date: string; setDate: (date: string) => void; projectedSales: number; employees: Employee[]; staffingTable: StaffingTableEntry[];
   schedule: DailySchedule; setSchedule: (s: DailySchedule) => void; settings: AppSettings; hourlyData?: HourlyProjection[]; onSaveSchedule: (schedule: DailySchedule) => void;
   initialShift?: ShiftType | null; onShiftChangeComplete?: () => void;
+  selectedShift: ShiftType;
+  setSelectedShift: (shift: ShiftType) => void;
 }
 
 export const Positioning: React.FC<PositioningProps> = ({ 
-  date, setDate, employees, staffingTable, schedule, setSchedule, settings, hourlyData, onSaveSchedule, initialShift, onShiftChangeComplete
+  date, setDate, employees, staffingTable, schedule, setSchedule, settings, hourlyData, onSaveSchedule, initialShift, onShiftChangeComplete,
+  selectedShift, setSelectedShift
 }) => {
-  const [selectedShift, setSelectedShift] = useState<ShiftType>('ABERTURA');
   const [manualPeakHour, setManualPeakHour] = useState<string | null>(null);
   const [showAllStations, setShowAllStations] = useState(false);
   

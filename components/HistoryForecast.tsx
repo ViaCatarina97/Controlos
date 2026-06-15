@@ -405,7 +405,9 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200/60">
             <div className="flex items-center gap-2">
               <TrendingUp className="text-blue-600" size={20} />
-              <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm">Resumo da Planificação & Ajustes</h3>
+              <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm">
+                Resumo da Planificação & Ajustes - Turno: <span className="text-blue-600 font-black">{selectedShift === 'ABERTURA' ? 'Abertura' : selectedShift === 'INTERMEDIO' ? 'Intermédio' : selectedShift === 'FECHO' ? 'Fecho' : selectedShift === 'MADRUGADA' ? 'Madrugada' : selectedShift}</span>
+              </h3>
             </div>
             <div className="text-xs font-bold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full border border-slate-200">
               {selectedIds.size} {selectedIds.size === 1 ? 'dia selecionado' : 'dias selecionados'} para a média
