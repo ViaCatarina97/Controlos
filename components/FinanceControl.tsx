@@ -393,7 +393,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const fGerenteTot = countCopy.fundoGerente.total;
     const cofreTot = countCopy.cofre.total;
     const faturasTot = countCopy.totalFaturas;
-    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurDeposits
       .filter(p => p.date === countCopy.date)
       .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
@@ -432,7 +432,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.invoices = [...countCopy.invoices, newInv];
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
-    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurDeposits
       .filter(p => p.date === countCopy.date)
       .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
@@ -453,7 +453,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.invoices = countCopy.invoices.filter(i => i.id !== id);
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
-    const fundosTot = Number(countCopy.fundosCount || 0) * Number(countCopy.fundosValuePerFundo || 0);
+    const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurDeposits
       .filter(p => p.date === countCopy.date)
       .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
@@ -473,7 +473,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const autoMoedasPros = prosegurDeposits
       .filter(p => p.date === editingCofre.date)
       .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
-    const fundosTotalVal = Number(editingCofre.fundosCount || 0) * Number(editingCofre.fundosValuePerFundo || 0);
+    const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
     const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasPros + fundosTotalVal;
     const autoDiferenca = (1000 + fundosTotalVal) - autoTotalGeral;
 
@@ -591,7 +591,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           .filter(p => p.date === existing!.date)
           .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
 
-        const fundosTotalVal = Number(existing.fundosCount || 0) * Number(existing.fundosValuePerFundo || 0);
+        const fundosTotalVal = Number(existing.fundosCount || 0) * 50;
 
         const updatedTotalGeral = (existing.fundoGerente?.total || 0) + (existing.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
         const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
@@ -605,7 +605,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         };
       } else {
         // Create safe count on-the-fly for Abertura of that date
-        const fundosTotalVal = devDefaultGavetaCount * devDefaultGavetaValue;
+        const fundosTotalVal = devDefaultGavetaCount * 50;
         updatedCount = {
           id: `cofre_${invoiceDateInput}_Abertura_${Date.now()}`,
           date: invoiceDateInput,
@@ -683,7 +683,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         .filter(p => p.date === parentCount.date)
         .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
 
-      const fundosTotalVal = Number(parentCount.fundosCount || 0) * Number(parentCount.fundosValuePerFundo || 0);
+      const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
 
       const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
       const updatedDiferenca = (1000 + fundosTotalVal) - updatedTotalGeral;
@@ -727,7 +727,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         .filter(p => p.date === parentCount.date)
         .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
 
-      const fundosTotalVal = Number(parentCount.fundosCount || 0) * Number(parentCount.fundosValuePerFundo || 0);
+      const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
       const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
 
       const updatedCount = {
@@ -817,20 +817,29 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       alert("Por favor, preencha pelo menos um turno de depósito (Abertura ou Fecho) antes de encerrar o dia.");
       return;
     }
-    if (confirm(`Tem a certeza que deseja encerrar o dia ${formatDateToDMY(date)}? Todos os turnos de depósito registados para este dia serão bloqueados.`)) {
-      try {
-        if (dayState.abertura) {
-          await saveDeposit(restaurantId, { ...dayState.abertura, isLocked: true });
-        }
-        if (dayState.fecho) {
-          await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true });
-        }
-        await loadData();
-        alert("Dia encerrado e validado com sucesso! 🔒");
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao encerrar o dia.");
+
+    const managerName = prompt("Por favor, insira o nome do gerente para confirmar o encerramento do dia:");
+    if (managerName === null) return; // Cancelado
+    if (!managerName.trim()) {
+      alert("O nome do gerente é obrigatório para confirmar o encerramento do dia.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (dayState.abertura) {
+        await saveDeposit(restaurantId, { ...dayState.abertura, isLocked: true });
       }
+      if (dayState.fecho) {
+        await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true });
+      }
+      await loadData();
+      alert(`Dia encerrado e validado com sucesso por ${managerName.trim()}! 🔒`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao encerrar o dia.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -857,6 +866,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       }
     }
 
+    if (field === 'colaboradorNome' && val) {
+      const trimmedVal = String(val).trim();
+      if (trimmedVal) {
+        const foundEmp = employees.find(emp => emp.name.toLowerCase() === trimmedVal.toLowerCase())
+          || employees.find(emp => emp.name.toLowerCase().includes(trimmedVal.toLowerCase()));
+        if (foundEmp && foundEmp.mecanografico) {
+          updatedRows[index].colaboradorNo = foundEmp.mecanografico;
+        }
+      }
+    }
+
     const row = updatedRows[index];
     const rowTotal = (row.sangria || 0) + (row.dinheiro || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
     row.diferenca = rowTotal - (row.valorRapport || 0);
@@ -873,6 +893,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     return dep.rows.reduce((sum, row) => {
       return sum + (row.dinheiro || 0) + (row.sangria || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
     }, 0);
+  };
+
+  const getDepositRecordDifference = (dep?: DepositRecord): number => {
+    if (!dep || !dep.rows) return 0;
+    return dep.rows.reduce((sum, row) => sum + (row.diferenca || 0), 0);
   };
 
   const getDepositRecordCash = (dep?: DepositRecord): number => {
@@ -1300,47 +1325,61 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             const autoMoedasProsegurVal = prosegurDeposits
               .filter(p => p.date === editingCofre.date)
               .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
-            const autoTotalVal = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
-            const autoDiferencaVal = 1000 - autoTotalVal;
+            const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
+            const autoTotalVal = fundosTotalVal + (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
+            const autoDiferencaVal = (1000 + fundosTotalVal) - autoTotalVal;
 
             return (
-              <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-6 items-center print:bg-white print:border-t">
+              <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-5 gap-4 items-center print:bg-white print:border-t">
                 {/* Total Faturas */}
-                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                <div className="bg-white p-3 py-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
                   <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                     Total Faturas
                   </span>
-                  <span className="text-base font-extrabold text-slate-800">
+                  <span className="text-sm font-extrabold text-slate-800">
                     {formatEuro(editingCofre.totalFaturas)}
                   </span>
                 </div>
 
                 {/* Moedas Prosegur Automatic display */}
-                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                <div className="bg-white p-3 py-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
                   <span className="block text-[10px] font-black text-blue-900 uppercase tracking-widest mb-1">
                     Moedas Prosegur
                   </span>
-                  <span className="text-base font-extrabold text-blue-900 font-mono">
+                  <span className="text-sm font-extrabold text-blue-900 font-mono">
                     {formatEuro(autoMoedasProsegurVal)}
                   </span>
                 </div>
 
+                {/* Fundos de Gaveta */}
+                <div className="bg-white p-3 py-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                  <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Fundos de Gaveta
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-800 font-mono">
+                    {formatEuro(fundosTotalVal)}
+                  </span>
+                  <span className="text-[8px] text-gray-400 uppercase font-bold mt-0.5">
+                    {editingCofre.fundosCount || devDefaultGavetaCount} x 50 €
+                  </span>
+                </div>
+
                 {/* Total Display */}
-                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                <div className="bg-white p-3 py-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
                   <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                     Total
                   </span>
-                  <span className="text-xl font-black text-slate-800">
+                  <span className="text-base font-black text-slate-800">
                     {formatEuro(autoTotalVal)}
                   </span>
                 </div>
 
                 {/* Diferença box */}
-                <div className="bg-white p-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
+                <div className="bg-white p-3 py-4 rounded-xl border border-blue-100 text-center shadow-sm h-full flex flex-col justify-center">
                   <span className="block text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">
                     Diferença
                   </span>
-                  <span className={`text-base font-black font-mono ${autoDiferencaVal !== 0 ? "text-red-600" : "text-green-600"}`}>
+                  <span className={`text-sm font-black font-mono ${autoDiferencaVal !== 0 ? "text-red-600" : "text-green-600"}`}>
                     {formatEuro(autoDiferencaVal)}
                   </span>
                 </div>
@@ -1398,8 +1437,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
                   FOLHA DE DEPÓSITO McD VIA CATARINA
                 </h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                  Reconciliação e Fecho de Turno de Caixa — {editingDeposit.turn}
+                <p className="text-[10.5px] text-gray-500 font-black uppercase tracking-wider mt-0.5">
+                  {editingDeposit.turn}
                 </p>
               </div>
             </div>
@@ -1412,7 +1451,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           </div>
 
           {/* Form Metadata Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100 items-end">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Retroceder</label>
+              <button
+                type="button"
+                onClick={() => setEditingDeposit(null)}
+                className="w-full h-9 flex items-center justify-center gap-1.5 px-4 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+              >
+                <ArrowLeft size={14} /> Voltar
+              </button>
+            </div>
             <div>
               <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data do Depósito</label>
               <input 
@@ -1420,7 +1469,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 value={editingDeposit.date}
                 disabled={editingDeposit.isLocked}
                 onChange={(e) => setEditingDeposit({ ...editingDeposit, date: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700 focus:ring-1 focus:ring-amber-500"
+                className="w-full h-9 px-4 border rounded-xl font-bold text-xs bg-white text-slate-700 focus:ring-1 focus:ring-amber-500 shadow-sm"
               />
             </div>
             <div>
@@ -1452,20 +1501,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* Spreadsheet-like Table Board */}
           <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-inner bg-white">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+            <table className="w-full text-center border-collapse min-w-[1000px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wide">
-                  <th className="px-3 py-3 border-r border-slate-200 text-center w-16">Caixa</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Nº Colab.</th>
-                  <th className="px-3 py-3 border-r border-slate-200 w-44">Nome Colaborador</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Valor Rapport</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Sangria</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Dinheiro €</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Multibanco</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Tickets</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-28">Delivery</th>
-                  <th className="px-3 py-3 border-r border-slate-200 text-right w-24">Mop</th>
-                  <th className="px-3 py-3 text-right w-28">Diferença</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wide text-center">
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-16">POS</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">nº.</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-44">Colaborador</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-28">Relatório</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Sangria</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Dinheiro €</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-28">Multibanco</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Tickets</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-28">Delivery</th>
+                  <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Mop</th>
+                  <th className="px-3 py-3 text-center w-28">Diferença</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
@@ -1489,6 +1538,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <td className="border-r border-slate-150 p-1 text-center">
                         <input
                           type="text"
+                          list="employees-mecanograficos"
                           disabled={editingDeposit.isLocked}
                           value={row.colaboradorNo || ''}
                           onChange={(e) => handleRowChange(idx, 'colaboradorNo', e.target.value)}
@@ -1501,6 +1551,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <td className="border-r border-slate-150 p-1">
                         <input
                           type="text"
+                          list="employees-names"
                           disabled={editingDeposit.isLocked || isDeliveryOrMop}
                           value={row.colaboradorNome}
                           onChange={(e) => handleRowChange(idx, 'colaboradorNome', e.target.value)}
@@ -2229,148 +2280,160 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 </div>
               </div>
 
-              {/* Grouped Lists: Active vs Archived */}
-              <div className="space-y-6">
-                {/* Active Days */}
-                <div>
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-                    Dias de Trabalho Activos ({groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).length})
-                  </h5>
-
-                  {groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).length === 0 ? (
-                    <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-xl">
-                      <p className="text-xs text-gray-400 font-extrabold uppercase">Não há dias ativos pendentes de depósito.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {groupedDeposits.filter(d => !d.abertura?.isLocked || !d.fecho?.isLocked).map(day => {
+              {/* Grouped Lists: Active vs Archived - Unified Line-by-Line Table */}
+              <div className="space-y-4">
+                <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm animate-fade-in">
+                  <table className="w-full text-center border-collapse min-w-[1050px]">
+                    <thead>
+                      <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                        <th className="px-5 py-4 text-left w-48">Data / Dia</th>
+                        <th className="px-5 py-4">Depósito de Abertura</th>
+                        <th className="px-5 py-4">Depósito de Fecho</th>
+                        <th className="px-5 py-4 w-48">Ação Encerramento</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                      {groupedDeposits.map((day) => {
                         const wName = getWeekdayName(day.date);
+                        
+                        // Abertura turn calculations
                         const hasAbertura = !!day.abertura;
-                        const hasFecho = !!day.fecho;
-
                         const isAberturaLocked = day.abertura?.isLocked || false;
+                        const totalAbertura = getDepositRecordTotal(day.abertura);
+                        const diffAbertura = getDepositRecordDifference(day.abertura);
+
+                        // Fecho turn calculations
+                        const hasFecho = !!day.fecho;
                         const isFechoLocked = day.fecho?.isLocked || false;
+                        const totalFecho = getDepositRecordTotal(day.fecho);
+                        const diffFecho = getDepositRecordDifference(day.fecho);
+
+                        // Day lock condition
+                        const isDayFullyClosed = isAberturaLocked && isFechoLocked;
 
                         return (
-                          <div key={day.date} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-slate-250 transition-all">
-                            <div className="flex justify-between items-start border-b pb-2.5 mb-3">
-                              <div>
-                                <span className="block text-[10px] font-black text-slate-400 tracking-widest uppercase">{wName}</span>
-                                <span className="text-sm font-extrabold text-slate-800">{formatDateToDMY(day.date)}</span>
+                          <tr key={day.date} className="hover:bg-slate-50/40 transition-colors">
+                            {/* DATA */}
+                            <td className="px-5 py-4 text-left">
+                              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">{wName}</span>
+                              <span className="text-xs font-black text-slate-800">{formatDateToDMY(day.date)}</span>
+                            </td>
+
+                            {/* DEPOSITO ABERTURA */}
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                {hasAbertura ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <span className="font-mono text-xs font-black text-slate-800">{formatEuro(totalAbertura)}</span>
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                        diffAbertura === 0 ? 'bg-slate-100 text-slate-600' : diffAbertura > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700 font-extrabold'
+                                      }`}>
+                                        {diffAbertura > 0 ? '+' : ''}{formatEuro(diffAbertura)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                        isAberturaLocked 
+                                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                          : 'bg-amber-50 border-amber-100 text-amber-750'
+                                      }`}>
+                                        {isAberturaLocked ? 'Concluído' : 'Em aberto'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                        className="text-[9px] text-blue-600 hover:text-blue-800 uppercase tracking-wider font-extrabold ml-1.5 focus:outline-none"
+                                      >
+                                        {isAberturaLocked ? 'Ver 🔍' : 'Editar 📝'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                      Em aberto
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                      className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
+                                    >
+                                      ➕ Iniciar
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                              <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-[9px] font-black uppercase text-amber-700 rounded-lg">Em Aberto</span>
-                            </div>
+                            </td>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              {/* Abertura Column */}
-                              <button
-                                onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
-                                className={`rounded-xl px-3 py-2.5 text-left border transition-all flex flex-col ${
-                                  !hasAbertura 
-                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
-                                    : !isAberturaLocked
-                                      ? 'border-amber-200 bg-amber-50/20 text-slate-850 hover:bg-amber-50'
-                                      : 'border-blue-105 bg-blue-50/25 text-blue-900'
-                                }`}
-                              >
-                                <span className="text-[10px] font-black block">
-                                  {!hasAbertura ? '➕ Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
-                                </span>
-                                {hasAbertura && (
-                                  <span className="font-mono text-[10px] font-extrabold text-slate-650 block mt-0.5">
-                                    {formatEuro(getDepositRecordTotal(day.abertura))}
-                                  </span>
+                            {/* DEPOSITO FECHO */}
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                {hasFecho ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <span className="font-mono text-xs font-black text-slate-800">{formatEuro(totalFecho)}</span>
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                        diffFecho === 0 ? 'bg-slate-100 text-slate-600' : diffFecho > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700 font-extrabold'
+                                      }`}>
+                                        {diffFecho > 0 ? '+' : ''}{formatEuro(diffFecho)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                        isFechoLocked 
+                                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                          : 'bg-amber-50 border-amber-100 text-amber-750'
+                                      }`}>
+                                        {isFechoLocked ? 'Concluído' : 'Em aberto'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                        className="text-[9px] text-blue-600 hover:text-blue-800 uppercase tracking-wider font-extrabold ml-1.5 focus:outline-none"
+                                      >
+                                        {isFechoLocked ? 'Ver 🔍' : 'Editar 📝'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                      Em aberto
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                      className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
+                                    >
+                                      ➕ Iniciar
+                                    </button>
+                                  </div>
                                 )}
-                              </button>
+                              </div>
+                            </td>
 
-                              {/* Fecho Column */}
-                              <button
-                                onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
-                                className={`rounded-xl px-3 py-2.5 text-left border transition-all flex flex-col ${
-                                  !hasFecho 
-                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
-                                    : !isFechoLocked
-                                      ? 'border-amber-200 bg-amber-50/20 text-slate-850 hover:bg-amber-50'
-                                      : 'border-blue-105 bg-blue-50/25 text-blue-900'
-                                }`}
-                              >
-                                <span className="text-[10px] font-black block">
-                                  {!hasFecho ? '➕ Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
+                            {/* ACOES DE ENCERRAMENTO (ENCERRAR DIA) */}
+                            <td className="px-5 py-4 text-center">
+                              {isDayFullyClosed ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                  🔒 Encerrado & Validado
                                 </span>
-                                {hasFecho && (
-                                  <span className="font-mono text-[10px] font-extrabold text-slate-650 block mt-0.5">
-                                    {formatEuro(getDepositRecordTotal(day.fecho))}
-                                  </span>
-                                )}
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleCloseDayDeposits(day.date, day)}
-                              className="mt-3 w-full flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-650 font-black text-[10px] uppercase tracking-wider py-2 rounded-xl transition-all border border-red-200/40"
-                            >
-                              🔒 Encerrar o Dia
-                            </button>
-                          </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseDayDeposits(day.date, day)}
+                                  className="inline-flex items-center gap-1 px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-100 border border-transparent"
+                                >
+                                  🔒 Encerrar Dia
+                                </button>
+                              )}
+                            </td>
+                          </tr>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Closed/Locked Days */}
-                <div>
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-                    Histórico Encerrado & Validado ({groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).length})
-                  </h5>
-
-                  {groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).length === 0 ? (
-                    <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/30">
-                      <p className="text-xs text-gray-400 font-extrabold uppercase">Nenhum dia de depósito totalmente encerrado ainda.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {groupedDeposits.filter(d => d.abertura?.isLocked && d.fecho?.isLocked).map(day => {
-                        const wName = getWeekdayName(day.date);
-                        return (
-                          <div key={day.date} className="bg-slate-50/40 p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between hover:bg-slate-50 transition-all">
-                            <div className="flex justify-between items-start border-b pb-2 mb-2">
-                              <div>
-                                <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">{wName}</span>
-                                <span className="text-xs font-extrabold text-slate-700">{formatDateToDMY(day.date)}</span>
-                              </div>
-                              <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-[9px] font-black uppercase text-blue-700 rounded-lg">Encerrado 🔒</span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 mt-2">
-                              {/* Abertura View */}
-                              <button
-                                onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
-                                className="rounded-xl px-3 py-2 text-left border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all flex flex-col"
-                              >
-                                <span className="text-[10px] font-black block">🔒 Abertura</span>
-                                <span className="font-mono text-[9px] font-extrabold text-indigo-700 mt-0.5">
-                                  {formatEuro(getDepositRecordTotal(day.abertura))}
-                                </span>
-                              </button>
-
-                              {/* Fecho View */}
-                              <button
-                                onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
-                                className="rounded-xl px-3 py-2 text-left border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all flex flex-col"
-                              >
-                                <span className="text-[10px] font-black block">🔒 Fecho</span>
-                                <span className="font-mono text-[9px] font-extrabold text-indigo-700 mt-0.5">
-                                  {formatEuro(getDepositRecordTotal(day.fecho))}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -2698,11 +2761,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           )}
 
-                       {/* Tab 4: DEFINIÇÕES DE CAIXA / COFRE */}
+          {/* Tab 4: DEFINIÇÕES DE CAIXA / COFRE */}
           {activeTab === 'settings' && (
             <div className="max-w-xl">
               <div className="border bg-slate-50 p-5 rounded-2xl space-y-4">
-                {/* Switcher Internal Settings Tabs */}
+                               {/* Switcher Internal Settings Tabs */}
                 <div className="flex border-b border-slate-250/60 pb-1.5 mb-2 gap-4">
                   <button
                     onClick={() => setSettingsSubTab('geral')}
@@ -2713,7 +2776,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         : 'border-transparent text-slate-400 hover:text-slate-600'
                     }`}
                   >
-                    Gerais
+                    Fundos
                   </button>
                   <button
                     onClick={() => setSettingsSubTab('mecanograficos')}
@@ -2724,42 +2787,39 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         : 'border-transparent text-slate-400 hover:text-slate-600'
                     }`}
                   >
-                    Nº Mecanográficos
+                    Colaboradores
                   </button>
                 </div>
 
                 {settingsSubTab === 'geral' ? (
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Definições Globais do Cofre</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                        Configuração de gavetas iniciais por fundo, e padrões da base de gerente
-                      </p>
+                      <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Fundos de Gaveta</h4>
                     </div>
 
                     <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
-                      <div className="grid grid-cols-2 gap-4">
+                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
-                            Nº de Fundos de Gaveta (Registers)
+                            Total de Fundos
                           </label>
                           <input 
                             type="number"
                             value={fundoGavetaCountInput}
                             onChange={(e) => setFundoGavetaCountInput(Number(e.target.value))}
-                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs shadow-sm"
                             min="1"
                           />
                         </div>
                         <div>
                           <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
-                            Valor Unitário por Gaveta (€)
+                            Valor Por Fundo
                           </label>
                           <input 
                             type="number"
                             value={fundoGavetaValueInput}
                             onChange={(e) => setFundoGavetaValueInput(Number(e.target.value))}
-                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                            className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs shadow-sm"
                             min="1"
                           />
                         </div>
@@ -2773,22 +2833,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           type="number"
                           value={defaultManagerFundExpected}
                           onChange={(e) => setDefaultManagerFundExpected(Number(e.target.value))}
-                          className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs"
+                          className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs shadow-sm"
                           min="1"
                         />
                       </div>
 
-                      <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 p-3.5 rounded-xl text-xs space-y-1">
-                        <p className="font-extrabold uppercase text-[10px] flex items-center gap-1.5 text-emerald-700">
-                          <ShieldCheck size={14} /> Repercussão de Configurações:
-                        </p>
-                        <p className="font-bold">
-                          • Fundo de gaveta acumulado considerado na contagem: 
-                          <strong className="ml-1 text-slate-800">{formatEuro(fundoGavetaCountInput * fundoGavetaValueInput)}</strong>
-                        </p>
-                        <p className="text-[10px] text-emerald-700 font-bold">
-                          Estes parâmetros são automaticamente precarregados em cada nova contagem criada.
-                        </p>
+                      <div className="bg-slate-100 border border-slate-200/65 p-3.5 rounded-xl text-xs text-slate-600 font-bold">
+                        Estes parâmetros são automaticamente precarregados em cada nova contagem criada.
                       </div>
 
                       <button
@@ -2800,15 +2851,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     </form>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 animate-fade-in">
                     <div>
-                      <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Nºs Mecanográficos</h4>
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
                         Associe o código de colaborador de cada funcionário e gerente para preenchimento automático na folha de depósito
                       </p>
                     </div>
 
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white max-h-[300px] overflow-y-auto">
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase text-slate-500 tracking-wider">
@@ -2818,7 +2868,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                          {localEmployees.map((emp, index) => (
+                          {[...localEmployees].sort((a, b) => a.name.localeCompare(b.name)).map((emp) => (
                             <tr key={emp.id} className="hover:bg-slate-50/40">
                               <td className="px-4 py-2.5 text-slate-800 font-extrabold">{emp.name}</td>
                               <td className="px-4 py-2.5">
@@ -2836,9 +2886,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   value={emp.mecanografico || ''}
                                   onChange={(e) => {
                                     const updatedVal = e.target.value;
-                                    const newEmployees = [...localEmployees];
-                                    newEmployees[index] = { ...newEmployees[index], mecanografico: updatedVal };
-                                    setLocalEmployees(newEmployees);
+                                    setLocalEmployees(prev => prev.map(item => item.id === emp.id ? { ...item, mecanografico: updatedVal } : item));
                                   }}
                                   placeholder="Ex: 1004"
                                   className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-blue-500"
@@ -2870,6 +2918,22 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
         </div>
       )}
+
+      {/* Autocomplete Datalists for Employee Prepopulation */}
+      <datalist id="employees-mecanograficos">
+        {employees.filter(emp => emp.mecanografico).map(emp => (
+          <option key={emp.id} value={emp.mecanografico}>
+            {emp.name} ({emp.role})
+          </option>
+        ))}
+      </datalist>
+      <datalist id="employees-names">
+        {employees.map(emp => (
+          <option key={emp.id} value={emp.name}>
+            {emp.mecanografico ? `Nº ${emp.mecanografico} - ${emp.role}` : emp.role}
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 };
