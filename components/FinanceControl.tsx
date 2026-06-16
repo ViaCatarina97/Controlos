@@ -534,7 +534,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       id: `cofre_${date}_${turn}_${Date.now()}`,
       date: date,
       turn: turn,
-      managerId: employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '',
+      managerId: employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '',
       fundoGerente: createEmptyPart(),
       cofre: createEmptyPart(),
       invoices: [],
@@ -797,7 +797,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           id: `cofre_${invoiceDateInput}_Abertura_${Date.now()}`,
           date: invoiceDateInput,
           turn: 'Abertura',
-          managerId: employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '',
+          managerId: employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '',
           fundoGerente: createEmptyPart(),
           cofre: createEmptyPart(),
           invoices: [newInv],
@@ -957,7 +957,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     }
 
     const defaultRows = createDefaultDepositRows();
-    const defaultManagerId = employees.find(e => e.isActive && e.role === 'GERENTE')?.id || employees[0]?.id || '';
+    const defaultManagerId = employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '';
 
     const newDep: DepositRecord = {
       id: `dep_${date}_${turn}_${Date.now()}`,
@@ -1520,7 +1520,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
                       className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      {employees.filter(e => e.role === 'GERENTE').map(e => (
+                      {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
                     </select>
@@ -1537,7 +1537,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       <option value="">-- Selecione o Gerente de Fecho --</option>
-                      {employees.filter(e => e.role === 'GERENTE').map(e => (
+                      {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
                     </select>
@@ -1555,7 +1555,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
                     className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    {employees.filter(e => e.role === 'GERENTE').map(e => (
+                    {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                       <option key={e.id} value={e.id}>{e.name}</option>
                     ))}
                   </select>
@@ -1926,7 +1926,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 onChange={(e) => setEditingDeposit({ ...editingDeposit, managerId: e.target.value })}
                 className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700"
               >
-                {employees.filter(e => e.role === 'GERENTE').map(e => (
+                {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
               </select>
@@ -2802,12 +2802,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          const pass = prompt("Introduza a password de acesso:");
-                                          if (pass === null) return;
-                                          if (pass !== "Imperial96") {
-                                            alert("Password de acesso incorreta.");
-                                            return;
-                                          }
                                           handleAddNewDepositForTurn(day.date, 'Abertura');
                                         }}
                                         className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
@@ -2858,12 +2852,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          const pass = prompt("Introduza a password de acesso:");
-                                          if (pass === null) return;
-                                          if (pass !== "Imperial96") {
-                                            alert("Password de acesso incorreta.");
-                                            return;
-                                          }
                                           handleAddNewDepositForTurn(day.date, 'Fecho');
                                         }}
                                         className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
@@ -3059,17 +3047,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           const dayNum = idx + 1;
                           
                           return (
-                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative group hover:border-blue-200 hover:bg-white transition-all">
-                              <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md">Depósito {dayNum}</span>
-                              <div>
+                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-blue-200 hover:bg-white transition-all">
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Depósito {dayNum}</span>
+                              <div className="flex-1 flex flex-col justify-center mb-2">
                                 {existDep && existDep.amount > 0 ? (
-                                  <div className="mt-1">
-                                    <span className="text-xs font-mono font-extrabold text-slate-800">{formatEuro(existDep.amount)}</span>
-                                    <span className="block text-[8px] text-gray-500 truncate mt-0.5">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
+                                  <div className="space-y-0.5">
+                                    <span className="text-xs font-mono font-black text-slate-800 block">{formatEuro(existDep.amount)}</span>
+                                    <span className="block text-[8px] text-gray-500 truncate">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
                                     <span className="block text-[8px] text-[#2c532c] font-black truncate">{existDep.managerName}</span>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-gray-300 font-bold block mt-1.5">—</span>
+                                  <span className="text-[10px] text-gray-300 font-bold block">—</span>
                                 )}
                               </div>
                               
@@ -3077,7 +3065,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setWeeklySlotEditor({ week, type: 'daily', dayIndex: idx })}
-                                  className="mt-2 text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
+                                  className="text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
                                 >
                                   Lançar
                                 </button>
@@ -3087,24 +3075,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         })}
 
                         {/* Coin 1 Slot */}
-                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-105 text-amber-900 text-[8px] font-black rounded-md">Depósito Moedas 1</span>
-                          <div>
-                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-yellow-300 hover:bg-white transition-all">
+                          <span className="text-[10px] font-black text-amber-850 uppercase tracking-widest block mb-2">Depósito Moedas 1</span>
+                          <div className="flex-1 flex flex-col justify-center mb-2">
                             {week.coinDepositsValue1 > 0 ? (
-                              <div className="mt-1">
-                                <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue1)}</span>
-                                <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
-                              </div>
+                              <span className="text-xs font-mono font-black text-blue-900 block">{formatEuro(week.coinDepositsValue1)}</span>
                             ) : (
-                              <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                              <span className="text-[10px] text-gray-300 font-bold block">—</span>
                             )}
                           </div>
                           {isWeekOpen && (
                             <button
                               type="button"
                               onClick={() => setWeeklySlotEditor({ week, type: 'coin1' })}
-                              className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                              className="text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
                             >
                               Lançar
                             </button>
@@ -3112,24 +3096,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         </div>
 
                         {/* Coin 2 Slot */}
-                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-105 text-amber-900 text-[8px] font-black rounded-md">Depósito Moedas 2</span>
-                          <div>
-                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-yellow-300 hover:bg-white transition-all">
+                          <span className="text-[10px] font-black text-amber-855 uppercase tracking-widest block mb-2">Depósito Moedas 2</span>
+                          <div className="flex-1 flex flex-col justify-center mb-2">
                             {week.coinDepositsValue2 > 0 ? (
-                              <div className="mt-1">
-                                <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue2)}</span>
-                                <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
-                              </div>
+                              <span className="text-xs font-mono font-black text-blue-900 block">{formatEuro(week.coinDepositsValue2)}</span>
                             ) : (
-                              <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                              <span className="text-[10px] text-gray-300 font-bold block">—</span>
                             )}
                           </div>
                           {isWeekOpen && (
                             <button
                               type="button"
                               onClick={() => setWeeklySlotEditor({ week, type: 'coin2' })}
-                              className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                              className="text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
                             >
                               Lançar
                             </button>
@@ -4292,7 +4272,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         ))}
       </datalist>
       <datalist id="managers-names">
-        {employees.filter(emp => emp.role === 'GERENTE').map(emp => (
+        {employees.filter(emp => emp.role?.toUpperCase() === 'GERENTE').map(emp => (
           <option key={emp.id} value={emp.name}>
             {emp.mecanografico ? `Nº ${emp.mecanografico} - GERENTE` : 'GERENTE'}
           </option>
