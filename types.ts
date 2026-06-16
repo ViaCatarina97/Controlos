@@ -339,5 +339,9 @@ export interface ProsegurCoinMovement {
   amount: number;
   managerName: string;
   comment?: string;
+  sendDate?: string;
+  sendAmount?: number;
+  sendManagerName?: string;
+  isClosed?: boolean;
 }
 

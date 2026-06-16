@@ -90,7 +90,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [editingWeekly, setEditingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
   const [editingCoin, setEditingCoin] = useState<ProsegurCoinMovement | null>(null);
   const [closingWeekly, setClosingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
-  const [prosegurSubTab, setProsegurSubTab] = useState<'semanal' | 'moedas' | 'recolhas'>('semanal');
+  const [prosegurSubTab, setProsegurSubTab] = useState<'semanal' | 'moedas'>('semanal');
+  const [printDepositData, setPrintDepositData] = useState<{
+    date: string;
+    managerName: string;
+    amount: number;
+    title?: string;
+  } | null>(null);
 
   // Subtabs within Safe Count Editor: 'detalhes' | 'faturas'
   const [safeEditorTab, setSafeEditorTab] = useState<'contagem' | 'faturas'>('contagem');
@@ -356,6 +362,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       return;
     }
 
+    const pendingCoinsTotal = prosegurCoinMovements
+      ?.filter(m => !m.isClosed)
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
+
     const newCount: CofreCount = {
       id: `cofre_${date}_${turn}_${Date.now()}`,
       date: date,
@@ -368,9 +378,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       fundosCount: devDefaultGavetaCount,
       fundosValuePerFundo: devDefaultGavetaValue,
       fundosTotal: devDefaultGavetaCount * devDefaultGavetaValue,
-      moedasProsegur: 0,
-      totalGeral: 0,
-      diferenca: 0,
+      moedasProsegur: pendingCoinsTotal,
+      totalGeral: pendingCoinsTotal + (devDefaultGavetaCount * devDefaultGavetaValue),
+      diferenca: 1000 - (pendingCoinsTotal + (devDefaultGavetaCount * devDefaultGavetaValue)),
       observacoes: '',
       isLocked: false,
       isDayClosed: false
@@ -407,9 +417,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const cofreTot = countCopy.cofre.total;
     const faturasTot = countCopy.totalFaturas;
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
-    const moedasPros = prosegurDeposits
-      .filter(p => p.date === countCopy.date)
-      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+    const moedasPros = prosegurCoinMovements
+      ?.filter(m => !m.isClosed)
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
     // Total Geral = Safe (Cofre) + Manager Fund + Recorded Invoices + Drawer Funds + Moedas Prosegur
     const computedTotal = fGerenteTot + cofreTot + faturasTot + fundosTot + moedasPros;
@@ -446,9 +456,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
-    const moedasPros = prosegurDeposits
-      .filter(p => p.date === countCopy.date)
-      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+    const moedasPros = prosegurCoinMovements
+      ?.filter(m => !m.isClosed)
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
     // Recalculate Total Geral and Diferenca with Drawer Funds included
     countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
@@ -467,9 +477,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
     
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
-    const moedasPros = prosegurDeposits
-      .filter(p => p.date === countCopy.date)
-      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+    const moedasPros = prosegurCoinMovements
+      ?.filter(m => !m.isClosed)
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
     // Recalculate Total Geral and Diferenca with Drawer Funds included
     countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
@@ -483,9 +493,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     
     const finalizeLock = shouldLock === true;
     
-    const autoMoedasPros = prosegurDeposits
-      .filter(p => p.date === editingCofre.date)
-      .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+    const autoMoedasPros = prosegurCoinMovements
+      ?.filter(m => !m.isClosed)
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
     const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
     const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasPros + fundosTotalVal;
     const autoDiferenca = 1000 - autoTotalGeral;
@@ -2360,14 +2370,40 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     <div className="flex items-center justify-center gap-2">
                                       <button 
                                         onClick={() => {
-                                          if (day.abertura) {
-                                            setEditingCofre(day.abertura);
+                                          const pass = prompt("Introduza a password de acesso:");
+                                          if (pass === null) return;
+                                          if (pass !== "Imperial96") {
+                                            alert("Password de acesso incorreta.");
+                                            return;
+                                          }
+                                          const choices: { label: string, data: any }[] = [];
+                                          if (day.abertura) choices.push({ label: 'Abertura', data: day.abertura });
+                                          if (day.tarde) choices.push({ label: 'Intermédio', data: day.tarde });
+                                          if (day.fecho) choices.push({ label: 'Fecho', data: day.fecho });
+
+                                          if (choices.length === 0) {
+                                            alert("Não existem contagens para este dia.");
+                                            return;
+                                          }
+                                          if (choices.length === 1) {
+                                            setEditingCofre(choices[0].data);
                                             setSafeEditorTab('contagem');
+                                          } else {
+                                            const optionsStr = choices.map((c, i) => `${i + 1} - ${c.label}`).join('\n');
+                                            const selection = prompt(`Escolha a contagem que deseja abrir:\n${optionsStr}`, "1");
+                                            if (selection === null) return;
+                                            const idx = parseInt(selection) - 1;
+                                            if (!isNaN(idx) && idx >= 0 && idx < choices.length) {
+                                              setEditingCofre(choices[idx].data);
+                                              setSafeEditorTab('contagem');
+                                            } else {
+                                              alert("Opção inválida.");
+                                            }
                                           }
                                         }}
                                         className="text-[10px] uppercase font-black text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100/60 px-2.5 py-1 rounded-lg transition-all"
                                       >
-                                        Inspecionar
+                                        Verificar
                                       </button>
                                       
                                       <button
@@ -2449,7 +2485,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         <th className="px-5 py-4 text-left w-48">Data / Dia</th>
                         <th className="px-5 py-4">Depósito de Abertura</th>
                         <th className="px-5 py-4">Depósito de Fecho</th>
-                        <th className="px-5 py-4 w-48">Ação Encerramento</th>
+                        <th className="px-5 py-4 w-48">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
@@ -2485,9 +2521,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 {hasAbertura ? (
                                   <div className="space-y-1">
                                     <div className="flex items-center gap-2 justify-center">
-                                      <span className="font-mono text-xs font-black text-slate-800">{formatEuro(totalAbertura)}</span>
-                                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                        diffAbertura === 0 ? 'bg-slate-100 text-slate-600' : diffAbertura > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700 font-extrabold'
+                                      <span className={`font-mono text-xs font-black ${
+                                        diffAbertura === 0 ? 'text-slate-800' : diffAbertura > 0 ? 'text-emerald-700' : 'text-rose-700 font-extrabold'
                                       }`}>
                                         {diffAbertura > 0 ? '+' : ''}{formatEuro(diffAbertura)}
                                       </span>
@@ -2532,9 +2567,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 {hasFecho ? (
                                   <div className="space-y-1">
                                     <div className="flex items-center gap-2 justify-center">
-                                      <span className="font-mono text-xs font-black text-slate-800">{formatEuro(totalFecho)}</span>
-                                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                        diffFecho === 0 ? 'bg-slate-100 text-slate-600' : diffFecho > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700 font-extrabold'
+                                      <span className={`font-mono text-xs font-black ${
+                                        diffFecho === 0 ? 'text-slate-800' : diffFecho > 0 ? 'text-emerald-700' : 'text-rose-700 font-extrabold'
                                       }`}>
                                         {diffFecho > 0 ? '+' : ''}{formatEuro(diffFecho)}
                                       </span>
@@ -2575,19 +2609,46 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                             {/* ACOES DE ENCERRAMENTO (ENCERRAR DIA) */}
                             <td className="px-5 py-4 text-center">
-                              {isDayFullyClosed ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-800 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                  🔒 Encerrado & Validado
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCloseDayDeposits(day.date, day)}
-                                  className="inline-flex items-center gap-1 px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-100 border border-transparent"
-                                >
-                                  🔒 Encerrar Dia
-                                </button>
-                              )}
+                              <div className="flex items-center justify-center gap-2">
+                                {isDayFullyClosed ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                    🔒 Encerrado & Validado
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCloseDayDeposits(day.date, day)}
+                                    className="inline-flex items-center gap-1 px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-100 border border-transparent"
+                                  >
+                                    🔒 Encerrar Dia
+                                  </button>
+                                )}
+
+                                {(hasAbertura || hasFecho) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const printManagerObj = day.fecho || day.abertura;
+                                      const managerId = printManagerObj?.managerId;
+                                      const managerName = employees.find(e => e.id === managerId)?.name || '';
+                                      const totalAmt = (day.abertura ? getDepositRecordTotal(day.abertura) : 0) + (day.fecho ? getDepositRecordTotal(day.fecho) : 0);
+                                      setPrintDepositData({
+                                        date: day.date,
+                                        managerName: managerName,
+                                        amount: totalAmt,
+                                        title: 'DEPOSIT DES VALORES E NUMERÁRIO'
+                                      });
+                                      setTimeout(() => {
+                                        window.print();
+                                      }, 150);
+                                    }}
+                                    className="p-1 px-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-105 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    title="Imprimir Guia de Depósito"
+                                  >
+                                    <Printer size={12} /> Imprimir
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2605,8 +2666,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               {/* Header Box */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Depósitos e Movimentos Prosegur</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão integrada de depósitos diários, recolha de moedas e guias CIT</p>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Depósitos Prossegur</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão integrada de depósitos diários, recolha de moedas e guias CIT para Depósitos Prossegur.</p>
                 </div>
 
                 {/* Sub-Tabs Switcher */}
@@ -2633,355 +2694,379 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   >
                     🪙 Moedas Prossegur
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setProsegurSubTab('recolhas')}
-                    className={`px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all ${
-                      prosegurSubTab === 'recolhas'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-gray-500 hover:text-slate-800'
-                    }`}
-                  >
-                    🛡️ Guias CIT / Recolhas
-                  </button>
                 </div>
               </div>
 
               {/* SECTION 1: DEPÓSITO SEMANAL */}
-              {prosegurSubTab === 'semanal' && (
-                <div className="space-y-6">
-                  {/* Action Section */}
-                  <div className="flex justify-between items-center bg-white p-4 rounded-2xl border">
-                    <div>
-                      <h5 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Semanas de Depósitos em Curso</h5>
-                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Controlo semanal de depósitos de notas (7 dias) e moedas recolhidas</p>
+              {prosegurSubTab === 'semanal' && (() => {
+                const activeWeeks = prosegurWeeklyDeposits.filter(w => w.status === 'Aberto');
+                const historicWeeks = prosegurWeeklyDeposits.filter(w => w.status !== 'Aberto');
+
+                const renderWeekCard = (week: ProsegurWeeklyDeposit) => {
+                  const isWeekOpen = week.status === 'Aberto';
+                  const dailySum = week.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                  const coinSum = Number(week.coinDepositsValue1 || 0) + Number(week.coinDepositsValue2 || 0);
+                  const grandTotal = dailySum + coinSum;
+
+                  return (
+                    <div 
+                      key={week.id} 
+                      className={`bg-white border rounded-3xl shadow-sm overflow-hidden transition-all ${
+                        isWeekOpen ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'
+                      }`}
+                    >
+                      {/* Card Header */}
+                      <div className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+                        isWeekOpen ? 'bg-amber-50/40 border-b border-amber-100' : 'bg-slate-50/50 border-b border-slate-100'
+                      }`}>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg border ${
+                              isWeekOpen 
+                                ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                            }`}>
+                              {isWeekOpen ? 'Em Aberto' : 'Encerrada'}
+                            </span>
+                            <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">
+                              Semana de {formatDateToDMY(week.startDate)}
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                            Iniciada por: <span className="text-slate-650">{week.managerOpen}</span>
+                            {week.endDate && (
+                              <> &bull; Fechada em: <span className="text-slate-650">{formatDateToDMY(week.endDate)}</span> por <span className="text-slate-655">{week.managerClose}</span></>
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Soma Depósitos Semanal</span>
+                            <span className="text-sm font-extrabold text-slate-800 font-mono">{formatEuro(grandTotal)}</span>
+                          </div>
+                          
+                          {isWeekOpen && (
+                            <button
+                              onClick={() => setClosingWeekly(week)}
+                              className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
+                            >
+                              🔒 Encerrar Semana
+                            </button>
+                          )}
+
+                          {!isWeekOpen && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDeleteWeeklyAction(week.id)}
+                                className="p-1 px-2.5 text-slate-400 hover:text-red-650 hover:bg-red-50 border border-slate-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 uppercase tracking-wider"
+                              >
+                                <Trash2 size={13} /> Limpar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grid Layout of 7 Daily Deposits + 2 Coin Deposits */}
+                      <div className="p-5 grid grid-cols-1 md:grid-cols-9 gap-4">
+                        {/* Daily Slots */}
+                        {Array.from({ length: 7 }).map((_, idx) => {
+                          const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
+                          const dayNum = idx + 1;
+                          
+                          return (
+                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative group hover:border-blue-200 hover:bg-white transition-all">
+                              <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md">Depósito {dayNum}</span>
+                              <div>
+                                <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Depósito</span>
+                                {existDep && existDep.amount > 0 ? (
+                                  <div className="mt-1">
+                                    <span className="text-xs font-mono font-extrabold text-slate-800">{formatEuro(existDep.amount)}</span>
+                                    <span className="block text-[8px] text-gray-500 truncate mt-0.5">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
+                                    <span className="block text-[8px] text-[#2c532c] font-black truncate">{existDep.managerName}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-gray-300 font-bold block mt-1.5">—</span>
+                                )}
+                              </div>
+                              
+                              {isWeekOpen && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const inputAmt = prompt("Insira o valor do depósito (€):", existDep?.amount ? String(existDep.amount) : "");
+                                    if (inputAmt === null) return;
+                                    const amtNum = parseFloat(inputAmt.replace(',', '.'));
+                                    if (isNaN(amtNum) || amtNum < 0) {
+                                      alert("Introduza um montante válido.");
+                                      return;
+                                    }
+                                    const inputDate = prompt("Insira a data do depósito (AAAA-MM-DD):", existDep?.date || new Date().toISOString().split('T')[0]);
+                                    if (!inputDate) return;
+                                    const inputManager = prompt("Nome do Gerente de Depósito Confirme:", existDep?.managerName || week.managerOpen);
+                                    if (!inputManager) return;
+
+                                    const updatedDeposits = [...(week.dailyDeposits || [])];
+                                    const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === idx);
+                                    const newDepData = { dayIndex: idx, date: inputDate, amount: amtNum, managerName: inputManager };
+                                    
+                                    if (existingIdx !== -1) {
+                                      updatedDeposits[existingIdx] = newDepData;
+                                    } else {
+                                      updatedDeposits.push(newDepData);
+                                    }
+
+                                    handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
+                                  }}
+                                  className="mt-2 text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
+                                >
+                                  Lançar
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Coin 1 Slot */}
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
+                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Depósito Moedas 1</span>
+                          <div>
+                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                            {week.coinDepositsValue1 > 0 ? (
+                              <div className="mt-1">
+                                <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue1)}</span>
+                                <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                            )}
+                          </div>
+                          {isWeekOpen && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Popup option or selection
+                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                let promptMsg = "Insira o montante de moedas correspondente:\n";
+                                if (unlinkedEnviados.length > 0) {
+                                  promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
+                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                    "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
+                                } else {
+                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                }
+
+                                const userSelectInput = prompt(promptMsg, week.coinDepositsValue1 ? String(week.coinDepositsValue1) : "");
+                                if (userSelectInput === null) return;
+                                
+                                const maybeIdx = parseInt(userSelectInput) - 1;
+                                if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
+                                  const selectedCoin = unlinkedEnviados[maybeIdx];
+                                  handleSaveWeeklyEdit({
+                                    ...week,
+                                    coinDepositsValue1: selectedCoin.amount,
+                                    coinDepositId1: selectedCoin.id
+                                  });
+                                } else {
+                                  const customVal = parseFloat(userSelectInput.replace(',', '.'));
+                                  if (isNaN(customVal) || customVal < 0) {
+                                    alert("Valor inválido.");
+                                    return;
+                                  }
+                                  handleSaveWeeklyEdit({
+                                    ...week,
+                                    coinDepositsValue1: customVal
+                                  });
+                                }
+                              }}
+                              className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                            >
+                              Associar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Coin 2 Slot */}
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
+                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Depósito Moedas 2</span>
+                          <div>
+                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
+                            {week.coinDepositsValue2 > 0 ? (
+                              <div className="mt-1">
+                                <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue2)}</span>
+                                <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
+                            )}
+                          </div>
+                          {isWeekOpen && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                let promptMsg = "Insira o montante de moedas correspondente:\n";
+                                if (unlinkedEnviados.length > 0) {
+                                  promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
+                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                    "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
+                                } else {
+                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                }
+
+                                const userSelectInput = prompt(promptMsg, week.coinDepositsValue2 ? String(week.coinDepositsValue2) : "");
+                                if (userSelectInput === null) return;
+                                
+                                const maybeIdx = parseInt(userSelectInput) - 1;
+                                if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
+                                  const selectedCoin = unlinkedEnviados[maybeIdx];
+                                  handleSaveWeeklyEdit({
+                                    ...week,
+                                    coinDepositsValue2: selectedCoin.amount,
+                                    coinDepositId2: selectedCoin.id
+                                  });
+                                } else {
+                                  const customVal = parseFloat(userSelectInput.replace(',', '.'));
+                                  if (isNaN(customVal) || customVal < 0) {
+                                    alert("Valor inválido.");
+                                    return;
+                                  }
+                                  handleSaveWeeklyEdit({
+                                    ...week,
+                                    coinDepositsValue2: customVal
+                                  });
+                                }
+                              }}
+                              className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
+                            >
+                              Associar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    
-                    {/* Open Week Initiator Button */}
-                    {!editingWeekly && prosegurWeeklyDeposits.filter(w => w.status === 'Aberto').length === 0 && (
-                      <button
-                        onClick={handleAddNewWeekly}
-                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-50"
-                      >
-                        <Plus size={16} /> Lançar Registo
-                      </button>
+                  );
+                };
+
+                return (
+                  <div className="space-y-6">
+                    {/* Action Section */}
+                    <div className="flex justify-between items-center bg-white p-4 rounded-2xl border">
+                      <div>
+                        <h5 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Semana Atual</h5>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Controlo semanal de depósitos de notas (7 dias) e moedas recolhidas</p>
+                      </div>
+                      
+                      {/* Open Week Initiator Button */}
+                      {!editingWeekly && activeWeeks.length === 0 && (
+                        <button
+                          onClick={handleAddNewWeekly}
+                          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-50"
+                        >
+                          <Plus size={16} /> Lançar Registo
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Open Week Form */}
+                    {editingWeekly && (
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 animate-fade-in">
+                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Abertura de Nova Semana de Depósitos</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data Início de Semana</label>
+                            <input
+                              type="date"
+                              value={editingWeekly.startDate}
+                              onChange={(e) => setEditingWeekly({ ...editingWeekly, startDate: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Gerente de Abertura</label>
+                            <input
+                              type="text"
+                              list="employees-names"
+                              value={editingWeekly.managerOpen}
+                              onChange={(e) => setEditingWeekly({ ...editingWeekly, managerOpen: e.target.value })}
+                              placeholder="Selecione ou insira o nome..."
+                              className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingWeekly(null)}
+                            className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!editingWeekly.startDate || !editingWeekly.managerOpen) {
+                                alert("Data e Gerente de Abertura são obrigatórios.");
+                                return;
+                              }
+                              handleSaveWeeklyEdit(editingWeekly);
+                            }}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
+                          >
+                            Iniciar Semana
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* List of Weeks */}
+                    {isLoading ? (
+                      <div className="p-12 text-center text-xs text-gray-400 font-bold uppercase tracking-widest bg-white rounded-2xl border">
+                        A carregar registos prosegur...
+                      </div>
+                    ) : (
+                      <div className="space-y-8">
+                        {/* 1. SECCAO SEMANA ATUAL */}
+                        <div className="space-y-4">
+                          {activeWeeks.length === 0 ? (
+                            <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-white">
+                              <Calendar size={36} className="text-slate-300 mx-auto mb-3" />
+                              <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhum registo de depósito semanal aberto</p>
+                              <p className="text-[10px] text-gray-400 mt-1">CLIQUE EM "LANÇAR REGISTO" PARA VOLTAR A CONTROLAR</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              {activeWeeks.map(renderWeekCard)}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. SECCAO HISTÓRICO DE SEMANAS */}
+                        <div className="pt-6 border-t border-slate-200">
+                          <div className="mb-4">
+                            <h5 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Histórico de semanas</h5>
+                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Semanas de depósitos encerradas anteriormente</p>
+                          </div>
+
+                          {historicWeeks.length === 0 ? (
+                            <div className="p-12 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 text-xs font-black text-gray-350 uppercase tracking-widest">
+                              Nenhuma semana no histórico
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              {historicWeeks.map(renderWeekCard)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
+                );
+              })()}
 
-                  {/* Open Week Form */}
-                  {editingWeekly && (
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 animate-fade-in">
-                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Abertura de Nova Semana de Depósitos</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data Início de Semana</label>
-                          <input
-                            type="date"
-                            value={editingWeekly.startDate}
-                            onChange={(e) => setEditingWeekly({ ...editingWeekly, startDate: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Gerente de Abertura</label>
-                          <input
-                            type="text"
-                            list="employees-names"
-                            value={editingWeekly.managerOpen}
-                            onChange={(e) => setEditingWeekly({ ...editingWeekly, managerOpen: e.target.value })}
-                            placeholder="Selecione ou insira o nome..."
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditingWeekly(null)}
-                          className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!editingWeekly.startDate || !editingWeekly.managerOpen) {
-                              alert("Data e Gerente de Abertura são obrigatórios.");
-                              return;
-                            }
-                            handleSaveWeeklyEdit(editingWeekly);
-                          }}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
-                        >
-                          Iniciar Semana
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* List of Weeks */}
-                  {isLoading ? (
-                    <div className="p-12 text-center text-xs text-gray-400 font-bold uppercase tracking-widest bg-white rounded-2xl border">
-                      A carregar registos prosegur...
-                    </div>
-                  ) : prosegurWeeklyDeposits.length === 0 ? (
-                    <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-white">
-                      <Calendar size={36} className="text-slate-300 mx-auto mb-3" />
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhum registo de depósito semanal aberto</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {prosegurWeeklyDeposits.map((week) => {
-                        const isWeekOpen = week.status === 'Aberto';
-                        const dailySum = week.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
-                        const coinSum = Number(week.coinDepositsValue1 || 0) + Number(week.coinDepositsValue2 || 0);
-                        const grandTotal = dailySum + coinSum;
-
-                        return (
-                          <div 
-                            key={week.id} 
-                            className={`bg-white border rounded-3xl shadow-sm overflow-hidden transition-all ${
-                              isWeekOpen ? 'border-amber-300 ring-2 ring-amber-50' : 'border-slate-200'
-                            }`}
-                          >
-                            {/* Card Header */}
-                            <div className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
-                              isWeekOpen ? 'bg-amber-50/40 border-b border-amber-100' : 'bg-slate-50/50 border-b border-slate-100'
-                            }`}>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg border ${
-                                    isWeekOpen 
-                                      ? 'bg-amber-100 text-amber-800 border-amber-200' 
-                                      : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                                  }`}>
-                                    {isWeekOpen ? 'Em Aberto' : 'Encerrada'}
-                                  </span>
-                                  <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">
-                                    Semana de {formatDateToDMY(week.startDate)}
-                                  </h4>
-                                </div>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
-                                  Iniciada por: <span className="text-slate-650">{week.managerOpen}</span>
-                                  {week.endDate && (
-                                    <> &bull; Fechada em: <span className="text-slate-650">{formatDateToDMY(week.endDate)}</span> por <span className="text-slate-655">{week.managerClose}</span></>
-                                  )}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-3">
-                                <div className="text-right">
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Soma Depósitos Semanal</span>
-                                  <span className="text-sm font-extrabold text-slate-800 font-mono">{formatEuro(grandTotal)}</span>
-                                </div>
-                                
-                                {isWeekOpen && (
-                                  <button
-                                    onClick={() => setClosingWeekly(week)}
-                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
-                                  >
-                                    🔒 Encerrar Semana
-                                  </button>
-                                )}
-
-                                {!isWeekOpen && (
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleDeleteWeeklyAction(week.id)}
-                                      className="p-1 px-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 uppercase tracking-wider"
-                                    >
-                                      <Trash2 size={13} /> Limpar
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Grid Layout of 7 Daily Deposits + 2 Coin Deposits */}
-                            <div className="p-5 grid grid-cols-1 md:grid-cols-9 gap-4">
-                              {/* Daily Slots */}
-                              {Array.from({ length: 7 }).map((_, idx) => {
-                                const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
-                                const dayNum = idx + 1;
-                                
-                                return (
-                                  <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative group hover:border-blue-200 hover:bg-white transition-all">
-                                    <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md">Dia {dayNum}</span>
-                                    <div>
-                                      <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Depósito</span>
-                                      {existDep && existDep.amount > 0 ? (
-                                        <div className="mt-1">
-                                          <span className="text-xs font-mono font-extrabold text-slate-800">{formatEuro(existDep.amount)}</span>
-                                          <span className="block text-[8px] text-gray-500 truncate mt-0.5">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
-                                          <span className="block text-[8px] text-[#2c532c] font-black truncate">{existDep.managerName}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-[10px] text-gray-300 font-bold block mt-1.5">—</span>
-                                      )}
-                                    </div>
-                                    
-                                    {isWeekOpen && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const inputAmt = prompt("Insira o valor do depósito (€):", existDep?.amount ? String(existDep.amount) : "");
-                                          if (inputAmt === null) return;
-                                          const amtNum = parseFloat(inputAmt.replace(',', '.'));
-                                          if (isNaN(amtNum) || amtNum < 0) {
-                                            alert("Introduza um montante válido.");
-                                            return;
-                                          }
-                                          const inputDate = prompt("Insira a data do depósito (AAAA-MM-DD):", existDep?.date || new Date().toISOString().split('T')[0]);
-                                          if (!inputDate) return;
-                                          const inputManager = prompt("Nome do Gerente de Depósito Confirme:", existDep?.managerName || week.managerOpen);
-                                          if (!inputManager) return;
-
-                                          const updatedDeposits = [...(week.dailyDeposits || [])];
-                                          const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === idx);
-                                          const newDepData = { dayIndex: idx, date: inputDate, amount: amtNum, managerName: inputManager };
-                                          
-                                          if (existingIdx !== -1) {
-                                            updatedDeposits[existingIdx] = newDepData;
-                                          } else {
-                                            updatedDeposits.push(newDepData);
-                                          }
-
-                                          handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
-                                        }}
-                                        className="mt-2 text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
-                                      >
-                                        Lançar
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })}
-
-                              {/* Coin 1 Slot */}
-                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                                <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Moedas 1</span>
-                                <div>
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
-                                  {week.coinDepositsValue1 > 0 ? (
-                                    <div className="mt-1">
-                                      <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue1)}</span>
-                                      <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
-                                  )}
-                                </div>
-                                {isWeekOpen && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      // Popup option or selection
-                                      const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
-                                      let promptMsg = "Insira o montante de moedas correspondente:\n";
-                                      if (unlinkedEnviados.length > 0) {
-                                        promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                          unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
-                                          "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
-                                      } else {
-                                        promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
-                                      }
-
-                                      const userSelectInput = prompt(promptMsg, week.coinDepositsValue1 ? String(week.coinDepositsValue1) : "");
-                                      if (userSelectInput === null) return;
-                                      
-                                      const maybeIdx = parseInt(userSelectInput) - 1;
-                                      if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
-                                        const selectedCoin = unlinkedEnviados[maybeIdx];
-                                        handleSaveWeeklyEdit({
-                                          ...week,
-                                          coinDepositsValue1: selectedCoin.amount,
-                                          coinDepositId1: selectedCoin.id
-                                        });
-                                      } else {
-                                        const customVal = parseFloat(userSelectInput.replace(',', '.'));
-                                        if (isNaN(customVal) || customVal < 0) {
-                                          alert("Valor inválido.");
-                                          return;
-                                        }
-                                        handleSaveWeeklyEdit({
-                                          ...week,
-                                          coinDepositsValue1: customVal
-                                        });
-                                      }
-                                    }}
-                                    className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
-                                  >
-                                    Associar
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Coin 2 Slot */}
-                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                                <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Moedas 2</span>
-                                <div>
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
-                                  {week.coinDepositsValue2 > 0 ? (
-                                    <div className="mt-1">
-                                      <span className="text-xs font-mono font-extrabold text-blue-900">{formatEuro(week.coinDepositsValue2)}</span>
-                                      <span className="block text-[8px] text-gray-400 font-bold uppercase mt-0.5">Moedas Associadas</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10px] text-gray-305 font-bold block mt-1.5">—</span>
-                                  )}
-                                </div>
-                                {isWeekOpen && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
-                                      let promptMsg = "Insira o montante de moedas correspondente:\n";
-                                      if (unlinkedEnviados.length > 0) {
-                                        promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                          unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
-                                          "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
-                                      } else {
-                                        promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
-                                      }
-
-                                      const userSelectInput = prompt(promptMsg, week.coinDepositsValue2 ? String(week.coinDepositsValue2) : "");
-                                      if (userSelectInput === null) return;
-                                      
-                                      const maybeIdx = parseInt(userSelectInput) - 1;
-                                      if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
-                                        const selectedCoin = unlinkedEnviados[maybeIdx];
-                                        handleSaveWeeklyEdit({
-                                          ...week,
-                                          coinDepositsValue2: selectedCoin.amount,
-                                          coinDepositId2: selectedCoin.id
-                                        });
-                                      } else {
-                                        const customVal = parseFloat(userSelectInput.replace(',', '.'));
-                                        if (isNaN(customVal) || customVal < 0) {
-                                          alert("Valor inválido.");
-                                          return;
-                                        }
-                                        handleSaveWeeklyEdit({
-                                          ...week,
-                                          coinDepositsValue2: customVal
-                                        });
-                                      }
-                                    }}
-                                    className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
-                                  >
-                                    Associar
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Closing Weekly Modal Overlay popup */}
+              {/* Closing Weekly Modal Overlay popup */}
                   {closingWeekly && (
                     <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
                       <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
@@ -3121,8 +3206,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
               {/* SECTION 2: MOEDAS PROSEGUR */}
               {prosegurSubTab === 'moedas' && (
