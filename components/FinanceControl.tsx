@@ -4017,33 +4017,33 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       {printDepositData && (
         <div className="hidden print:block print-container absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
           {/* Slip 1: Original */}
-          <div className="border-4 border-slate-900 p-6 rounded-xl space-y-6 relative max-w-4xl mx-auto">
+          <div className="border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
             {/* Header */}
-            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+            <div className="flex justify-between items-start border-b-4 border-slate-900 pb-5">
               <div>
-                <div className="bg-[#cc0052] text-white font-extrabold px-3 py-1 text-base tracking-wider rounded inline-block">
-                  Millennium <span className="italic font-light text-xs">bcp</span>
+                <div className="bg-[#cc0052] text-white font-extrabold px-4 py-1.5 text-lg tracking-wider rounded inline-block">
+                  Millennium <span className="italic font-light text-sm">bcp</span>
                 </div>
-                <div className="text-[9px] font-black uppercase text-slate-500 tracking-wider mt-1">
+                <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider mt-1.5">
                   DEPÓSITO DE VALORES E NUMERÁRIO
                 </div>
               </div>
               <div className="text-right">
                 <span className="block text-[8px] font-black uppercase text-slate-400">VIA</span>
-                <span className="text-xs font-black uppercase border border-slate-900 px-2 py-0.5 rounded">ORIGINAL (Para o Banco)</span>
+                <span className="text-xs font-black uppercase border-2 border-slate-900 px-3 py-1 rounded">ORIGINAL (Para o Banco)</span>
               </div>
             </div>
 
             {/* Account Details and Reference Row */}
-            <div className="grid grid-cols-12 gap-4">
+            <div className="grid grid-cols-12 gap-6">
               {/* Account column */}
-              <div className="col-span-8 border border-slate-400 p-3 rounded-lg relative">
-                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+              <div className="col-span-8 border-2 border-slate-400 p-4 rounded-xl relative">
+                <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                   N.º Conta a Creditar / IBAN
                 </span>
-                <div className="flex gap-1 mt-1 justify-between">
+                <div className="flex gap-1.5 mt-1 justify-between">
                   {["0", "3", "0", "8", "0", "9", "7", "1", "8", "1", "4"].map((digit, i) => (
-                    <div key={i} className="w-6 h-7 border border-slate-900 text-xs font-extrabold flex items-center justify-center font-mono rounded bg-slate-50">
+                    <div key={i} className="w-7 h-8 border-2 border-slate-900 text-sm font-extrabold flex items-center justify-center font-mono rounded bg-slate-55">
                       {digit}
                     </div>
                   ))}
@@ -4054,225 +4054,111 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
 
               {/* Date column */}
-              <div className="col-span-4 border border-slate-400 p-3 rounded-lg relative">
-                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+              <div className="col-span-4 border-2 border-slate-400 p-4 rounded-xl relative flex items-center justify-center">
+                <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                   Data do Depósito
                 </span>
-                <div className="text-xs font-black text-center mt-1.5 uppercase font-mono tracking-wider">
+                <div className="text-sm font-black text-center mt-1 uppercase font-mono tracking-widest text-slate-800">
                   {formatDateToDMY(printDepositData.date)}
                 </div>
               </div>
             </div>
 
             {/* Account Holder Row */}
-            <div className="border border-slate-400 p-3 rounded-lg relative">
-              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+            <div className="border-2 border-slate-400 p-4 rounded-xl relative">
+              <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                 Titular da Conta (Nome Completo)
               </span>
-              <div className="text-xs font-extrabold mt-1 uppercase tracking-wide">
+              <div className="text-sm font-extrabold mt-1.5 uppercase tracking-wide text-slate-850">
                 MCDONALD'S VIA CATARINA (RESTAURANTE)
               </div>
             </div>
 
             {/* Reference Area */}
-            <div className="border border-slate-400 p-3 rounded-lg relative">
-              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+            <div className="border-2 border-slate-400 p-4 rounded-xl relative">
+              <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                 Depósito Especial - Referência do Depositante (Preenchimento OBRIGATÓRIO)
               </span>
-              <div className="flex gap-1 mt-1">
+              <div className="flex gap-1.5 mt-1">
                 {Array.from({ length: 18 }).map((_, i) => (
-                  <div key={i} className="w-5 h-6 border border-slate-300 text-slate-300 flex items-center justify-center text-[9px] font-bold font-mono rounded">
+                  <div key={i} className="w-5 h-7 border border-slate-300 text-slate-300 flex items-center justify-center text-[10px] font-bold font-mono rounded">
                     —
                   </div>
                 ))}
-                <div className="text-[6px] text-slate-400 font-bold self-center ml-auto leading-tight uppercase text-right">
+                <div className="text-[7px] text-slate-400 font-bold self-center ml-auto leading-tight uppercase text-right">
                   Preencher com a refª<br />do restaurante
                 </div>
               </div>
             </div>
 
             {/* Table for values and Importancias */}
-            <div className="border border-slate-400 rounded-xl overflow-hidden">
-              <table className="w-full text-center border-collapse text-[10px]">
+            <div className="border-2 border-slate-400 rounded-2xl overflow-hidden">
+              <table className="w-full text-center border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100 border-b border-slate-400 text-[8px] font-black uppercase text-slate-500">
-                    <th className="px-3 py-2 text-left border-r border-slate-400">Banco / Entidade</th>
-                    <th className="px-3 py-2 border-r border-slate-400">N.º Documento / Cheque</th>
-                    <th className="px-3 py-2 text-right">Importâncias (€)</th>
+                  <tr className="bg-slate-50 border-b-2 border-slate-400 text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                    <th className="px-4 py-3 text-left border-r-2 border-slate-400">Banco / Entidade</th>
+                    <th className="px-4 py-3 border-r-2 border-slate-400">N.º Documento / Cheque</th>
+                    <th className="px-4 py-3 text-right">Importâncias (€)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-300 font-mono text-xs">
+                <tbody className="divide-y divide-slate-300 font-mono">
                   <tr>
-                    <td className="px-3 py-2 text-left font-black tracking-wide border-r border-slate-400 uppercase">NUMERÁRIO (NOTAS E MOEDAS)</td>
-                    <td className="px-3 py-2 border-r border-slate-400 text-slate-350 font-sans">—</td>
-                    <td className="px-3 py-2 text-right font-black text-base">{formatEuro(printDepositData.amount)}</td>
+                    <td className="px-4 py-3 text-left font-black tracking-wide border-r-2 border-slate-400 uppercase text-slate-800">NUMERÁRIO (NOTAS E MOEDAS)</td>
+                    <td className="px-4 py-3 border-r-2 border-slate-400 text-slate-300 font-sans">—</td>
+                    <td className="px-4 py-3 text-right font-black text-lg text-slate-900">{formatEuro(printDepositData.amount)}</td>
                   </tr>
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-1.5 text-left border-r border-slate-300 text-slate-300 italic">Preencher se necessário...</td>
-                      <td className="px-3 py-1.5 border-r border-slate-300 text-slate-300">—</td>
-                      <td className="px-3 py-1.5 text-right font-bold text-slate-300">—</td>
-                    </tr>
-                  ))}
+                  <tr>
+                    <td className="px-4 py-3 text-left border-r-2 border-slate-400 text-slate-300 italic">Cheques / Outros...</td>
+                    <td className="px-4 py-3 border-r-2 border-slate-400 text-slate-300">—</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-300">—</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
 
             {/* Bottom signatures and values converter */}
-            <div className="grid grid-cols-12 gap-6 border-t border-slate-300 pt-4">
-              <div className="col-span-8 space-y-3">
-                <div className="text-[9px] border border-slate-400 p-2.5 rounded-lg bg-slate-50/50 relative">
-                  <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+            <div className="grid grid-cols-12 gap-8 border-t-2 border-slate-300 pt-5">
+              <div className="col-span-8 space-y-4">
+                <div className="text-[10px] border-2 border-slate-400 p-3.5 rounded-xl bg-slate-50 relative">
+                  <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                     Importância Total por Extenso
                   </span>
-                  <span className="font-extrabold text-slate-800 uppercase text-[9px] block italic leading-normal">
+                  <span className="font-extrabold text-slate-800 uppercase text-[10px] block italic leading-normal">
                     {converterValorParaExtenso(printDepositData.amount)}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  <div className="relative border border-slate-400 p-2 rounded-lg">
-                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                <div className="grid grid-cols-2 gap-6 pt-1">
+                  <div className="relative border-2 border-slate-400 p-3 rounded-xl">
+                    <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                       Nome do Depositante
                     </span>
-                    <div className="text-[10px] font-extrabold uppercase truncate mt-0.5">
+                    <div className="text-xs font-extrabold uppercase truncate mt-1 text-slate-800">
                       {printDepositData.managerName || 'GERENTE VIA CATARINA'}
                     </div>
                   </div>
-                  <div className="relative border border-slate-400 p-2 rounded-lg h-10 flex items-end">
-                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                  <div className="relative border-2 border-slate-400 p-3 rounded-xl h-14 flex items-end">
+                    <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                       Assinatura do Depositante
                     </span>
-                    <div className="w-full border-t border-dashed border-slate-300 text-center text-[7px] text-slate-300 uppercase">
-                      Assinatura
+                    <div className="w-full border-t border-dashed border-slate-300 text-center text-[8px] text-slate-350 uppercase">
+                      Assinado
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-4 bg-slate-900 text-white rounded-xl p-4 flex flex-col justify-between items-center text-center shadow">
-                <div>
-                  <span className="block text-[7px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+              <div className="col-span-4 bg-slate-900 text-white rounded-2xl p-5 flex flex-col justify-between items-center text-center shadow-md">
+                <div className="w-full">
+                  <span className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">
                     TOTAL A CREDITAR
                   </span>
-                  <div className="text-xl font-mono font-black border-2 border-dashed border-white/30 px-3 py-1.5 rounded">
+                  <div className="text-2xl font-mono font-black border-2 border-dashed border-white/30 px-3 py-2 rounded-xl bg-black/20">
                     {formatEuro(printDepositData.amount)}
                   </div>
                 </div>
-                <div className="text-[6px] text-slate-350 italic uppercase">
+                <div className="text-[7px] text-slate-400 italic uppercase tracking-wider mt-4">
                   Para Uso Exclusivo do Banco
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Cutting line */}
-          <div className="border-t-2 border-dashed border-slate-400 my-8 text-center relative">
-            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-white px-3 text-[8px] font-black uppercase text-slate-400 tracking-widest">
-              ✂️ Cortar Aqui para Duplicado
-            </span>
-          </div>
-
-          {/* Slip 2: Duplicate */}
-          <div className="border-4 border-slate-900 border-dashed p-6 rounded-xl space-y-6 relative max-w-4xl mx-auto">
-            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
-              <div>
-                <div className="bg-[#cc0052] text-white font-extrabold px-3 py-1 text-base tracking-wider rounded inline-block">
-                  Millennium <span className="italic font-light text-xs">bcp</span>
-                </div>
-                <div className="text-[9px] font-black uppercase text-slate-500 tracking-wider mt-1">
-                  DEPÓSITO DE VALORES E NUMERÁRIO
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="block text-[8px] font-black uppercase text-slate-400">VIA</span>
-                <span className="text-xs font-black uppercase border border-slate-900 px-2 py-0.5 rounded">DUPLICADO (Arquivo Restaurante)</span>
-              </div>
-            </div>
-
-            {/* Account Details and Reference Row */}
-            <div className="grid grid-cols-12 gap-4">
-              {/* Account */}
-              <div className="col-span-8 border border-slate-400 p-3 rounded-lg relative">
-                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
-                  N.º Conta a Creditar / IBAN
-                </span>
-                <div className="flex gap-1 mt-1 justify-between">
-                  {["0", "3", "0", "8", "0", "9", "7", "1", "8", "1", "4"].map((digit, i) => (
-                    <div key={i} className="w-6 h-7 border border-slate-900 text-xs font-extrabold flex items-center justify-center font-mono rounded bg-slate-50">
-                      {digit}
-                    </div>
-                  ))}
-                  <div className="text-[7px] text-slate-400 font-black self-center ml-2 leading-tight uppercase">
-                    Preenchimento<br />Obrigatório
-                  </div>
-                </div>
-              </div>
-
-              {/* Date */}
-              <div className="col-span-4 border border-slate-400 p-3 rounded-lg relative">
-                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
-                  Data do Depósito
-                </span>
-                <div className="text-xs font-black text-center mt-1.5 uppercase font-mono tracking-wider">
-                  {formatDateToDMY(printDepositData.date)}
-                </div>
-              </div>
-            </div>
-
-            {/* Account Holder Row */}
-            <div className="border border-slate-400 p-3 rounded-lg relative">
-              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
-                Titular da Conta (Nome Completo)
-              </span>
-              <div className="text-xs font-extrabold mt-1 uppercase tracking-wide">
-                MCDONALD'S VIA CATARINA (RESTAURANTE)
-              </div>
-            </div>
-
-            {/* Bottom Content for Duplicate */}
-            <div className="grid grid-cols-12 gap-6 pt-4 border-t border-slate-300">
-              <div className="col-span-8 space-y-3">
-                <div className="text-[9px] border border-slate-400 p-2.5 rounded-lg bg-slate-50/50 relative">
-                  <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
-                    Importância Total por Extenso
-                  </span>
-                  <span className="font-extrabold text-slate-800 uppercase text-[9px] block italic leading-normal">
-                    {converterValorParaExtenso(printDepositData.amount)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  <div className="relative border border-slate-400 p-2 rounded-lg">
-                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
-                      Nome do Depositante
-                    </span>
-                    <div className="text-[10px] font-extrabold uppercase truncate mt-0.5">
-                      {printDepositData.managerName || 'GERENTE VIA CATARINA'}
-                    </div>
-                  </div>
-                  <div className="relative border border-slate-400 p-2 rounded-lg h-10 flex items-end">
-                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
-                      Assinatura do Depositante
-                    </span>
-                    <div className="w-full border-t border-dashed border-slate-300 text-center text-[7px] text-slate-300 uppercase">
-                      Assinatura
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-4 bg-slate-800 text-white rounded-xl p-4 flex flex-col justify-between items-center text-center shadow">
-                <div>
-                  <span className="block text-[7px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
-                    TOTAL A DEPOSITAR
-                  </span>
-                  <div className="text-xl font-mono font-black border-2 border-dashed border-white/20 px-3 py-1.5 rounded">
-                    {formatEuro(printDepositData.amount)}
-                  </div>
-                </div>
-                <div className="text-[6px] text-slate-400 italic uppercase">
-                  Processamento Mecânico
                 </div>
               </div>
             </div>
