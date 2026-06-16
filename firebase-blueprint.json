@@ -190,6 +190,48 @@
         "comment": { "type": "string" }
       },
       "required": ["id", "date", "bagNumber", "amountTotal", "status"]
+    },
+    "ProsegurWeeklyDeposit": {
+      "title": "Prosegur Weekly Deposit",
+      "description": "Group of daily deposits sealed together as weekly deposits for armored pickup.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aberto", "Encerrado"] },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "managerOpen": { "type": "string" },
+        "managerClose": { "type": "string" },
+        "prosegurEmployee": { "type": "string" },
+        "prosegurCredential": { "type": "string" },
+        "bagNumber": { "type": "string" },
+        "prosegurReceipt": { "type": "string" },
+        "dailyDeposits": { "type": "array" },
+        "coinDepositsValue1": { "type": "number" },
+        "coinDepositsValue2": { "type": "number" },
+        "coinDepositId1": { "type": "string" },
+        "coinDepositId2": { "type": "string" },
+        "totalVal": { "type": "number" }
+      },
+      "required": ["id", "status", "startDate", "managerOpen", "totalVal"]
+    },
+    "ProsegurCoinMovement": {
+      "title": "Prosegur Coin Movement",
+      "description": "Tracking of coins received or sent to Prosegur vault.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["Recebido", "Enviado"] },
+        "amount": { "type": "number" },
+        "managerName": { "type": "string" },
+        "comment": { "type": "string" },
+        "sendDate": { "type": "string" },
+        "sendAmount": { "type": "number" },
+        "sendManagerName": { "type": "string" },
+        "isClosed": { "type": "boolean" }
+      },
+      "required": ["id", "date", "type", "amount", "managerName"]
     }
   },
   "firestore": {
@@ -236,6 +278,14 @@
     "/restaurants/{restaurantId}/prosegur_deposits/{prosegurDepositId}": {
       "schema": "ProsegurDepositRecord",
       "description": "Sub-collection of Prosegur cash pickup bags"
+    },
+    "/restaurants/{restaurantId}/prosegur_weekly_deposits/{weeklyId}": {
+      "schema": "ProsegurWeeklyDeposit",
+      "description": "Sub-collection of weekly deposits sealed to Prosegur"
+    },
+    "/restaurants/{restaurantId}/prosegur_coin_movements/{coinId}": {
+      "schema": "ProsegurCoinMovement",
+      "description": "Sub-collection of coins received/sent from Prosegur"
     }
   }
 }
