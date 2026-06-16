@@ -1283,7 +1283,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   const handleDeleteWeeklyAction = async (id: string) => {
-    if (confirm("Tens a certeza que pretendes eliminar este registo de depósito semanal? This action is irreversible.")) {
+    const pass = prompt("Introduza a password de segurança para eliminar a folha de depósito:");
+    if (pass === null) return;
+    if (pass !== "Imperial96") {
+      alert("Password incorreta. Não tem permissão para eliminar.");
+      return;
+    }
+    if (confirm("Tens a certeza que pretendes eliminar este registo de depósito semanal? Esta ação é irreversível.")) {
       try {
         await deleteProsegurWeeklyDeposit(restaurantId, id);
         loadData();
@@ -2818,12 +2824,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const pass = prompt("Introduza a password de acesso:");
-                                        if (pass === null) return;
-                                        if (pass !== "Imperial96") {
-                                          alert("Password de acesso incorreta.");
-                                          return;
-                                        }
                                         handleAddNewDepositForTurn(day.date, 'Abertura');
                                       }}
                                       className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
@@ -2880,12 +2880,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const pass = prompt("Introduza a password de acesso:");
-                                        if (pass === null) return;
-                                        if (pass !== "Imperial96") {
-                                          alert("Password de acesso incorreta.");
-                                          return;
-                                        }
                                         handleAddNewDepositForTurn(day.date, 'Fecho');
                                       }}
                                       className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
@@ -3036,25 +3030,24 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <span className="text-sm font-extrabold text-slate-800 font-mono">{formatEuro(grandTotal)}</span>
                           </div>
                           
-                          {isWeekOpen && (
-                            <button
-                              onClick={() => setClosingWeekly(week)}
-                              className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
-                            >
-                              🔒 Encerrar Semana
-                            </button>
-                          )}
-
-                          {!isWeekOpen && (
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            {isWeekOpen && (
                               <button
-                                onClick={() => handleDeleteWeeklyAction(week.id)}
-                                className="p-1 px-2.5 text-slate-400 hover:text-red-650 hover:bg-red-50 border border-slate-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 uppercase tracking-wider"
+                                onClick={() => setClosingWeekly(week)}
+                                className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
                               >
-                                <Trash2 size={13} /> Limpar
+                                🔒 Encerrar Semana
                               </button>
-                            </div>
-                          )}
+                            )}
+
+                            <button
+                              onClick={() => handleDeleteWeeklyAction(week.id)}
+                              className="p-1 px-2.5 text-slate-400 hover:text-red-650 hover:bg-red-50 border border-slate-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 uppercase tracking-wider"
+                              title="Eliminar Folha de Depósito"
+                            >
+                              <Trash2 size={13} /> Eliminar
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -3185,7 +3178,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Gerente de Abertura</label>
                             <input
                               type="text"
-                              list="employees-names"
+                              list="managers-names"
                               value={editingWeekly.managerOpen}
                               onChange={(e) => setEditingWeekly({ ...editingWeekly, managerOpen: e.target.value })}
                               placeholder="Selecione ou insira o nome..."
@@ -3327,7 +3320,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             </label>
                             <input
                               type="text"
-                              list="employees-names"
+                              list="managers-names"
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 font-bold focus:border-blue-500 focus:bg-white focus:outline-none"
                               placeholder="Selecione ou escreva o nome..."
                               value={slotManager}
@@ -3538,7 +3531,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     name="managerClose"
                                     type="text"
                                     required
-                                    list="employees-names"
+                                    list="managers-names"
                                     placeholder="Escreva ou selecione..."
                                     className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
                                   />
@@ -3667,7 +3660,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Gerente Responsável</label>
                           <input 
                             type="text"
-                            list="employees-names"
+                            list="managers-names"
                             placeholder="Selecione ou insira o gerente..."
                             value={editingCoin?.managerName || ''}
                             onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, managerName: e.target.value } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: e.target.value })}
@@ -3733,7 +3726,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   <label className="block text-[8px] font-black uppercase text-purple-700 tracking-wider mb-1">Gerente de Envio</label>
                                   <input 
                                     type="text"
-                                    list="employees-names"
+                                    list="managers-names"
                                     placeholder="Nome do gerente de envio..."
                                     value={editingCoin.sendManagerName || ''}
                                     onChange={(e) => setEditingCoin({ ...editingCoin, sendManagerName: e.target.value })}
@@ -3780,7 +3773,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     </div>
 
                     {/* Right Panel: Historical Coin Movements list */}
-                    <div className="lg:col-span-8 space-y-4">
+                    <div className="lg:col-span-9 space-y-4">
                       <div>
                         <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Historial de Fluxo de Moedas</h4>
                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Cronologia de entradas e saídas de cofres de troco</p>
@@ -3792,18 +3785,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Nenhum movimento de moeda registado</p>
                         </div>
                       ) : (
-                        <div className="bg-white border rounded-3xl overflow-hidden shadow-sm">
-                          <table className="w-full text-center border-collapse">
+                        <div className="bg-white border rounded-3xl overflow-x-auto shadow-sm">
+                          <table className="w-full text-center border-collapse min-w-[550px]">
                             <thead>
                               <tr className="bg-slate-50 text-[9px] font-black uppercase text-slate-500 border-b tracking-wider">
-                                <th className="px-4 py-3 text-left">Data</th>
-                                <th className="px-4 py-3">Tipo</th>
-                                <th className="px-4 py-3">Estado</th>
-                                <th className="px-4 py-3 text-right">Valor</th>
-                                <th className="px-4 py-3">Gerente</th>
-                                <th className="px-4 py-3">Data de Envio</th>
-                                <th className="px-4 py-3 text-left">Descrição</th>
-                                <th className="px-4 py-3">Ações</th>
+                                <th className="px-2 py-2.5 text-left">Data</th>
+                                <th className="px-2 py-2.5">Tipo</th>
+                                <th className="px-2 py-2.5">Estado</th>
+                                <th className="px-2 py-2.5 text-right">Valor</th>
+                                <th className="px-2 py-2.5">Gerente</th>
+                                <th className="px-2 py-2.5">Dt. Envio</th>
+                                <th className="px-2 py-2.5 text-left">Descrição</th>
+                                <th className="px-2 py-2.5">Ações</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y text-xs font-bold text-gray-700">
@@ -3811,38 +3804,38 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 const isReceived = coin.type === 'Recebido';
                                 return (
                                   <tr key={coin.id} className="hover:bg-slate-50/50">
-                                    <td className="px-4 py-3.5 text-left">{formatDateToDMY(coin.date)}</td>
-                                    <td className="px-4 py-3.5 text-center">
-                                      <span className={`inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
+                                    <td className="px-2 py-3 text-left">{formatDateToDMY(coin.date)}</td>
+                                    <td className="px-2 py-3 text-center">
+                                      <span className={`inline-block px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
                                         isReceived 
                                           ? 'bg-blue-50 text-blue-700 border-blue-100' 
                                           : 'bg-purple-50 text-purple-700 border-purple-100'
                                       }`}>
-                                        {isReceived ? '📥 Entrada / Recebido' : '📤 Saída / Enviado CIT'}
+                                        {isReceived ? '📥 Entrada' : '📤 Saída / CIT'}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-3.5 text-center">
+                                    <td className="px-2 py-3 text-center">
                                       {coin.isClosed ? (
-                                        <span className="inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-emerald-50 text-emerald-700 border-emerald-100">
+                                        <span className="inline-block px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-emerald-50 text-emerald-700 border-emerald-100">
                                           Concluído
                                         </span>
                                       ) : (
-                                        <span className="inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-100 animate-pulse">
+                                        <span className="inline-block px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-100 animate-pulse">
                                           Pendente
                                         </span>
                                       )}
                                     </td>
-                                    <td className={`px-4 py-3.5 text-right font-mono font-black ${
+                                    <td className={`px-2 py-3 text-right font-mono font-black ${
                                       isReceived ? 'text-blue-900' : 'text-purple-900'
                                     }`}>
                                       {formatEuro(coin.amount)}
                                     </td>
-                                    <td className="px-4 py-3.5">{coin.managerName}</td>
-                                    <td className="px-4 py-3.5 text-center font-mono text-slate-500">
+                                    <td className="px-2 py-3">{coin.managerName}</td>
+                                    <td className="px-2 py-3 text-center font-mono text-slate-500">
                                       {coin.isClosed && coin.sendDate ? formatDateToDMY(coin.sendDate) : '—'}
                                     </td>
-                                    <td className="px-4 py-3.5 text-left text-gray-500 font-bold max-w-xs truncate">{coin.comment || '—'}</td>
-                                    <td className="px-4 py-3.5 text-center">
+                                    <td className="px-2 py-3 text-left text-gray-500 font-bold max-w-[120px] truncate">{coin.comment || '—'}</td>
+                                    <td className="px-2 py-3 text-center">
                                       <div className="flex items-center justify-center gap-1.5">
                                         <button 
                                           onClick={() => setEditingCoin(coin)}
@@ -4295,6 +4288,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         {employees.map(emp => (
           <option key={emp.id} value={emp.name}>
             {emp.mecanografico ? `Nº ${emp.mecanografico} - ${emp.role}` : emp.role}
+          </option>
+        ))}
+      </datalist>
+      <datalist id="managers-names">
+        {employees.filter(emp => emp.role === 'GERENTE').map(emp => (
+          <option key={emp.id} value={emp.name}>
+            {emp.mecanografico ? `Nº ${emp.mecanografico} - GERENTE` : 'GERENTE'}
           </option>
         ))}
       </datalist>
