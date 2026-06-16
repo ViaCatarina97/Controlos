@@ -213,6 +213,45 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [editingWeekly, setEditingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
   const [editingCoin, setEditingCoin] = useState<ProsegurCoinMovement | null>(null);
   const [closingWeekly, setClosingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
+  const [weeklySlotEditor, setWeeklySlotEditor] = useState<{
+    week: ProsegurWeeklyDeposit;
+    type: 'daily' | 'coin1' | 'coin2';
+    dayIndex?: number;
+  } | null>(null);
+
+  // States for Launch Slot Modal
+  const [slotValue, setSlotValue] = useState<string>('');
+  const [slotDate, setSlotDate] = useState<string>('');
+  const [slotManager, setSlotManager] = useState<string>('');
+  const [slotCoinId, setSlotCoinId] = useState<string>('');
+  const [slotIsCustomCoin, setSlotIsCustomCoin] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!weeklySlotEditor) {
+      setSlotValue('');
+      setSlotDate('');
+      setSlotManager('');
+      setSlotCoinId('');
+      setSlotIsCustomCoin(false);
+      return;
+    }
+
+    const { week, type, dayIndex } = weeklySlotEditor;
+    if (type === 'daily' && dayIndex !== undefined) {
+      const existDep = week.dailyDeposits?.find(d => d.dayIndex === dayIndex);
+      setSlotValue(existDep && existDep.amount > 0 ? String(existDep.amount) : '');
+      setSlotDate(existDep?.date || new Date().toISOString().split('T')[0]);
+      setSlotManager(existDep?.managerName || week.managerOpen || '');
+    } else if (type === 'coin1') {
+      setSlotValue(week.coinDepositsValue1 > 0 ? String(week.coinDepositsValue1) : '');
+      setSlotCoinId(week.coinDepositId1 || '');
+      setSlotIsCustomCoin(!week.coinDepositId1 && week.coinDepositsValue1 > 0);
+    } else if (type === 'coin2') {
+      setSlotValue(week.coinDepositsValue2 > 0 ? String(week.coinDepositsValue2) : '');
+      setSlotCoinId(week.coinDepositId2 || '');
+      setSlotIsCustomCoin(!week.coinDepositId2 && week.coinDepositsValue2 > 0);
+    }
+  }, [weeklySlotEditor]);
   const [prosegurSubTab, setProsegurSubTab] = useState<'semanal' | 'moedas'>('semanal');
   const [printDepositData, setPrintDepositData] = useState<{
     date: string;
@@ -1146,6 +1185,100 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     } catch (err) {
       console.error(err);
       alert("Erro ao gravar registo de depósito semanal.");
+    }
+  };
+
+  const handleSaveWeeklySlot = async () => {
+    if (!weeklySlotEditor) return;
+    const { week, type, dayIndex } = weeklySlotEditor;
+
+    if (type === 'daily' && dayIndex !== undefined) {
+      const amtNum = parseFloat(slotValue.replace(',', '.'));
+      if (isNaN(amtNum) || amtNum < 0) {
+        alert("Por favor insira um valor válido de depósito.");
+        return;
+      }
+      if (!slotDate) {
+        alert("Por favor selecione uma data.");
+        return;
+      }
+      if (!slotManager.trim()) {
+        alert("Por favor introduza o nome do gerente.");
+        return;
+      }
+
+      const updatedDeposits = [...(week.dailyDeposits || [])];
+      const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === dayIndex);
+      const newDepData = { 
+        dayIndex, 
+        date: slotDate, 
+        amount: amtNum, 
+        managerName: slotManager.trim() 
+      };
+
+      if (existingIdx !== -1) {
+        updatedDeposits[existingIdx] = newDepData;
+      } else {
+        updatedDeposits.push(newDepData);
+      }
+
+      await handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
+      setWeeklySlotEditor(null);
+    } else if (type === 'coin1' || type === 'coin2') {
+      const isCoin1 = type === 'coin1';
+      
+      if (slotCoinId) {
+        // Associated from selected coin movement
+        const selectedCoin = prosegurCoinMovements.find(m => m.id === slotCoinId);
+        if (!selectedCoin) {
+          alert("Movimento de moedas associado não encontrado.");
+          return;
+        }
+        const val = selectedCoin.sendAmount || selectedCoin.amount || 0;
+        await handleSaveWeeklyEdit({
+          ...week,
+          [isCoin1 ? 'coinDepositsValue1' : 'coinDepositsValue2']: val,
+          [isCoin1 ? 'coinDepositId1' : 'coinDepositId2']: selectedCoin.id
+        });
+      } else {
+        // Custom local value
+        const customVal = parseFloat(slotValue.replace(',', '.'));
+        if (slotValue && (isNaN(customVal) || customVal < 0)) {
+          alert("Por favor introduza um montante válido de moedas.");
+          return;
+        }
+        await handleSaveWeeklyEdit({
+          ...week,
+          [isCoin1 ? 'coinDepositsValue1' : 'coinDepositsValue2']: isNaN(customVal) ? 0 : customVal,
+          [isCoin1 ? 'coinDepositId1' : 'coinDepositId2']: undefined
+        });
+      }
+      setWeeklySlotEditor(null);
+    }
+  };
+
+  const handleClearWeeklySlot = async () => {
+    if (!weeklySlotEditor) return;
+    const { week, type, dayIndex } = weeklySlotEditor;
+
+    if (confirm("Tens a certeza que pretendes limpar este lançamento de depósito?")) {
+      if (type === 'daily' && dayIndex !== undefined) {
+        const updatedDeposits = (week.dailyDeposits || []).filter(d => d.dayIndex !== dayIndex);
+        await handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
+      } else if (type === 'coin1') {
+        await handleSaveWeeklyEdit({
+          ...week,
+          coinDepositsValue1: 0,
+          coinDepositId1: undefined
+        });
+      } else if (type === 'coin2') {
+        await handleSaveWeeklyEdit({
+          ...week,
+          coinDepositsValue2: 0,
+          coinDepositId2: undefined
+        });
+      }
+      setWeeklySlotEditor(null);
     }
   };
 
@@ -2950,31 +3083,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               {isWeekOpen && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const inputAmt = prompt("Insira o valor do depósito (€):", existDep?.amount ? String(existDep.amount) : "");
-                                    if (inputAmt === null) return;
-                                    const amtNum = parseFloat(inputAmt.replace(',', '.'));
-                                    if (isNaN(amtNum) || amtNum < 0) {
-                                      alert("Introduza um montante válido.");
-                                      return;
-                                    }
-                                    const inputDate = prompt("Insira a data do depósito (AAAA-MM-DD):", existDep?.date || new Date().toISOString().split('T')[0]);
-                                    if (!inputDate) return;
-                                    const inputManager = prompt("Nome do Gerente de Depósito Confirme:", existDep?.managerName || week.managerOpen);
-                                    if (!inputManager) return;
-
-                                    const updatedDeposits = [...(week.dailyDeposits || [])];
-                                    const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === idx);
-                                    const newDepData = { dayIndex: idx, date: inputDate, amount: amtNum, managerName: inputManager };
-                                    
-                                    if (existingIdx !== -1) {
-                                      updatedDeposits[existingIdx] = newDepData;
-                                    } else {
-                                      updatedDeposits.push(newDepData);
-                                    }
-
-                                    handleSaveWeeklyEdit({ ...week, dailyDeposits: updatedDeposits });
-                                  }}
+                                  onClick={() => setWeeklySlotEditor({ week, type: 'daily', dayIndex: idx })}
                                   className="mt-2 text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
                                 >
                                   Lançar
@@ -2986,7 +3095,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                         {/* Coin 1 Slot */}
                         <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Depósito Moedas 1</span>
+                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-105 text-amber-900 text-[8px] font-black rounded-md">Depósito Moedas 1</span>
                           <div>
                             <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
                             {week.coinDepositsValue1 > 0 ? (
@@ -3001,51 +3110,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           {isWeekOpen && (
                             <button
                               type="button"
-                              onClick={() => {
-                                // Popup option or selection
-                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.isClosed);
-                                let promptMsg = "Insira o montante de moedas correspondente:\n";
-                                if (unlinkedEnviados.length > 0) {
-                                  promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.sendDate || m.date)}: ${formatEuro(m.sendAmount || m.amount)} (${m.sendManagerName || m.managerName})`).join("\n") +
-                                    "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
-                                } else {
-                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Concluído/Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
-                                }
-
-                                const userSelectInput = prompt(promptMsg, week.coinDepositsValue1 ? String(week.coinDepositsValue1) : "");
-                                if (userSelectInput === null) return;
-                                
-                                const maybeIdx = parseInt(userSelectInput) - 1;
-                                if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
-                                  const selectedCoin = unlinkedEnviados[maybeIdx];
-                                  handleSaveWeeklyEdit({
-                                    ...week,
-                                    coinDepositsValue1: selectedCoin.sendAmount || selectedCoin.amount,
-                                    coinDepositId1: selectedCoin.id
-                                  });
-                                } else {
-                                  const customVal = parseFloat(userSelectInput.replace(',', '.'));
-                                  if (isNaN(customVal) || customVal < 0) {
-                                    alert("Valor inválido.");
-                                    return;
-                                  }
-                                  handleSaveWeeklyEdit({
-                                    ...week,
-                                    coinDepositsValue1: customVal
-                                  });
-                                }
-                              }}
+                              onClick={() => setWeeklySlotEditor({ week, type: 'coin1' })}
                               className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
                             >
-                              Associar
+                              Lançar
                             </button>
                           )}
                         </div>
 
                         {/* Coin 2 Slot */}
                         <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative hover:border-yellow-300 hover:bg-white transition-all">
-                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8px] font-black rounded-md">Depósito Moedas 2</span>
+                          <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-yellow-105 text-amber-900 text-[8px] font-black rounded-md">Depósito Moedas 2</span>
                           <div>
                             <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor</span>
                             {week.coinDepositsValue2 > 0 ? (
@@ -3060,43 +3135,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           {isWeekOpen && (
                             <button
                               type="button"
-                              onClick={() => {
-                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.isClosed);
-                                let promptMsg = "Insira o montante de moedas correspondente:\n";
-                                if (unlinkedEnviados.length > 0) {
-                                  promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.sendDate || m.date)}: ${formatEuro(m.sendAmount || m.amount)} (${m.sendManagerName || m.managerName})`).join("\n") +
-                                    "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
-                                } else {
-                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Concluído/Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
-                                }
-
-                                const userSelectInput = prompt(promptMsg, week.coinDepositsValue2 ? String(week.coinDepositsValue2) : "");
-                                if (userSelectInput === null) return;
-                                
-                                const maybeIdx = parseInt(userSelectInput) - 1;
-                                if (unlinkedEnviados.length > 0 && !isNaN(maybeIdx) && maybeIdx >= 0 && maybeIdx < unlinkedEnviados.length) {
-                                  const selectedCoin = unlinkedEnviados[maybeIdx];
-                                  handleSaveWeeklyEdit({
-                                    ...week,
-                                    coinDepositsValue2: selectedCoin.sendAmount || selectedCoin.amount,
-                                    coinDepositId2: selectedCoin.id
-                                  });
-                                } else {
-                                  const customVal = parseFloat(userSelectInput.replace(',', '.'));
-                                  if (isNaN(customVal) || customVal < 0) {
-                                    alert("Valor inválido.");
-                                    return;
-                                  }
-                                  handleSaveWeeklyEdit({
-                                    ...week,
-                                    coinDepositsValue2: customVal
-                                  });
-                                }
-                              }}
+                              onClick={() => setWeeklySlotEditor({ week, type: 'coin2' })}
                               className="mt-2 text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
                             >
-                              Associar
+                              Lançar
                             </button>
                           )}
                         </div>
@@ -3222,8 +3264,209 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 );
               })()}
 
+              {/* Daily/Coin Slot Editor Modal Popup */}
+              {weeklySlotEditor && (
+                <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
+                  <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden transform transition-all text-left">
+                    {/* Header */}
+                    <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-[#ffcc00]">
+                          {weeklySlotEditor.type === 'daily' ? 'Depósito Diário' : 'Lançamento de Moedas'}
+                        </span>
+                        <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">
+                          {weeklySlotEditor.type === 'daily' 
+                            ? `Lançar Depósito ${weeklySlotEditor.dayIndex! + 1}` 
+                            : `Depósito Moedas ${weeklySlotEditor.type === 'coin1' ? '1' : '2'}`
+                          }
+                        </h3>
+                      </div>
+                      <button 
+                        onClick={() => setWeeklySlotEditor(null)}
+                        className="text-gray-400 hover:text-white transition-all text-xs font-black uppercase p-1.5 focus:outline-none"
+                      >
+                        ✖️
+                      </button>
+                    </div>
+
+                    {/* Body / Form */}
+                    <div className="p-6 space-y-4">
+                      {weeklySlotEditor.type === 'daily' ? (
+                        <>
+                          {/* Daily Deposit Form Fields */}
+                          <div>
+                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                              Valor do Depósito (€)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 font-mono font-bold focus:border-blue-500 focus:bg-white focus:outline-none"
+                              placeholder="0.00"
+                              value={slotValue}
+                              onChange={(e) => setSlotValue(e.target.value)}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                              Data do Depósito
+                            </label>
+                            <input
+                              type="date"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 font-bold focus:border-blue-500 focus:bg-white focus:outline-none"
+                              value={slotDate}
+                              onChange={(e) => setSlotDate(e.target.value)}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                              Gerente Responsável
+                            </label>
+                            <input
+                              type="text"
+                              list="employees-names"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 font-bold focus:border-blue-500 focus:bg-white focus:outline-none"
+                              placeholder="Selecione ou escreva o nome..."
+                              value={slotManager}
+                              onChange={(e) => setSlotManager(e.target.value)}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Coin Slots Form Fields */}
+                          <div>
+                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-2">
+                              Como deseja lançar as moedas?
+                            </label>
+                            <div className="flex gap-2 mb-3">
+                              <button
+                                type="button"
+                                onClick={() => { setSlotIsCustomCoin(false); setSlotValue(''); }}
+                                className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl border transition-all ${
+                                  !slotIsCustomCoin 
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                    : 'bg-slate-50 text-slate-500 border-slate-105 hover:bg-slate-100'
+                                }`}
+                              >
+                                🔗 Associar Movimento
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setSlotIsCustomCoin(true); setSlotCoinId(''); }}
+                                className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl border transition-all ${
+                                  slotIsCustomCoin 
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                    : 'bg-slate-50 text-slate-500 border-slate-105 hover:bg-slate-100'
+                                }`}
+                              >
+                                ✍️ Valor Personalizado
+                              </button>
+                            </div>
+                          </div>
+
+                          {!slotIsCustomCoin ? (
+                            <div>
+                              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                                Selecione do separador "Moedas"
+                              </label>
+                              {(() => {
+                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.isClosed);
+                                if (unlinkedEnviados.length === 0) {
+                                  return (
+                                    <div className="p-4 border border-dashed border-slate-200 rounded-2xl text-center bg-slate-50 text-xs text-slate-400 font-bold">
+                                      Não existem movimentos finalizados no separador "Moedas". Crie ou conclua um movimento lá, ou use "Valor Personalizado".
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <select
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 font-bold focus:border-blue-500 focus:bg-white focus:outline-none text-xs"
+                                    value={slotCoinId}
+                                    onChange={(e) => {
+                                      const cid = e.target.value;
+                                      setSlotCoinId(cid);
+                                      const sel = unlinkedEnviados.find(m => m.id === cid);
+                                      setSlotValue(sel ? String(sel.sendAmount || sel.amount) : '');
+                                    }}
+                                  >
+                                    <option value="">-- Selecione o movimento de moedas --</option>
+                                    {unlinkedEnviados.map(m => (
+                                      <option key={m.id} value={m.id}>
+                                        {formatDateToDMY(m.sendDate || m.date)} &bull; {formatEuro(m.sendAmount || m.amount)} ({m.sendManagerName || m.managerName})
+                                      </option>
+                                    ))}
+                                  </select>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                                Valor Manual de Moedas (€)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 font-mono font-bold focus:border-blue-500 focus:bg-white focus:outline-none"
+                                placeholder="0.00"
+                                value={slotValue}
+                                onChange={(e) => setSlotValue(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Footer / Actions */}
+                    <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+                      <div className="flex gap-2">
+                        {/* Only show Clear button if the slot has some value/content currently */}
+                        {(() => {
+                          const hasDataObj = weeklySlotEditor.type === 'daily' 
+                            ? weeklySlotEditor.week.dailyDeposits?.some(d => d.dayIndex === weeklySlotEditor.dayIndex)
+                            : (weeklySlotEditor.type === 'coin1' ? weeklySlotEditor.week.coinDepositsValue1 > 0 : weeklySlotEditor.week.coinDepositsValue2 > 0);
+                          
+                          return hasDataObj && (
+                            <button
+                              type="button"
+                              onClick={handleClearWeeklySlot}
+                              className="px-3.5 py-2 border border-red-200 hover:bg-red-50 text-red-650 hover:text-red-700 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                            >
+                              Limpar
+                            </button>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="flex gap-2 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => setWeeklySlotEditor(null)}
+                          className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-100 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveWeeklySlot}
+                          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-blue-100"
+                        >
+                          Guardar Lançamento
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Closing Weekly Modal Overlay popup */}
-                  {closingWeekly && (
+              {closingWeekly && (
                     <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
                       <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
                         <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
@@ -3607,6 +3850,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                           title="Editar Movimento"
                                         >
                                           <Edit2 size={13} />
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setPrintDepositData({
+                                              date: coin.date,
+                                              managerName: coin.managerName,
+                                              amount: coin.amount,
+                                              title: 'DEPOSIT DES VALORES E NUMERÁRIO'
+                                            });
+                                            setTimeout(() => {
+                                              window.print();
+                                            }, 150);
+                                          }}
+                                          className="p-1 px-2 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition-all"
+                                          title="Imprimir Guia de Depósito"
+                                        >
+                                          <Printer size={13} />
                                         </button>
                                         <button 
                                           onClick={() => handleDeleteCoinAction(coin.id)}
