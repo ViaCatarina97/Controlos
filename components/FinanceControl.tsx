@@ -2936,7 +2936,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[95px] relative group hover:border-blue-200 hover:bg-white transition-all">
                               <span className="absolute top-2.5 right-2 px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[8px] font-black rounded-md">Depósito {dayNum}</span>
                               <div>
-                                <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Depósito</span>
                                 {existDep && existDep.amount > 0 ? (
                                   <div className="mt-1">
                                     <span className="text-xs font-mono font-extrabold text-slate-800">{formatEuro(existDep.amount)}</span>
