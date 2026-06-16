@@ -3003,14 +3003,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               type="button"
                               onClick={() => {
                                 // Popup option or selection
-                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.isClosed);
                                 let promptMsg = "Insira o montante de moedas correspondente:\n";
                                 if (unlinkedEnviados.length > 0) {
                                   promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.sendDate || m.date)}: ${formatEuro(m.sendAmount || m.amount)} (${m.sendManagerName || m.managerName})`).join("\n") +
                                     "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
                                 } else {
-                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Concluído/Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
                                 }
 
                                 const userSelectInput = prompt(promptMsg, week.coinDepositsValue1 ? String(week.coinDepositsValue1) : "");
@@ -3021,7 +3021,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   const selectedCoin = unlinkedEnviados[maybeIdx];
                                   handleSaveWeeklyEdit({
                                     ...week,
-                                    coinDepositsValue1: selectedCoin.amount,
+                                    coinDepositsValue1: selectedCoin.sendAmount || selectedCoin.amount,
                                     coinDepositId1: selectedCoin.id
                                   });
                                 } else {
@@ -3061,14 +3061,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.type === 'Enviado');
+                                const unlinkedEnviados = prosegurCoinMovements.filter(m => m.isClosed);
                                 let promptMsg = "Insira o montante de moedas correspondente:\n";
                                 if (unlinkedEnviados.length > 0) {
                                   promptMsg += "Movimentos de Moedas 'Enviados' disponíveis no Separador das Moedas:\n" +
-                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.date)}: ${formatEuro(m.amount)} (${m.managerName})`).join("\n") +
+                                    unlinkedEnviados.map((m, i) => `[ID ${i+1}] ${formatDateToDMY(m.sendDate || m.date)}: ${formatEuro(m.sendAmount || m.amount)} (${m.sendManagerName || m.managerName})`).join("\n") +
                                     "\nIntroduza o índice (ex: 1) ou digite livremente o valor (€) desejado:";
                                 } else {
-                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
+                                  promptMsg += "Nenhum movimento do separador 'Moedas' registado como 'Concluído/Enviado' ainda.\nDigite o valor da moeda diretamente (€):";
                                 }
 
                                 const userSelectInput = prompt(promptMsg, week.coinDepositsValue2 ? String(week.coinDepositsValue2) : "");
@@ -3079,7 +3079,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   const selectedCoin = unlinkedEnviados[maybeIdx];
                                   handleSaveWeeklyEdit({
                                     ...week,
-                                    coinDepositsValue2: selectedCoin.amount,
+                                    coinDepositsValue2: selectedCoin.sendAmount || selectedCoin.amount,
                                     coinDepositId2: selectedCoin.id
                                   });
                                 } else {
@@ -3553,12 +3553,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <table className="w-full text-center border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-[9px] font-black uppercase text-slate-500 border-b tracking-wider">
-                                <th className="px-5 py-3 text-left">Data</th>
-                                <th className="px-5 py-3">Tipo</th>
-                                <th className="px-5 py-3 text-right">Valor</th>
-                                <th className="px-5 py-3">Gerente</th>
-                                <th className="px-5 py-3 text-left">Descrição</th>
-                                <th className="px-5 py-3">Ações</th>
+                                <th className="px-4 py-3 text-left">Data</th>
+                                <th className="px-4 py-3">Tipo</th>
+                                <th className="px-4 py-3">Estado</th>
+                                <th className="px-4 py-3 text-right">Valor</th>
+                                <th className="px-4 py-3">Gerente</th>
+                                <th className="px-4 py-3">Data de Envio</th>
+                                <th className="px-4 py-3 text-left">Descrição</th>
+                                <th className="px-4 py-3">Ações</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y text-xs font-bold text-gray-700">
@@ -3566,8 +3568,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 const isReceived = coin.type === 'Recebido';
                                 return (
                                   <tr key={coin.id} className="hover:bg-slate-50/50">
-                                    <td className="px-5 py-3.5 text-left">{formatDateToDMY(coin.date)}</td>
-                                    <td className="px-5 py-3.5 text-center">
+                                    <td className="px-4 py-3.5 text-left">{formatDateToDMY(coin.date)}</td>
+                                    <td className="px-4 py-3.5 text-center">
                                       <span className={`inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
                                         isReceived 
                                           ? 'bg-blue-50 text-blue-700 border-blue-100' 
@@ -3576,20 +3578,44 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                         {isReceived ? '📥 Entrada / Recebido' : '📤 Saída / Enviado CIT'}
                                       </span>
                                     </td>
-                                    <td className={`px-5 py-3.5 text-right font-mono font-black ${
+                                    <td className="px-4 py-3.5 text-center">
+                                      {coin.isClosed ? (
+                                        <span className="inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-emerald-50 text-emerald-700 border-emerald-100">
+                                          Concluído
+                                        </span>
+                                      ) : (
+                                        <span className="inline-block px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-100 animate-pulse">
+                                          Pendente
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className={`px-4 py-3.5 text-right font-mono font-black ${
                                       isReceived ? 'text-blue-900' : 'text-purple-900'
                                     }`}>
                                       {formatEuro(coin.amount)}
                                     </td>
-                                    <td className="px-5 py-3.5">{coin.managerName}</td>
-                                    <td className="px-5 py-3.5 text-left text-gray-500 font-bold max-w-xs truncate">{coin.comment || '—'}</td>
-                                    <td className="px-5 py-3.5">
-                                      <button 
-                                        onClick={() => handleDeleteCoinAction(coin.id)}
-                                        className="p-1 px-2 hover:bg-red-50 text-red-500 hover:text-red-700 rounded-lg transition-all"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
+                                    <td className="px-4 py-3.5">{coin.managerName}</td>
+                                    <td className="px-4 py-3.5 text-center font-mono text-slate-500">
+                                      {coin.isClosed && coin.sendDate ? formatDateToDMY(coin.sendDate) : '—'}
+                                    </td>
+                                    <td className="px-4 py-3.5 text-left text-gray-500 font-bold max-w-xs truncate">{coin.comment || '—'}</td>
+                                    <td className="px-4 py-3.5 text-center">
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <button 
+                                          onClick={() => setEditingCoin(coin)}
+                                          className="p-1 px-2 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition-all"
+                                          title="Editar Movimento"
+                                        >
+                                          <Edit2 size={13} />
+                                        </button>
+                                        <button 
+                                          onClick={() => handleDeleteCoinAction(coin.id)}
+                                          className="p-1 px-2 hover:bg-red-50 text-red-500 hover:text-red-700 rounded-lg transition-all"
+                                          title="Eliminar Movimento"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -4015,7 +4041,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
       {/* PRINTABLE MILLENNIUM BCP DEPOSIT SLIP OVERLAY */}
       {printDepositData && (
-        <div className="hidden print:block print-container absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
+        <div className="hidden print:block print-container print-landscape absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
           {/* Slip 1: Original */}
           <div className="border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
             {/* Header */}
