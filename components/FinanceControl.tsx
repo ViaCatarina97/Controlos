@@ -35,6 +35,129 @@ const DENOMINATIONS_COINS = [
   { value: 1.00, label: '1,00 €', rollSize: 25, rollValue: 25.00 },
 ];
 
+const converterValorParaExtenso = (valor: number): string => {
+  if (valor <= 0) return "Zero euros";
+
+  const dezenas_10_19 = ["Dez", "Onze", "Doze", "Treze", "Catorze", "Quinze", "Dezasseis", "Dezassete", "Dezoito", "Dezanove"];
+  const dezenas = ["", "Dez", "Vinte", "Trinta", "Quarenta", "Cinquenta", "Sessenta", "Setenta", "Oitenta", "Noventa"];
+  const centenas = ["", "Cento", "Duzentos", "Trezentos", "Quatrocentos", "Quinhentos", "Seiscentos", "Setecentos", "Oitocentos", "Novecentos"];
+  const unidades = ["", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove"];
+
+  const converterGrupo = (num: number): string => {
+    if (num === 0) return "";
+    let resultado = "";
+
+    if (num === 100) return "Cem";
+
+    const c = Math.floor(num / 100);
+    const d = Math.floor((num % 100) / 10);
+    const u = num % 10;
+
+    if (c > 0) {
+      resultado += centenas[c];
+    }
+
+    if (d > 0 || u > 0) {
+      if (resultado !== "") resultado += " e ";
+      if (d === 1) {
+        resultado += dezenas_10_19[u];
+      } else {
+        if (d > 0) {
+          resultado += dezenas[d];
+          if (u > 0) resultado += " e " + unidades[u];
+        } else {
+          resultado += unidades[u];
+        }
+      }
+    }
+    return resultado;
+  };
+
+  const converterParteMilhares = (num: number): string => {
+    if (num < 1000) return converterGrupo(num);
+    const milhares = Math.floor(num / 1000);
+    const resto = num % 1000;
+    let res = "";
+    if (milhares === 1) {
+      res += "Mil";
+    } else {
+      res += converterGrupo(milhares) + " mil";
+    }
+    if (resto > 0) {
+      res += (resto < 100 || resto % 100 === 0 ? " e " : " ") + converterGrupo(resto);
+    }
+    return res;
+  };
+
+  const parteInteira = Math.floor(valor);
+  const parteDecimal = Math.round((valor - parteInteira) * 100);
+
+  let extenso = "";
+
+  if (parteInteira > 0) {
+    if (parteInteira >= 1000000) {
+      const milhoes = Math.floor(parteInteira / 1000000);
+      const restoMilhoes = parteInteira % 1000000;
+      extenso += converterGrupo(milhoes) + (milhoes === 1 ? " milhão" : " milhões");
+      if (restoMilhoes > 0) {
+        extenso += " e " + converterParteMilhares(restoMilhoes);
+      }
+    } else {
+      extenso += converterParteMilhares(parteInteira);
+    }
+    extenso += parteInteira === 1 ? " euro" : " euros";
+  }
+
+  if (parteDecimal > 0) {
+    if (extenso !== "") {
+      extenso += " e " + converterGrupo(parteDecimal).toLowerCase() + (parteDecimal === 1 ? " cêntimo" : " cêntimos");
+    } else {
+      extenso += converterGrupo(parteDecimal) + (parteDecimal === 1 ? " cêntimo" : " cêntimos");
+    }
+  }
+
+  return extenso;
+};
+
+const syncWeeklyCoinDeposits = (weeklies: ProsegurWeeklyDeposit[], coins: ProsegurCoinMovement[]): ProsegurWeeklyDeposit[] => {
+  return weeklies.map(w => {
+    const parts = w.startDate.split('-');
+    const weekStart = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const matchingCoins = coins.filter(c => {
+      if (!c.isClosed || !c.sendDate || !c.sendAmount) return false;
+      const cParts = c.sendDate.split('-');
+      const sendDateObj = new Date(Number(cParts[0]), Number(cParts[1]) - 1, Number(cParts[2]));
+      return sendDateObj >= weekStart && sendDateObj < weekEnd;
+    });
+
+    const updatedWeek = { ...w };
+    if (matchingCoins.length >= 1) {
+      updatedWeek.coinDepositsValue1 = matchingCoins[0].sendAmount || 0;
+      updatedWeek.coinDepositId1 = matchingCoins[0].id;
+    } else {
+      updatedWeek.coinDepositsValue1 = 0;
+      updatedWeek.coinDepositId1 = undefined;
+    }
+
+    if (matchingCoins.length >= 2) {
+      updatedWeek.coinDepositsValue2 = matchingCoins[1].sendAmount || 0;
+      updatedWeek.coinDepositId2 = matchingCoins[1].id;
+    } else {
+      updatedWeek.coinDepositsValue2 = 0;
+      updatedWeek.coinDepositId2 = undefined;
+    }
+
+    const dailySum = updatedWeek.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+    const coinSum = Number(updatedWeek.coinDepositsValue1 || 0) + Number(updatedWeek.coinDepositsValue2 || 0);
+    updatedWeek.totalVal = dailySum + coinSum;
+
+    return updatedWeek;
+  });
+};
+
 const DENOMINATIONS_NOTES = [
   { value: 5.00, label: '5,00 €' },
   { value: 10.00, label: '10,00 €' },
@@ -130,11 +253,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         getProsegurWeeklyDeposits(restaurantId),
         getProsegurCoinMovements(restaurantId)
       ]);
+      const sortedCoins = coins.sort((a,b) => b.date.localeCompare(a.date));
+      const syncedWeeklies = syncWeeklyCoinDeposits(weeklies, sortedCoins);
       setCofreCounts(counts.sort((a,b) => b.date.localeCompare(a.date)));
       setDeposits(deps.sort((a,b) => b.date.localeCompare(a.date)));
       setProsegurDeposits(pros.sort((a,b) => b.date.localeCompare(a.date)));
-      setProsegurWeeklyDeposits(weeklies.sort((a,b) => b.startDate.localeCompare(a.startDate)));
-      setProsegurCoinMovements(coins.sort((a,b) => b.date.localeCompare(a.date)));
+      setProsegurWeeklyDeposits(syncedWeeklies.sort((a,b) => b.startDate.localeCompare(a.startDate)));
+      setProsegurCoinMovements(sortedCoins);
     } catch (err) {
       console.error("Error loading financial data:", err);
     } finally {
@@ -610,9 +735,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
         
         // Auto moedas prosegur for recalculating Saved totalGeral:
-        const currentMoedasProsegur = prosegurDeposits
-          .filter(p => p.date === existing!.date)
-          .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+        const currentMoedasProsegur = prosegurCoinMovements
+          ?.filter(m => !m.isClosed)
+          ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
         const fundosTotalVal = Number(existing.fundosCount || 0) * 50;
 
@@ -641,7 +766,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           fundosCount: devDefaultGavetaCount,
           fundosValuePerFundo: devDefaultGavetaValue,
           fundosTotal: fundosTotalVal,
-          moedasProsegur: prosegurDeposits.filter(p => p.date === invoiceDateInput).reduce((sum, p) => sum + (p.amountCoins || 0), 0),
+          moedasProsegur: prosegurCoinMovements?.filter(m => !m.isClosed)?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0,
           totalGeral: fundosTotalVal + amt,
           diferenca: 1000 - (fundosTotalVal + amt),
           observacoes: '',
@@ -702,9 +827,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         .filter(i => i.status !== 'arquivada')
         .reduce((s, i) => s + i.amount, 0);
 
-      const currentMoedasProsegur = prosegurDeposits
-        .filter(p => p.date === parentCount.date)
-        .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+      const currentMoedasProsegur = prosegurCoinMovements
+        ?.filter(m => !m.isClosed)
+        ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
       const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
 
@@ -746,9 +871,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       const updatedInvoices = (parentCount.invoices || []).filter(i => i.id !== invoiceId);
       const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
       
-      const currentMoedasProsegur = prosegurDeposits
-        .filter(p => p.date === parentCount.date)
-        .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+      const currentMoedasProsegur = prosegurCoinMovements
+        ?.filter(m => !m.isClosed)
+        ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
       const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
       const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
@@ -1492,9 +1617,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* BOTTOM SUMMARY - SYSTEM DARK BLUE STYLE */}
           {(() => {
-            const autoMoedasProsegurVal = prosegurDeposits
-              .filter(p => p.date === editingCofre.date)
-              .reduce((sum, p) => sum + (p.amountCoins || 0), 0);
+            const autoMoedasProsegurVal = prosegurCoinMovements
+              ?.filter(m => !m.isClosed)
+              ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
             const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
             const autoTotalVal = fundosTotalVal + (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
             const autoDiferencaVal = 1000 - autoTotalVal;
@@ -2537,10 +2662,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       </span>
                                       <button
                                         type="button"
-                                        onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
-                                        className="text-[9px] text-blue-600 hover:text-blue-800 uppercase tracking-wider font-extrabold ml-1.5 focus:outline-none"
+                                        onClick={() => {
+                                          const pass = prompt("Introduza a password de acesso:");
+                                          if (pass === null) return;
+                                          if (pass !== "Imperial96") {
+                                            alert("Password de acesso incorreta.");
+                                            return;
+                                          }
+                                          handleAddNewDepositForTurn(day.date, 'Abertura');
+                                        }}
+                                        className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
                                       >
-                                        {isAberturaLocked ? 'Ver 🔍' : 'Editar 📝'}
+                                        Verificar
                                       </button>
                                     </div>
                                   </div>
@@ -2551,7 +2684,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     </span>
                                     <button
                                       type="button"
-                                      onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                      onClick={() => {
+                                        const pass = prompt("Introduza a password de acesso:");
+                                        if (pass === null) return;
+                                        if (pass !== "Imperial96") {
+                                          alert("Password de acesso incorreta.");
+                                          return;
+                                        }
+                                        handleAddNewDepositForTurn(day.date, 'Abertura');
+                                      }}
                                       className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
                                     >
                                       ➕ Iniciar
@@ -2583,10 +2724,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       </span>
                                       <button
                                         type="button"
-                                        onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
-                                        className="text-[9px] text-blue-600 hover:text-blue-800 uppercase tracking-wider font-extrabold ml-1.5 focus:outline-none"
+                                        onClick={() => {
+                                          const pass = prompt("Introduza a password de acesso:");
+                                          if (pass === null) return;
+                                          if (pass !== "Imperial96") {
+                                            alert("Password de acesso incorreta.");
+                                            return;
+                                          }
+                                          handleAddNewDepositForTurn(day.date, 'Fecho');
+                                        }}
+                                        className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
                                       >
-                                        {isFechoLocked ? 'Ver 🔍' : 'Editar 📝'}
+                                        Verificar
                                       </button>
                                     </div>
                                   </div>
@@ -2597,7 +2746,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     </span>
                                     <button
                                       type="button"
-                                      onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                      onClick={() => {
+                                        const pass = prompt("Introduza a password de acesso:");
+                                        if (pass === null) return;
+                                        if (pass !== "Imperial96") {
+                                          alert("Password de acesso incorreta.");
+                                          return;
+                                        }
+                                        handleAddNewDepositForTurn(day.date, 'Fecho');
+                                      }}
                                       className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
                                     >
                                       ➕ Iniciar
@@ -3212,32 +3369,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <div className="space-y-6">
                   {/* Stats Cards */}
                   {(() => {
-                    const receivedCoinsVal = prosegurCoinMovements.filter(m => m.type === 'Recebido').reduce((s, m) => s + (m.amount || 0), 0);
-                    const sentCoinsVal = prosegurCoinMovements.filter(m => m.type === 'Enviado').reduce((s, m) => s + (m.amount || 0), 0);
-                    const availableCoinsVal = receivedCoinsVal - sentCoinsVal;
+                    const pendingCoinsVal = prosegurCoinMovements.filter(m => !m.isClosed).reduce((s, m) => s + (m.amount || 0), 0);
 
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between">
+                      <div className="max-w-md">
+                        <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex items-center justify-between shadow-sm">
                           <div>
-                            <span className="block text-[8px] font-black text-emerald-800 uppercase tracking-widest">Moedas Disponíveis no Cofre</span>
-                            <span className="text-xl font-mono font-black text-emerald-900 mt-1 block">{formatEuro(availableCoinsVal)}</span>
+                            <span className="block text-[8px] font-black text-amber-800 uppercase tracking-widest leading-normal">
+                              Total de Moedas Recebidas Pendentes de serem Enviadas
+                            </span>
+                            <span className="text-2xl font-mono font-black text-amber-950 mt-1 block">
+                              {formatEuro(pendingCoinsVal)}
+                            </span>
                           </div>
-                          <Coins className="text-emerald-500" size={32} />
-                        </div>
-                        <div className="bg-blue-50 border border-blue-105 p-4 rounded-2xl flex items-center justify-between">
-                          <div>
-                            <span className="block text-[8px] font-black text-blue-800 uppercase tracking-widest">Total de Entradas (Recebidas)</span>
-                            <span className="text-xl font-mono font-black text-blue-905 mt-1 block">{formatEuro(receivedCoinsVal)}</span>
-                          </div>
-                          <ArrowUpRight className="text-blue-500" size={32} />
-                        </div>
-                        <div className="bg-purple-50 border border-purple-105 p-4 rounded-2xl flex items-center justify-between">
-                          <div>
-                            <span className="block text-[8px] font-black text-purple-800 uppercase tracking-widest">Total de Saídas (Enviadas CIT)</span>
-                            <span className="text-xl font-mono font-black text-purple-905 mt-1 block">{formatEuro(sentCoinsVal)}</span>
-                          </div>
-                          <CreditCard className="text-purple-500" size={32} />
+                          <Coins className="text-amber-600 animate-pulse" size={32} />
                         </div>
                       </div>
                     );
@@ -3247,57 +3392,32 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     {/* Left Panel: Register Coin Movement Form */}
                     <div className="lg:col-span-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 h-fit space-y-4">
                       <div>
-                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Registar Lançamento de Moedas</h4>
-                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Lance as moedas recebidas do banco ou preparadas para envio CIT Prosegur</p>
+                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Registo de Entrada e Saída de Moedas</h4>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Lance as moedas recebidas do banco ou registe o envio para a Prosegur</p>
                       </div>
 
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Data da Operação</label>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Data de Receção</label>
                           <input 
                             type="date"
                             value={editingCoin?.date || new Date().toISOString().split('T')[0]}
                             onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, date: e.target.value } : { id: `coin_${Date.now()}`, date: e.target.value, type: 'Recebido', amount: 0, managerName: '' })}
-                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-700"
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Tipo de Movimento</label>
-                          <div className="grid grid-cols-2 gap-2 bg-slate-200/50 p-1 rounded-xl">
-                            <button
-                              type="button"
-                              onClick={() => setEditingCoin(editingCoin ? { ...editingCoin, type: 'Recebido' } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: '' })}
-                              className={`py-1.5 font-black text-[9px] uppercase tracking-wider rounded-lg text-center transition-all ${
-                                (editingCoin?.type || 'Recebido') === 'Recebido'
-                                  ? 'bg-blue-600 text-white shadow-sm'
-                                  : 'text-slate-600 hover:text-slate-800'
-                              }`}
-                            >
-                              📥 Entrada (Do Banco)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingCoin(editingCoin ? { ...editingCoin, type: 'Enviado' } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Enviado', amount: 0, managerName: '' })}
-                              className={`py-1.5 font-black text-[9px] uppercase tracking-wider rounded-lg text-center transition-all ${
-                                editingCoin?.type === 'Enviado'
-                                  ? 'bg-purple-600 text-white shadow-sm'
-                                  : 'text-slate-600 hover:text-slate-800'
-                              }`}
-                            >
-                              📤 Saída (CIT Prosegur)
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor de Moedas (€)</label>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor Recebido (€)</label>
                           <input 
                             type="text"
                             placeholder="0.00"
-                            value={editingCoin?.amount || ''}
-                            onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, amount: Number(e.target.value.replace(',', '.')) || 0 } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: Number(e.target.value.replace(',', '.')) || 0, managerName: '' })}
-                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-700"
+                            value={editingCoin && editingCoin.amount ? editingCoin.amount : ''}
+                            onChange={(e) => {
+                              const val = Number(e.target.value.replace(',', '.')) || 0;
+                              setEditingCoin(editingCoin ? { ...editingCoin, amount: val } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: val, managerName: '' });
+                            }}
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
 
@@ -3309,42 +3429,111 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             placeholder="Selecione ou insira o gerente..."
                             value={editingCoin?.managerName || ''}
                             onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, managerName: e.target.value } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-slate-250 rounded-xl font-bold text-xs bg-white text-gray-700"
+                            className="w-full px-3 py-1.5 border border-slate-250 rounded-xl font-bold text-xs bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Comentário / Selo do Saco</label>
+                          <label className="block text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Comentário / Observações</label>
                           <textarea 
                             rows={2}
                             placeholder="Ex: moedas de 0.50€ trocados, ou saco selado..."
                             value={editingCoin?.comment || ''}
                             onChange={(e) => setEditingCoin(editingCoin ? { ...editingCoin, comment: e.target.value } : { id: `coin_${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'Recebido', amount: 0, managerName: '', comment: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750 resize-none"
+                            className="w-full px-3 py-1.5 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!editingCoin) {
-                              // Force instantiate if clicking save with default form
-                              setEditingCoin({
-                                id: `coin_${Date.now()}`,
-                                date: new Date().toISOString().split('T')[0],
-                                type: 'Recebido',
-                                amount: 0,
-                                managerName: ''
-                              });
-                              alert("Preencha o formulário antes de guardar.");
-                              return;
-                            }
-                            handleSaveCoinEdit();
-                          }}
-                          className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1.5"
-                        >
-                          <Save size={14} /> Guardar Movimento
-                        </button>
+                        {/* Sending/Closing Panel - Only expanded if editing or sending */}
+                        {editingCoin && (
+                          <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100 space-y-3 mt-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input 
+                                type="checkbox"
+                                checked={editingCoin.isClosed || false}
+                                onChange={(e) => {
+                                  const closed = e.target.checked;
+                                  setEditingCoin({
+                                    ...editingCoin,
+                                    isClosed: closed,
+                                    sendDate: closed ? (editingCoin.sendDate || editingCoin.date) : undefined,
+                                    sendAmount: closed ? (editingCoin.sendAmount || editingCoin.amount) : undefined,
+                                    sendManagerName: closed ? (editingCoin.sendManagerName || editingCoin.managerName) : undefined
+                                  });
+                                }}
+                                className="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500"
+                              />
+                              <span className="text-[10px] font-black uppercase text-purple-900 tracking-wider">📤 Enviar Moedas (Encerrar Lançamento)</span>
+                            </label>
+
+                            {editingCoin.isClosed && (
+                              <div className="space-y-3 pt-2 border-t border-purple-200/50 animate-fade-in">
+                                <div>
+                                  <label className="block text-[8px] font-black uppercase text-purple-700 tracking-wider mb-1">Data de Envio (CIT)</label>
+                                  <input 
+                                    type="date"
+                                    value={editingCoin.sendDate || new Date().toISOString().split('T')[0]}
+                                    onChange={(e) => setEditingCoin({ ...editingCoin, sendDate: e.target.value })}
+                                    className="w-full px-3 py-1.5 border border-purple-200 rounded-lg font-bold text-xs bg-white text-gray-700 focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[8px] font-black uppercase text-purple-700 tracking-wider mb-1">Valor de Envio (€)</label>
+                                  <input 
+                                    type="text"
+                                    placeholder="0.00"
+                                    value={editingCoin.sendAmount || ''}
+                                    onChange={(e) => setEditingCoin({ ...editingCoin, sendAmount: Number(e.target.value.replace(',', '.')) || 0 })}
+                                    className="w-full px-3 py-1.5 border border-purple-200 rounded-lg font-bold font-mono text-xs bg-white text-gray-700 focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[8px] font-black uppercase text-purple-700 tracking-wider mb-1">Gerente de Envio</label>
+                                  <input 
+                                    type="text"
+                                    list="employees-names"
+                                    placeholder="Nome do gerente de envio..."
+                                    value={editingCoin.sendManagerName || ''}
+                                    onChange={(e) => setEditingCoin({ ...editingCoin, sendManagerName: e.target.value })}
+                                    className="w-full px-3 py-1.5 border border-purple-200 rounded-lg font-bold text-xs bg-white text-gray-700 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-2">
+                          {editingCoin && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingCoin(null)}
+                              className="px-4 py-2 border rounded-xl text-slate-500 hover:bg-slate-100 font-extrabold text-[10px] uppercase tracking-wider transition-all"
+                            >
+                              Limpar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!editingCoin) {
+                                setEditingCoin({
+                                  id: `coin_${Date.now()}`,
+                                  date: new Date().toISOString().split('T')[0],
+                                  type: 'Recebido',
+                                  amount: 0,
+                                  managerName: ''
+                                });
+                                alert("Preencha o formulário antes de guardar.");
+                                return;
+                              }
+                              handleSaveCoinEdit();
+                            }}
+                            className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
+                          >
+                            <Save size={14} /> Guardar Movimento
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -3412,201 +3601,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       )}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* SECTION 3: RECOLHAS / GUIAS DE TRANSPORTE DE VALORES */}
-              {prosegurSubTab === 'recolhas' && (
-                <div className="space-y-4 animate-fade-in">
-                  <div className="flex justify-between items-center bg-white p-4 rounded-2xl border">
-                    <div>
-                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Historial de Declaração de Valores CIT</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Guias de transporte Prosegur geradas aquando do encerramento das recolhas semanais</p>
-                    </div>
-                    <button
-                      onClick={handleAddNewProsegur}
-                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-50"
-                    >
-                      <Plus size={16} /> Registar Recolha CIT Manual
-                    </button>
-                  </div>
-
-                  {/* Manual / Normal Editing prosegur modal popup */}
-                  {editingProsegur && (
-                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
-                      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
-                        <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
-                          <div>
-                            <span className="text-[10px] uppercase font-black tracking-widest text-amber-400">Guia Prosegur CIT</span>
-                            <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Registo Manual de Recolha de Valores</h3>
-                          </div>
-                          <button 
-                            onClick={() => setEditingProsegur(null)}
-                            className="text-gray-400 hover:text-white transition-all text-xs font-black p-1.5"
-                          >
-                            ✖️
-                          </button>
-                        </div>
-                        
-                        <div className="p-6 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Data de Recolha *</label>
-                              <input 
-                                type="date"
-                                value={editingProsegur.date}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, date: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Guia Prosegur *</label>
-                              <input 
-                                type="text"
-                                placeholder="Nº de guia Prosegur..."
-                                value={editingProsegur.prosegurReceipt}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, prosegurReceipt: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Selo / Saco</label>
-                              <input 
-                                type="text"
-                                placeholder="Saco de segurança..."
-                                value={editingProsegur.bagNumber}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, bagNumber: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor Notas (€)</label>
-                              <input 
-                                type="text"
-                                placeholder="0.00"
-                                value={editingProsegur.amountNotes || ''}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, amountNotes: Number(e.target.value.replace(',', '.')) || 0 })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-750"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Valor Moedas (€)</label>
-                              <input 
-                                type="text"
-                                placeholder="0.00"
-                                value={editingProsegur.amountCoins || ''}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, amountCoins: Number(e.target.value.replace(',', '.')) || 0 })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold font-mono text-xs bg-white text-gray-750"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Estado de Liquidação</label>
-                              <select
-                                value={editingProsegur.status}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, status: e.target.value as any })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750"
-                              >
-                                <option value="Pendente">Saco Selado, Aguarda Recolha</option>
-                                <option value="Recolhido">Recolhido pela CIT</option>
-                                <option value="Confirmado">Validado / Depósito em Banco</option>
-                              </select>
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Comentários / Notas</label>
-                              <textarea 
-                                rows={2}
-                                value={editingProsegur.comment || ''}
-                                onChange={(e) => setEditingProsegur({ ...editingProsegur, comment: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-205 rounded-xl font-bold text-xs bg-white text-gray-750 resize-none"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-4 border-t">
-                            <button
-                              type="button"
-                              onClick={() => setEditingProsegur(null)}
-                              className="px-4 py-2 text-slate-500 hover:bg-slate-100 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleSaveProsegurEdit}
-                              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
-                            >
-                              ✔️ Guardar Guia Manuscrita
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {prosegurDeposits.length === 0 ? (
-                    <div className="p-12 text-center border-2 border-dashed border-gray-100 rounded-3xl bg-white">
-                      <CreditCard size={36} className="text-gray-300 mx-auto mb-3" />
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Nenhuma guia Prosegur encontrada</p>
-                    </div>
-                  ) : (
-                    <div className="border rounded-3xl border-gray-150 overflow-hidden shadow-sm bg-white">
-                      <table className="w-full text-center border-collapse">
-                        <thead>
-                          <tr className="bg-gray-50 border-b text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                            <th className="px-6 py-4 text-left">Data Guia CIT</th>
-                            <th className="px-6 py-4">Nº Guia Prosegur</th>
-                            <th className="px-6 py-4">Nº Selo / Saco</th>
-                            <th className="px-6 py-4 text-right">Valor Notas</th>
-                            <th className="px-6 py-4 text-right">Valor Moedas</th>
-                            <th className="px-6 py-4 text-right">Total Recolha</th>
-                            <th className="px-6 py-4">Estado</th>
-                            <th className="px-6 py-4">Comentários</th>
-                            <th className="px-6 py-4">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y text-xs font-bold text-slate-700">
-                          {prosegurDeposits.map(pros => {
-                            return (
-                              <tr key={pros.id} className="hover:bg-gray-55/50">
-                                <td className="px-6 py-4 text-left">{formatDateToDMY(pros.date)}</td>
-                                <td className="px-6 py-4 font-mono font-extrabold text-[#2c532c]">{pros.prosegurReceipt}</td>
-                                <td className="px-6 py-4 font-mono text-slate-500">{pros.bagNumber || '—'}</td>
-                                <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountNotes)}</td>
-                                <td className="px-6 py-4 text-right font-mono">{formatEuro(pros.amountCoins)}</td>
-                                <td className="px-6 py-4 text-right font-mono font-extrabold text-emerald-850">{formatEuro(pros.amountTotal)}</td>
-                                <td className="px-6 py-4 text-center">
-                                  <span className={`inline-block px-2.5 py-1 text-[8px] font-black uppercase tracking-wider rounded-xl ${
-                                    pros.status === 'Confirmado' ? 'bg-emerald-50 text-emerald-705 border border-emerald-100' :
-                                    pros.status === 'Recolhido' ? 'bg-blue-50 text-blue-705 border border-blue-100' :
-                                    'bg-amber-50 text-amber-705 border border-amber-100'
-                                  }`}>
-                                    {pros.status === 'Confirmado' ? 'Vali. Banco' : pros.status === 'Recolhido' ? 'Levado CIT' : 'Saco Selado'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-left max-w-xs truncate text-[10px] text-gray-500" title={pros.comment}>{pros.comment || '—'}</td>
-                                <td className="px-6 py-4 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button 
-                                      onClick={() => setEditingProsegur(pros)}
-                                      className="p-1 px-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 border rounded-lg transition-all text-[10px] uppercase font-black"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteProsegurAction(pros.id)}
-                                      className="p-1 px-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent rounded-lg text-xs font-bold transition-all"
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -4019,6 +4013,273 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           </option>
         ))}
       </datalist>
+
+      {/* PRINTABLE MILLENNIUM BCP DEPOSIT SLIP OVERLAY */}
+      {printDepositData && (
+        <div className="hidden print:block print-container absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
+          {/* Slip 1: Original */}
+          <div className="border-4 border-slate-900 p-6 rounded-xl space-y-6 relative max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+              <div>
+                <div className="bg-[#cc0052] text-white font-extrabold px-3 py-1 text-base tracking-wider rounded inline-block">
+                  Millennium <span className="italic font-light text-xs">bcp</span>
+                </div>
+                <div className="text-[9px] font-black uppercase text-slate-500 tracking-wider mt-1">
+                  DEPÓSITO DE VALORES E NUMERÁRIO
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="block text-[8px] font-black uppercase text-slate-400">VIA</span>
+                <span className="text-xs font-black uppercase border border-slate-900 px-2 py-0.5 rounded">ORIGINAL (Para o Banco)</span>
+              </div>
+            </div>
+
+            {/* Account Details and Reference Row */}
+            <div className="grid grid-cols-12 gap-4">
+              {/* Account column */}
+              <div className="col-span-8 border border-slate-400 p-3 rounded-lg relative">
+                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                  N.º Conta a Creditar / IBAN
+                </span>
+                <div className="flex gap-1 mt-1 justify-between">
+                  {["0", "3", "0", "8", "0", "9", "7", "1", "8", "1", "4"].map((digit, i) => (
+                    <div key={i} className="w-6 h-7 border border-slate-900 text-xs font-extrabold flex items-center justify-center font-mono rounded bg-slate-50">
+                      {digit}
+                    </div>
+                  ))}
+                  <div className="text-[7px] text-slate-400 font-black self-center ml-2 leading-tight uppercase">
+                    Preenchimento<br />Obrigatório
+                  </div>
+                </div>
+              </div>
+
+              {/* Date column */}
+              <div className="col-span-4 border border-slate-400 p-3 rounded-lg relative">
+                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                  Data do Depósito
+                </span>
+                <div className="text-xs font-black text-center mt-1.5 uppercase font-mono tracking-wider">
+                  {formatDateToDMY(printDepositData.date)}
+                </div>
+              </div>
+            </div>
+
+            {/* Account Holder Row */}
+            <div className="border border-slate-400 p-3 rounded-lg relative">
+              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                Titular da Conta (Nome Completo)
+              </span>
+              <div className="text-xs font-extrabold mt-1 uppercase tracking-wide">
+                MCDONALD'S VIA CATARINA (RESTAURANTE)
+              </div>
+            </div>
+
+            {/* Reference Area */}
+            <div className="border border-slate-400 p-3 rounded-lg relative">
+              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                Depósito Especial - Referência do Depositante (Preenchimento OBRIGATÓRIO)
+              </span>
+              <div className="flex gap-1 mt-1">
+                {Array.from({ length: 18 }).map((_, i) => (
+                  <div key={i} className="w-5 h-6 border border-slate-300 text-slate-300 flex items-center justify-center text-[9px] font-bold font-mono rounded">
+                    —
+                  </div>
+                ))}
+                <div className="text-[6px] text-slate-400 font-bold self-center ml-auto leading-tight uppercase text-right">
+                  Preencher com a refª<br />do restaurante
+                </div>
+              </div>
+            </div>
+
+            {/* Table for values and Importancias */}
+            <div className="border border-slate-400 rounded-xl overflow-hidden">
+              <table className="w-full text-center border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-400 text-[8px] font-black uppercase text-slate-500">
+                    <th className="px-3 py-2 text-left border-r border-slate-400">Banco / Entidade</th>
+                    <th className="px-3 py-2 border-r border-slate-400">N.º Documento / Cheque</th>
+                    <th className="px-3 py-2 text-right">Importâncias (€)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-300 font-mono text-xs">
+                  <tr>
+                    <td className="px-3 py-2 text-left font-black tracking-wide border-r border-slate-400 uppercase">NUMERÁRIO (NOTAS E MOEDAS)</td>
+                    <td className="px-3 py-2 border-r border-slate-400 text-slate-350 font-sans">—</td>
+                    <td className="px-3 py-2 text-right font-black text-base">{formatEuro(printDepositData.amount)}</td>
+                  </tr>
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5 text-left border-r border-slate-300 text-slate-300 italic">Preencher se necessário...</td>
+                      <td className="px-3 py-1.5 border-r border-slate-300 text-slate-300">—</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-slate-300">—</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom signatures and values converter */}
+            <div className="grid grid-cols-12 gap-6 border-t border-slate-300 pt-4">
+              <div className="col-span-8 space-y-3">
+                <div className="text-[9px] border border-slate-400 p-2.5 rounded-lg bg-slate-50/50 relative">
+                  <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                    Importância Total por Extenso
+                  </span>
+                  <span className="font-extrabold text-slate-800 uppercase text-[9px] block italic leading-normal">
+                    {converterValorParaExtenso(printDepositData.amount)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="relative border border-slate-400 p-2 rounded-lg">
+                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                      Nome do Depositante
+                    </span>
+                    <div className="text-[10px] font-extrabold uppercase truncate mt-0.5">
+                      {printDepositData.managerName || 'GERENTE VIA CATARINA'}
+                    </div>
+                  </div>
+                  <div className="relative border border-slate-400 p-2 rounded-lg h-10 flex items-end">
+                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                      Assinatura do Depositante
+                    </span>
+                    <div className="w-full border-t border-dashed border-slate-300 text-center text-[7px] text-slate-300 uppercase">
+                      Assinatura
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-4 bg-slate-900 text-white rounded-xl p-4 flex flex-col justify-between items-center text-center shadow">
+                <div>
+                  <span className="block text-[7px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+                    TOTAL A CREDITAR
+                  </span>
+                  <div className="text-xl font-mono font-black border-2 border-dashed border-white/30 px-3 py-1.5 rounded">
+                    {formatEuro(printDepositData.amount)}
+                  </div>
+                </div>
+                <div className="text-[6px] text-slate-350 italic uppercase">
+                  Para Uso Exclusivo do Banco
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cutting line */}
+          <div className="border-t-2 border-dashed border-slate-400 my-8 text-center relative">
+            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-white px-3 text-[8px] font-black uppercase text-slate-400 tracking-widest">
+              ✂️ Cortar Aqui para Duplicado
+            </span>
+          </div>
+
+          {/* Slip 2: Duplicate */}
+          <div className="border-4 border-slate-900 border-dashed p-6 rounded-xl space-y-6 relative max-w-4xl mx-auto">
+            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+              <div>
+                <div className="bg-[#cc0052] text-white font-extrabold px-3 py-1 text-base tracking-wider rounded inline-block">
+                  Millennium <span className="italic font-light text-xs">bcp</span>
+                </div>
+                <div className="text-[9px] font-black uppercase text-slate-500 tracking-wider mt-1">
+                  DEPÓSITO DE VALORES E NUMERÁRIO
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="block text-[8px] font-black uppercase text-slate-400">VIA</span>
+                <span className="text-xs font-black uppercase border border-slate-900 px-2 py-0.5 rounded">DUPLICADO (Arquivo Restaurante)</span>
+              </div>
+            </div>
+
+            {/* Account Details and Reference Row */}
+            <div className="grid grid-cols-12 gap-4">
+              {/* Account */}
+              <div className="col-span-8 border border-slate-400 p-3 rounded-lg relative">
+                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                  N.º Conta a Creditar / IBAN
+                </span>
+                <div className="flex gap-1 mt-1 justify-between">
+                  {["0", "3", "0", "8", "0", "9", "7", "1", "8", "1", "4"].map((digit, i) => (
+                    <div key={i} className="w-6 h-7 border border-slate-900 text-xs font-extrabold flex items-center justify-center font-mono rounded bg-slate-50">
+                      {digit}
+                    </div>
+                  ))}
+                  <div className="text-[7px] text-slate-400 font-black self-center ml-2 leading-tight uppercase">
+                    Preenchimento<br />Obrigatório
+                  </div>
+                </div>
+              </div>
+
+              {/* Date */}
+              <div className="col-span-4 border border-slate-400 p-3 rounded-lg relative">
+                <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                  Data do Depósito
+                </span>
+                <div className="text-xs font-black text-center mt-1.5 uppercase font-mono tracking-wider">
+                  {formatDateToDMY(printDepositData.date)}
+                </div>
+              </div>
+            </div>
+
+            {/* Account Holder Row */}
+            <div className="border border-slate-400 p-3 rounded-lg relative">
+              <span className="absolute -top-2 left-2.5 bg-white px-1.5 text-[7px] font-black uppercase text-slate-400">
+                Titular da Conta (Nome Completo)
+              </span>
+              <div className="text-xs font-extrabold mt-1 uppercase tracking-wide">
+                MCDONALD'S VIA CATARINA (RESTAURANTE)
+              </div>
+            </div>
+
+            {/* Bottom Content for Duplicate */}
+            <div className="grid grid-cols-12 gap-6 pt-4 border-t border-slate-300">
+              <div className="col-span-8 space-y-3">
+                <div className="text-[9px] border border-slate-400 p-2.5 rounded-lg bg-slate-50/50 relative">
+                  <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                    Importância Total por Extenso
+                  </span>
+                  <span className="font-extrabold text-slate-800 uppercase text-[9px] block italic leading-normal">
+                    {converterValorParaExtenso(printDepositData.amount)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="relative border border-slate-400 p-2 rounded-lg">
+                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                      Nome do Depositante
+                    </span>
+                    <div className="text-[10px] font-extrabold uppercase truncate mt-0.5">
+                      {printDepositData.managerName || 'GERENTE VIA CATARINA'}
+                    </div>
+                  </div>
+                  <div className="relative border border-slate-400 p-2 rounded-lg h-10 flex items-end">
+                    <span className="absolute -top-2 left-2 bg-white px-1 text-[7px] font-black uppercase text-slate-400">
+                      Assinatura do Depositante
+                    </span>
+                    <div className="w-full border-t border-dashed border-slate-300 text-center text-[7px] text-slate-300 uppercase">
+                      Assinatura
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-4 bg-slate-800 text-white rounded-xl p-4 flex flex-col justify-between items-center text-center shadow">
+                <div>
+                  <span className="block text-[7px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+                    TOTAL A DEPOSITAR
+                  </span>
+                  <div className="text-xl font-mono font-black border-2 border-dashed border-white/20 px-3 py-1.5 rounded">
+                    {formatEuro(printDepositData.amount)}
+                  </div>
+                </div>
+                <div className="text-[6px] text-slate-400 italic uppercase">
+                  Processamento Mecânico
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

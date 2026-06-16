@@ -29,6 +29,19 @@
         ::-webkit-scrollbar {
             display: none;
         }
+        body * {
+          visibility: hidden;
+        }
+        .print-container, .print-container * {
+          visibility: visible;
+        }
+        .print-container {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          display: block !important;
+        }
       }
 
       @page landscape-print {
