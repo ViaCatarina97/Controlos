@@ -1109,7 +1109,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
       </div>
 
-      <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen print-landscape">
+      <div className="hidden print:block print-container fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen print-landscape">
           <div className="flex justify-between items-end mb-1 border-b border-slate-900 pb-0.5">
             <h1 className="text-[18px] font-black uppercase tracking-tight text-slate-950 leading-none">{settings.restaurantName.toUpperCase()}</h1>
             <div className="flex items-center gap-4">
