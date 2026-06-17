@@ -38,7 +38,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     return `${d.getFullYear()}-${mm}`;
   });
-  const [selectedDept, setSelectedDept] = useState<string>('Geral');
+  const [selectedDept, setSelectedDept] = useState<string>('Pessoas');
 
   // Currently loaded checklist answers
   const [currentAnswers, setCurrentAnswers] = useState<{[taskId: string]: {
@@ -55,7 +55,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
   // Admin Task form states
   const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskDept, setNewTaskDept] = useState('Qualidade');
+  const [newTaskDept, setNewTaskDept] = useState('Pessoas');
   const [newTaskTargetManager, setNewTaskTargetManager] = useState<string>('all'); // 'all' or manager's employeeID
 
   // Active print overlay selection
@@ -63,10 +63,10 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
   // --- DERIVED DATA ---
   const managers = useMemo(() => {
-    return employees.filter(e => e.role?.toUpperCase() === 'GERENTE' && e.isActive);
+    return employees.filter(e => (e.role?.toUpperCase() === 'GERENTE' || e.role?.toUpperCase() === 'GERENTE_RESTAURANTE') && e.isActive);
   }, [employees]);
 
-  const departments = ['Geral', 'Qualidade', 'Higiene', 'Segurança', 'Financeiro', 'Recursos Humanos'];
+  const departments = ['Pessoas', 'Qualidade', 'Manutenção', 'Serviço', 'Financeiro', 'Diversos'];
 
   // Initialize selected manager to the first manager in the list
   useEffect(() => {
@@ -428,27 +428,28 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
         </div>
 
         {/* GERENTE TAB CLUSTER */}
-        <div className="flex flex-wrap bg-[#F1F5F9] p-1.5 rounded-2xl self-start md:self-center border border-slate-200 shadow-inner gap-1 max-w-full">
-          {managers.map(mgr => {
-            const isSelected = selectedManagerId === mgr.id && activeSubTab === 'checklist';
-            return (
-              <button 
-                key={mgr.id}
-                onClick={() => {
-                  setSelectedManagerId(mgr.id);
-                  onTabChange('checklist');
-                }}
-                className={`px-4 py-2.5 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 ${
-                  isSelected 
-                    ? 'bg-[#2c532c] text-white shadow-md border-[3px] border-blue-500' 
-                    : 'text-slate-650 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                {mgr.name}
-              </button>
-            );
-          })}
-        </div>
+        {activeSubTab === 'checklist' && (
+          <div className="flex flex-wrap bg-[#F1F5F9] p-1 rounded-xl self-start md:self-center border border-slate-200 shadow-inner gap-1 max-w-full">
+            {managers.map(mgr => {
+              const isSelected = selectedManagerId === mgr.id;
+              return (
+                <button 
+                  key={mgr.id}
+                  onClick={() => {
+                    setSelectedManagerId(mgr.id);
+                  }}
+                  className={`px-3 py-1.5 font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all duration-200 ${
+                    isSelected 
+                      ? 'bg-[#2c532c] text-white shadow shadow-blue-500/50 border-2 border-blue-500' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  {mgr.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* --- Tab 1: ACTIVE CHECKLIST WORKSPACE --- */}
@@ -543,111 +544,94 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                 </div>
 
                 {/* MANAGER COMPLETION TOGGLE BUTTON */}
-                {!isApproved && (
-                  <div className="space-y-1">
+                <div className="space-y-1">
+                  {(isApproved || isCompleted) ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsCompleted(!isCompleted);
-                      }}
-                      className={`w-full py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
-                        isCompleted
-                          ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200'
-                          : 'bg-[#2c532c] hover:bg-emerald-950 text-white shadow-sm'
-                      }`}
-                    >
-                      {isCompleted ? (
-                        <>
-                          <Clock size={14} />
-                          Reabrir Checklist
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={14} />
-                          Finalizar Checklist
-                        </>
-                      )}
-                    </button>
-                    <p className="text-[9px] text-gray-400 text-center leading-tight">
-                      {isCompleted 
-                        ? "Recoloca o estado 'Em aberto' para fazer alterações." 
-                        : "Marca como 'Concluída' para que o responsável a possa validar."}
-                    </p>
-                  </div>
-                )}
+                      onClick={async () => {
+                        setIsCompleted(false);
+                        setIsApproved(false);
+                        setApprovedDetails({});
 
-                {/* VALIDATOR DROP LIST */}
-                <div className="pt-2 border-t border-slate-100">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Responsável pela Validação</label>
-                  <div className="relative">
-                    <UserCheck size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold" />
-                    <select
-                      id="checklist_select_validator"
-                      value={approvedDetails.by || ''}
-                      onChange={async (e) => {
-                        const valName = e.target.value;
-                        if (!valName) {
-                          // Un-approve
-                          setIsApproved(false);
-                          setApprovedDetails({});
-                          const updated = checklists.map(c => {
-                            if (c.id === activeComputedId) {
-                              return { ...c, isApproved: false, approvedBy: undefined, approvedAt: undefined };
-                            }
-                            return c;
-                          });
-                          setChecklists(updated);
-                          await saveManagerChecklists(restaurantId, updated);
+                        const mName = employees.find(e => e.id === selectedManagerId)?.name || 'Gerente';
+                        const checklistObj: ManagerTaskChecklist = {
+                          id: activeComputedId,
+                          restaurantId,
+                          managerId: selectedManagerId,
+                          managerName: mName,
+                          department: selectedDept,
+                          monthYear: selectedMonth,
+                          taskAnswers: currentAnswers,
+                          comments: currentComments,
+                          notes: currentNotes,
+                          isCompleted: false,
+                          isApproved: false,
+                          approvedBy: undefined,
+                          approvedAt: undefined
+                        };
+                        let updatedChecklists = [...checklists];
+                        const existsIdx = updatedChecklists.findIndex(c => c.id === activeComputedId);
+                        if (existsIdx >= 0) {
+                          updatedChecklists[existsIdx] = checklistObj;
                         } else {
-                          // Approve
-                          const nowStr = new Date().toISOString();
-                          setIsApproved(true);
-                          setApprovedDetails({ by: valName, at: nowStr });
-                          setIsCompleted(true);
-                          
-                          const mName = employees.find(emp => emp.id === selectedManagerId)?.name || 'Gerente';
-                          const checklistObj: ManagerTaskChecklist = {
-                            id: activeComputedId,
-                            restaurantId,
-                            managerId: selectedManagerId,
-                            managerName: mName,
-                            department: selectedDept,
-                            monthYear: selectedMonth,
-                            taskAnswers: currentAnswers,
-                            comments: currentComments,
-                            notes: currentNotes,
-                            isCompleted: true,
-                            isApproved: true,
-                            approvedBy: valName,
-                            approvedAt: nowStr
-                          };
-                          
-                          let updatedChecklists = [...checklists];
-                          const existsIdx = updatedChecklists.findIndex(c => c.id === activeComputedId);
-                          if (existsIdx >= 0) {
-                            updatedChecklists[existsIdx] = checklistObj;
-                          } else {
-                            updatedChecklists.push(checklistObj);
-                          }
-                          setChecklists(updatedChecklists);
-                          await saveManagerChecklists(restaurantId, updatedChecklists);
+                          updatedChecklists.push(checklistObj);
                         }
+                        setChecklists(updatedChecklists);
+                        await saveManagerChecklists(restaurantId, updatedChecklists);
                       }}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-1 focus:ring-[#2c532c]"
+                      className="w-full py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200"
                     >
-                      <option value="">— Sem Validação —</option>
-                      {managers.map(e => (
-                        <option key={e.id} value={e.name}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                      <Clock size={14} />
+                      Reabrir Checklist
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsCompleted(true);
+
+                        const mName = employees.find(e => e.id === selectedManagerId)?.name || 'Gerente';
+                        const checklistObj: ManagerTaskChecklist = {
+                          id: activeComputedId,
+                          restaurantId,
+                          managerId: selectedManagerId,
+                          managerName: mName,
+                          department: selectedDept,
+                          monthYear: selectedMonth,
+                          taskAnswers: currentAnswers,
+                          comments: currentComments,
+                          notes: currentNotes,
+                          isCompleted: true,
+                          isApproved: false
+                        };
+                        let updatedChecklists = [...checklists];
+                        const existsIdx = updatedChecklists.findIndex(c => c.id === activeComputedId);
+                        if (existsIdx >= 0) {
+                          updatedChecklists[existsIdx] = checklistObj;
+                        } else {
+                          updatedChecklists.push(checklistObj);
+                        }
+                        setChecklists(updatedChecklists);
+                        await saveManagerChecklists(restaurantId, updatedChecklists);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer bg-[#2c532c] hover:bg-emerald-950 text-white shadow-sm"
+                    >
+                      <CheckCircle size={14} />
+                      Finalizar Checklist
+                    </button>
+                  )}
+                  <p className="text-[9px] text-gray-400 text-center leading-tight">
+                    {(isApproved || isCompleted)
+                      ? "Recoloca o estado 'Em aberto' para fazer alterações." 
+                      : "Marca como 'Concluída' para que o responsável a possa validar."}
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Quick Metrics of Active Sheet */}
             <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-sm">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2c532c]">Cumprimento Desta Folha</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2c532c]">Cumprimento</h3>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-slate-900 tracking-tight">{activeMetrics.percent}%</span>
                 <span className="text-xs font-medium text-gray-500">({activeMetrics.checked} de {activeMetrics.total} registos)</span>
@@ -712,14 +696,14 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
             <div id="physical_mcd_checklist" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md flex flex-col space-y-6 print:border-none print:shadow-none print:p-0">
               
               {/* Checklist Logo Header */}
-              <div className="border border-slate-900 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-14 h-14 bg-amber-500 rounded-lg flex items-center justify-center p-1 font-black text-white text-3xl">
+              <div className="border border-slate-900 p-6 flex flex-col items-center justify-center text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-14 h-14 bg-amber-500 rounded-xl flex items-center justify-center p-1 font-black text-white text-3xl shadow-sm">
                     M
                   </div>
-                  <div>
-                    <span className="block text-[10px] font-black tracking-widest text-[#2c532c] uppercase">VIA CATARINA</span>
-                    <h2 className="text-2xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Lista de Tarefas</h2>
+                  <div className="mt-1">
+                    <span className="block text-[10px] font-black tracking-widest text-[#2c532c] uppercase">{settings.restaurantName ? settings.restaurantName.toUpperCase() : 'VIA CATARINA'}</span>
+                    <h2 className="text-2xl font-black uppercase text-slate-950 tracking-tight leading-none mt-1">Lista de Tarefas</h2>
                   </div>
                 </div>
               </div>
@@ -877,7 +861,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                   />
                 </div>
                 
-                <div className="border border-slate-800 p-3 bg-white rounded space-y-2.5 flex flex-col justify-between h-24 self-end">
+                <div className="border border-slate-800 p-3 bg-white rounded space-y-1.5 flex flex-col justify-between h-24 w-48 self-end">
                   <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">VALIDADO POR</span>
                   {isApproved ? (
                     <div>
@@ -887,7 +871,54 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <span className="text-[10px] text-gray-300 italic font-medium">Aguardando assinatura</span>
+                    <div>
+                      <select
+                        id="checklist_select_validator_inline"
+                        value=""
+                        onChange={async (e) => {
+                          const valName = e.target.value;
+                          if (!valName) return;
+
+                          const nowStr = new Date().toISOString();
+                          setIsApproved(true);
+                          setApprovedDetails({ by: valName, at: nowStr });
+                          setIsCompleted(true);
+
+                          const mName = employees.find(emp => emp.id === selectedManagerId)?.name || 'Gerente';
+                          const checklistObj: ManagerTaskChecklist = {
+                            id: activeComputedId,
+                            restaurantId,
+                            managerId: selectedManagerId,
+                            managerName: mName,
+                            department: selectedDept,
+                            monthYear: selectedMonth,
+                            taskAnswers: currentAnswers,
+                            comments: currentComments,
+                            notes: currentNotes,
+                            isCompleted: true,
+                            isApproved: true,
+                            approvedBy: valName,
+                            approvedAt: nowStr
+                          };
+
+                          let updatedChecklists = [...checklists];
+                          const existsIdx = updatedChecklists.findIndex(c => c.id === activeComputedId);
+                          if (existsIdx >= 0) {
+                            updatedChecklists[existsIdx] = checklistObj;
+                          } else {
+                            updatedChecklists.push(checklistObj);
+                          }
+                          setChecklists(updatedChecklists);
+                          await saveManagerChecklists(restaurantId, updatedChecklists);
+                        }}
+                        className="w-full text-[10px] font-bold p-1 bg-slate-50 border border-slate-300 rounded focus:ring-1 focus:ring-slate-900 focus:outline-none"
+                      >
+                        <option value="">— Validar —</option>
+                        {managers.map(e => (
+                          <option key={e.id} value={e.name}>{e.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1121,22 +1152,6 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Gerente Designado</label>
-              <select
-                id="admin_new_task_target_manager"
-                value={newTaskTargetManager}
-                onChange={(e) => setNewTaskTargetManager(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800"
-              >
-                <option value="all">TODOS OS GERENTES (GERAL)</option>
-                {managers.map(m => (
-                  <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>
-                ))}
-              </select>
-              <p className="text-[9px] text-gray-400 mt-1">Pode associar especificamente ou deixar disponível para todos cobrirem.</p>
-            </div>
-
             <button
               id="admin_action_add_task"
               onClick={handleAddTask}
@@ -1158,27 +1173,20 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-150 font-black uppercase text-slate-600 tracking-wider">
-                    <th className="px-5 py-3 w-[50%]">Item Operacional</th>
+                    <th className="px-5 py-3 w-[65%]">Item Operacional</th>
                     <th className="px-5 py-3">Mesa / Depto</th>
-                    <th className="px-5 py-3">Associação</th>
                     <th className="px-5 py-3 text-right">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                   {tasks.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-5 py-12 text-center text-slate-400 italic">
+                      <td colSpan={3} className="px-5 py-12 text-center text-slate-400 italic">
                         Nenhuma tarefa registada no sistema. Introduza itens no formulário ao lado.
                       </td>
                     </tr>
                   ) : (
                     tasks.map((t, idx) => {
-                      const mIds = (t as any).managerIds || [];
-                      const isAssignedSpecific = mIds.length > 0;
-                      const specificManagerName = isAssignedSpecific 
-                        ? (employees.find(e => e.id === mIds[0])?.name || 'Gerente Excluído')
-                        : 'Qualquer Gerente';
-
                       return (
                         <tr key={t.id} className="hover:bg-slate-50/50 transition-all">
                           <td className="px-5 py-4 font-bold text-slate-900 leading-normal">
@@ -1188,15 +1196,6 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                           <td className="px-5 py-4">
                             <span className="px-2 py-0.5 bg-blue-50 text-blue-800 text-[10px] font-black uppercase tracking-wider rounded">
                               {t.department}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded ${
-                              isAssignedSpecific 
-                                ? 'bg-amber-100 text-amber-800' 
-                                : 'bg-emerald-50 text-emerald-800'
-                            }`}>
-                              {specificManagerName}
                             </span>
                           </td>
                           <td className="px-5 py-4 text-right">
@@ -1223,14 +1222,14 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
       {printChecklist && (
         <div className="hidden print:block absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-6 space-y-6 z-[99999] print-landscape">
           {/* Main header block */}
-          <div className="border border-slate-900 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
+          <div className="border border-slate-900 p-6 flex flex-col items-center justify-center text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="w-12 h-12 bg-amber-500 rounded flex items-center justify-center font-black text-white text-2xl">
                 M
               </div>
-              <div>
+              <div className="mt-1">
                 <span className="block text-[8px] font-black tracking-widest text-[#2c532c] uppercase">{settings.restaurantName.toUpperCase()}</span>
-                <h2 className="text-xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Lista de Tarefas</h2>
+                <h2 className="text-xl font-black uppercase text-slate-950 tracking-tight leading-none mt-1">Lista de Tarefas</h2>
               </div>
             </div>
           </div>

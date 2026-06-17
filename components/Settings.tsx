@@ -234,40 +234,85 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
         )}
 
         {activeTab === 'staff' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 animate-fade-in mb-12">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-black text-gray-800">Equipa Registada</h3>
-              <button onClick={() => setEmployees(prev => [...prev, {id: crypto.randomUUID(), name: 'Novo Colaborador', role: 'FUNCIONÁRIO', isActive: true}])} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md">+ Adicionar</button>
+              <div>
+                <h3 className="text-xl font-black text-gray-800">Equipa Registada</h3>
+                <p className="text-xs text-gray-400 mt-1">Gerencie a lista única de colaboradores da sua unidade.</p>
+              </div>
+              <button onClick={() => setEmployees(prev => [...prev, {id: crypto.randomUUID(), name: 'Novo Colaborador', role: 'FUNCIONÁRIO', isActive: true, mecanografico: ''}])} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2 text-sm">+ Adicionar Colaborador</button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedEmployeeIds.map(id => {
-                const emp = employees.find(e => e.id === id);
-                if (!emp) return null;
-                return (
-                  <div key={emp.id} className="bg-white p-4 rounded-2xl border border-gray-200 flex justify-between items-center hover:shadow-md transition-all group">
-                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-50 rounded-xl text-gray-400"><Users size={24} /></div>
-                        <div>
+            
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-wider">
+                    <th className="p-3 w-32">Nº Mecanográfico</th>
+                    <th className="p-3">Nome do Colaborador</th>
+                    <th className="p-3 w-64">Cargo</th>
+                    <th className="p-3 w-16 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {sortedEmployeeIds.map(id => {
+                    const emp = employees.find(e => e.id === id);
+                    if (!emp) return null;
+                    return (
+                      <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="p-3">
                           <input 
-                            value={emp.name} 
-                            onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, name: e.target.value} : ev))} 
+                            type="text"
+                            placeholder="Nº"
+                            value={emp.mecanografico || ''} 
+                            onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, mecanografico: e.target.value} : ev))}
                             onBlur={() => setRenderTrigger(prev => prev + 1)}
-                            className="font-bold text-gray-800 bg-white border border-gray-300 rounded p-1 focus:ring-2 focus:ring-blue-500 w-full" 
+                            className="w-full font-mono font-bold text-slate-705 bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none"
                           />
+                        </td>
+                        <td className="p-3">
+                          <input 
+                            type="text"
+                            value={emp.name} 
+                            onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, name: e.target.value} : ev))}
+                            onBlur={() => setRenderTrigger(prev => prev + 1)}
+                            className="w-full font-bold text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none"
+                          />
+                        </td>
+                        <td className="p-3">
                           <select 
                             value={emp.role} 
-                            onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, role: e.target.value as RoleType} : ev))} 
+                            onChange={e => setEmployees(prev => prev.map(ev => ev.id === emp.id ? {...ev, role: e.target.value as RoleType} : ev))}
                             onBlur={() => setRenderTrigger(prev => prev + 1)}
-                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border bg-transparent mt-1 ${ROLE_COLORS[emp.role]}`}
+                            className={`w-full font-bold text-xs px-2.5 py-1.5 rounded-lg border bg-white focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 ${ROLE_COLORS[emp.role]} bg-opacity-5`}
                           >
-                            {Object.entries(ROLE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                            {Object.entries(ROLE_LABELS).map(([k, l]) => (
+                              <option key={k} value={k}>{l}</option>
+                            ))}
                           </select>
-                        </div>
-                     </div>
-                     <button onClick={() => setEmployees(prev => prev.filter(ev => ev.id !== emp.id))} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={18} /></button>
-                  </div>
-                );
-              })}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button 
+                            onClick={() => {
+                              if (confirm(`Tem a certeza que deseja eliminar ${emp.name}?`)) {
+                                setEmployees(prev => prev.filter(ev => ev.id !== emp.id));
+                              }
+                            }} 
+                            className="text-slate-300 hover:text-red-500 p-1.5 hover:bg-slate-100 rounded-lg transition-all"
+                            title="Eliminar Colaborador"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {sortedEmployeeIds.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-slate-400 font-bold">Nenhum colaborador registado. Clique em Adicionar.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

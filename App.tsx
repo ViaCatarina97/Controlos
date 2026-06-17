@@ -602,9 +602,6 @@ const App: React.FC = () => {
 
           {activeModule === 'manager_tasks' && (
             <>
-              <div className="px-3 py-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                Mesa de Trabalho
-              </div>
               <button 
                 onClick={() => setActiveTab('checklist')} 
                 className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'checklist' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}

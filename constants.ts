@@ -89,13 +89,15 @@ export const AVAILABLE_SHIFTS: { id: ShiftType; label: string }[] = [
 ];
 
 export const ROLE_LABELS: Record<RoleType, string> = {
+  GERENTE_RESTAURANTE: "Gerente de Restaurante",
   GERENTE: "Gerente",
   TREINADOR: "Treinador",
-  RP: "Relações Públicas",
+  RP: "RP",
   FUNCIONÁRIO: "Funcionário"
 };
 
 export const ROLE_COLORS: Record<RoleType, string> = {
+  GERENTE_RESTAURANTE: "bg-indigo-100 text-indigo-800 border-indigo-200 ring-indigo-500",
   GERENTE: "bg-blue-100 text-blue-800 border-blue-200 ring-blue-500",
   TREINADOR: "bg-green-100 text-green-800 border-green-200 ring-green-500",
   RP: "bg-pink-100 text-pink-800 border-pink-200 ring-pink-500",
