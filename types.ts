@@ -231,6 +231,7 @@ export interface CofreCount {
   observacoes?: string;
   isLocked?: boolean;
   isDayClosed?: boolean;
+  isRealCount?: boolean;
 }
 
 export interface DepositRow {

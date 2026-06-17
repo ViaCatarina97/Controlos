@@ -226,6 +226,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [slotCoinId, setSlotCoinId] = useState<string>('');
   const [slotIsCustomCoin, setSlotIsCustomCoin] = useState<boolean>(false);
 
+  // States for Deleting a Day's Safe count (Cofre Count)
+  const [deleteDayModalOpen, setDeleteDayModalOpen] = useState<boolean>(false);
+  const [deleteDayTargetDate, setDeleteDayTargetDate] = useState<string | null>(null);
+  const [deleteDayPassword, setDeleteDayPassword] = useState<string>('');
+  const [deleteDayManager, setDeleteDayManager] = useState<string>('');
+  const [deleteDayTargetObj, setDeleteDayTargetObj] = useState<any>(null);
+
   useEffect(() => {
     if (!weeklySlotEditor) {
       setSlotValue('');
@@ -430,6 +437,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     // Process cofre counts
     cofreCounts.forEach(count => {
+      if (count.isRealCount === false) {
+        return;
+      }
       if (!groups[count.date]) {
         groups[count.date] = {
           date: count.date,
@@ -666,6 +676,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     const updatedCount: CofreCount = {
       ...editingCofre,
+      isRealCount: true,
       fundosCount: Number(editingCofre.fundosCount),
       fundosValuePerFundo: Number(editingCofre.fundosValuePerFundo),
       fundosTotal: fundosTotalVal,
@@ -734,6 +745,50 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  const handleTriggerDeleteDayModal = (day: any) => {
+    setDeleteDayTargetDate(day.date);
+    setDeleteDayTargetObj(day);
+    setDeleteDayPassword('');
+    setDeleteDayManager('');
+    setDeleteDayModalOpen(true);
+  };
+
+  const handleConfirmDeleteDayCounts = async () => {
+    if (!deleteDayTargetDate || !deleteDayTargetObj) return;
+
+    if (deleteDayPassword !== 'Imperial96') {
+      alert("Password geral incorreta. Não tem permissão para eliminar.");
+      return;
+    }
+
+    if (!deleteDayManager.trim()) {
+      alert("O nome do gerente que está a apagar as contagens é obrigatório.");
+      return;
+    }
+
+    setIsLoading(true);
+    setDeleteDayModalOpen(false);
+    try {
+      const deletePromises: Promise<any>[] = [];
+      const day = deleteDayTargetObj;
+      if (day.abertura) deletePromises.push(deleteCofreCount(restaurantId, day.abertura.id));
+      if (day.tarde) deletePromises.push(deleteCofreCount(restaurantId, day.tarde.id));
+      if (day.fecho) deletePromises.push(deleteCofreCount(restaurantId, day.fecho.id));
+
+      await Promise.all(deletePromises);
+      alert(`Contagens do dia ${formatDateToDMY(deleteDayTargetDate)} eliminadas com sucesso pelo gerente ${deleteDayManager.trim()}.`);
+      
+      setDeleteDayTargetDate(null);
+      setDeleteDayTargetObj(null);
+      await loadData();
+    } catch (e) {
+      console.error("Erro ao eliminar contagens do dia:", e);
+      alert("Erro ao eliminar contagens.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -810,7 +865,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           diferenca: 1000 - (fundosTotalVal + amt),
           observacoes: '',
           isLocked: false,
-          isDayClosed: false
+          isDayClosed: false,
+          isRealCount: false
         };
         updatedCount.fundoGerente = calculatePartTotals(updatedCount.fundoGerente);
         updatedCount.cofre = calculatePartTotals(updatedCount.cofre);
@@ -2139,8 +2195,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               const totDelivery = getDepositRecordFieldTotal(editingDeposit, 'delivery');
               const totMOP = getDepositRecordFieldTotal(editingDeposit, 'mop');
 
+              const dayInvoicesTotal = cofreCounts
+                .filter(c => c.date === editingDeposit.date)
+                .reduce((sum, c) => {
+                  return sum + (c.invoices || []).filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
+                }, 0);
+
               const cashTotalVal = totDinheiro + totSangria;
-              const grandTotalVal = cashTotalVal + totMultibanco + totTickets + totDelivery + totMOP;
+              const grandTotalVal = cashTotalVal + totMultibanco + totTickets + totDelivery + totMOP + dayInvoicesTotal;
 
               const cardClass = (val: number) => 
                 val > 0 
@@ -2152,7 +2214,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <h4 className="text-[10px] font-black text-amber-900 uppercase tracking-widest border-b border-slate-100 pb-2">
                     Resumo da Folha de Depósito
                   </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
                     {/* Dinheiro Card */}
                     <div className={cardClass(cashTotalVal)}>
                       <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Dinheiro</span>
@@ -2181,6 +2243,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <div className={cardClass(totMOP)}>
                       <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">MOP</span>
                       <span className={`block font-mono font-black text-sm mt-1 ${totMOP > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totMOP)}</span>
+                    </div>
+
+                    {/* Faturas Card */}
+                    <div className={cardClass(dayInvoicesTotal)}>
+                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Faturas</span>
+                      <span className={`block font-mono font-black text-sm mt-1 ${dayInvoicesTotal > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(dayInvoicesTotal)}</span>
                     </div>
 
                     {/* Total Card */}
@@ -2545,7 +2613,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             </div>
 
                             {/* Close Day Action Column */}
-                            <div className="lg:col-span-3 lg:text-right">
+                            <div className="lg:col-span-3 lg:text-right flex flex-col gap-2 justify-center">
                               {allThreeDone ? (
                                 <button
                                   onClick={() => handleCloseDay(day.date)}
@@ -2554,17 +2622,29 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   🔒 Encerrar Dia
                                 </button>
                               ) : (
-                                <div className="text-center lg:text-right">
+                                <div className="text-center lg:text-right w-full">
                                   <button
                                     disabled
                                     className="w-full bg-gray-100 border text-gray-400 font-extrabold text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl cursor-not-allowed"
                                   >
                                     Encerrar Dia
                                   </button>
-                                  <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 block">
-                                    {!hasAbertura || !hasTarde || !hasFecho ? '' : 'Falta validar turnos'}
-                                  </span>
+                                  {(!hasAbertura || !hasTarde || !hasFecho) && (
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 block text-center lg:text-right">
+                                      {!hasAbertura || !hasTarde || !hasFecho ? '' : 'Falta validar turnos'}
+                                    </span>
+                                  )}
                                 </div>
+                              )}
+
+                              {(hasAbertura || hasTarde || hasFecho) && (
+                                <button
+                                  onClick={() => handleTriggerDeleteDayModal(day)}
+                                  className="w-full flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 font-bold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-xl transition-all"
+                                  title="Eliminar as contagens deste dia"
+                                >
+                                  <Trash2 size={12} /> Eliminar Dia
+                                </button>
                               )}
                             </div>
 
@@ -2671,22 +2751,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       </button>
                                       
                                       <button
-                                        onClick={async () => {
-                                          if (confirm(`Pretende eliminar todo o histórico de contagens do dia ${day.date}? Esta ação é irreversível.`)) {
-                                            try {
-                                              const deletePromises: Promise<any>[] = [];
-                                              if (day.abertura) deletePromises.push(deleteCofreCount(restaurantId, day.abertura.id));
-                                              if (day.tarde) deletePromises.push(deleteCofreCount(restaurantId, day.tarde.id));
-                                              if (day.fecho) deletePromises.push(deleteCofreCount(restaurantId, day.fecho.id));
-                                              
-                                              await Promise.all(deletePromises);
-                                              alert("Histórico do dia removido com sucesso.");
-                                              await loadData();
-                                            } catch (e) {
-                                              console.error("Erro deletando dia:", e);
-                                            }
-                                          }
-                                        }}
+                                        onClick={() => handleTriggerDeleteDayModal(day)}
                                         className="p-1 text-red-400 hover:text-red-600 rounded"
                                         title="Apagar Dia Completo"
                                       >
@@ -4426,6 +4491,89 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <div className="text-[7px] text-slate-400 italic uppercase tracking-wider mt-4">
                   Para Uso Exclusivo do Banco
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Day Secure Modal */}
+      {deleteDayModalOpen && deleteDayTargetDate && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in print:hidden">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-scale-in">
+            <div className="p-5 bg-red-650 text-white flex justify-between items-center">
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-widest text-red-200">Segurança de Dados</span>
+                <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Eliminar Dia de Contagem</h3>
+              </div>
+              <button 
+                onClick={() => setDeleteDayModalOpen(false)}
+                className="text-white hover:text-red-200 transition-all text-xs font-black uppercase p-1.5 focus:outline-none"
+              >
+                ✖️
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex gap-3 items-start font-sans">
+                <span className="text-xl mt-0.5">⚠️</span>
+                <div className="text-xs">
+                  <p className="font-black text-red-900 uppercase">Aviso de Operação Irreversível</p>
+                  <p className="text-red-700 mt-1 font-semibold leading-normal">
+                    Pretende apagar de forma definitiva todas as contagens iniciadas para o dia <span className="underline font-black">{formatDateToDMY(deleteDayTargetDate)}</span>. Todos os turnos e rascunhos de cofre salvos nesta data serão destruídos e não podem ser restaurados.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Nome do Gerente */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                    Nome do Gerente que apaga
+                  </label>
+                  <input 
+                    type="text"
+                    required
+                    maxLength={100}
+                    placeholder="Ex: João Silva"
+                    value={deleteDayManager}
+                    onChange={(e) => setDeleteDayManager(e.target.value)}
+                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
+                  />
+                </div>
+
+                {/* Password Geral */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                    Password Geral de Eliminação
+                  </label>
+                  <input 
+                    type="password"
+                    required
+                    placeholder="Introduza a password..."
+                    value={deleteDayPassword}
+                    onChange={(e) => setDeleteDayPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteDayModalOpen(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-50 transition-all bg-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteDayCounts}
+                  className="flex-1 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-100"
+                >
+                  Confirmar
+                </button>
               </div>
             </div>
           </div>
