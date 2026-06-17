@@ -9,6 +9,7 @@ import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
 import { Positioning } from './components/Positioning';
 import { FinanceControl } from './components/FinanceControl';
+import { ManagerTasks } from './components/ManagerTasks';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
 import { 
@@ -21,10 +22,10 @@ import {
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
   CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw,
-  Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard
+  Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard, ClipboardCheck
 } from 'lucide-react';
 
-type ModuleType = 'positioning' | 'finance' | 'billing';
+type ModuleType = 'positioning' | 'finance' | 'billing' | 'manager_tasks';
 
 const ADMIN_PASSWORD = 'Imperial96';
 
@@ -232,6 +233,7 @@ const App: React.FC = () => {
     if (module === 'positioning') setActiveTab('positioning');
     else if (module === 'billing') setActiveTab('deliveries');
     else if (module === 'finance') setActiveTab('cofre');
+    else if (module === 'manager_tasks') setActiveTab('checklist');
   };
 
   const handleSaveRestaurantSettings = (updated: AppSettings) => {
@@ -597,6 +599,32 @@ const App: React.FC = () => {
               </button>
             </>
           )}
+
+          {activeModule === 'manager_tasks' && (
+            <>
+              <div className="px-3 py-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Mesa de Trabalho
+              </div>
+              <button 
+                onClick={() => setActiveTab('checklist')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'checklist' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <ClipboardCheck size={20} /> {sidebarOpen && <span>Checklist Ativa</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('history')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'history' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <TrendingUp size={20} /> {sidebarOpen && <span>Dashboard e Resumo</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('admin')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'admin' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <FileText size={20} /> {sidebarOpen && <span>Gestão de Tarefas</span>}
+              </button>
+            </>
+          )}
         </nav>
         <div className="p-4 border-t border-slate-700">
              <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400 transition-colors"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
@@ -609,6 +637,7 @@ const App: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
             {activeModule === 'billing' ? 'Controlo de Faturação' : 
              activeModule === 'finance' ? 'Controlo Financeiro' :
+             activeModule === 'manager_tasks' ? 'Tarefas de Gerentes' :
              'Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
@@ -760,6 +789,16 @@ const App: React.FC = () => {
                 />
               )}
             </>
+          )}
+
+          {activeModule === 'manager_tasks' && (['checklist', 'history', 'admin'].includes(activeTab)) && (
+            <ManagerTasks 
+              restaurantId={activeRestaurant.restaurantId} 
+              employees={currentEmployees}
+              settings={activeRestaurant}
+              activeSubTab={activeTab as any}
+              onTabChange={setActiveTab}
+            />
           )}
         </div>
       </main>

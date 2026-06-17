@@ -345,3 +345,35 @@ export interface ProsegurCoinMovement {
   isClosed?: boolean;
 }
 
+// --- MANAGER WORK & TASK CHECKLISTS ---
+export interface ManagerTask {
+  id: string;
+  name: string;
+  department: string; // e.g. "Qualidade", "Higiene", "Segurança", "Financeiro", "Recursos Humanos" or custom text
+}
+
+export interface ManagerTaskChecklist {
+  id: string;               // Unique checklist ID, e.g., "checklist_{restaurantId}_{managerId}_{monthYear}"
+  restaurantId: string;
+  managerId: string;        // The ID of the manager
+  managerName: string;
+  department: string;       // The department or category
+  monthYear: string;        // format "YYYY-MM"
+  taskAnswers: {
+    [taskId: string]: {
+      week1?: boolean;
+      week2?: boolean;
+      week3?: boolean;
+      week4?: boolean;
+      month?: boolean;
+    };
+  };
+  comments?: string;
+  notes?: string;           // Note input or custom mark score
+  isCompleted?: boolean;    // Marked as completed by the manager
+  isApproved?: boolean;     // Validated/Approved by the supervisor
+  approvedBy?: string;      // Name of the person who validated
+  approvedAt?: string;      // ISO string
+}
+
+

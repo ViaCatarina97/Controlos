@@ -750,11 +750,20 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const totalVisibleStations = filteredStations.length;
   const shiftManagerName = useMemo(() => {
-      const id = schedule.shiftManagers?.[selectedShift];
-      const emp = employees.find(e => e.id === id);
+      const leaderId = schedule.shiftManagers?.[selectedShift]?.leader;
+      const emp = employees.find(e => e.id === leaderId);
       if (!emp) return '-';
       const parts = emp.name.split(' ');
-      return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+      const leaderName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+      
+      const supportId = schedule.shiftManagers?.[selectedShift]?.support;
+      const supportEmp = supportId ? employees.find(e => e.id === supportId) : null;
+      if (supportEmp) {
+        const sParts = supportEmp.name.split(' ');
+        const supportName = sParts.length > 1 ? `${sParts[0]} ${sParts[sParts.length - 1]}` : sParts[0];
+        return `${leaderName} / ${supportName}`;
+      }
+      return leaderName;
   }, [schedule.shiftManagers, selectedShift, employees]);
 
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);

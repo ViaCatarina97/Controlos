@@ -8,7 +8,8 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { 
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
-  CofreCount, DepositRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement
+  CofreCount, DepositRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
+  ManagerTask, ManagerTaskChecklist
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1156,4 +1157,136 @@ export async function deleteProsegurCoinMovement(restaurantId: string, id: strin
     path
   );
 }
+
+// --- MANAGER TASKS ---
+export async function getManagerTasks(restaurantId: string): Promise<ManagerTask[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/manager_tasks`;
+  return runFirestoreOp<ManagerTask[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'manager_tasks');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as ManagerTask);
+      localStorage.setItem(`app_manager_tasks_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_manager_tasks_${restaurantId}_synced`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_manager_tasks_${restaurantId}`);
+      if (saved) return JSON.parse(saved);
+      // default tasks if empty
+      const defaults: ManagerTask[] = [
+        { id: 't1', name: 'Controlo de Temperaturas (Arrefecimento/Aquecimento)', department: 'Qualidade' },
+        { id: 't2', name: 'Calibração de Sondas de Temperatura', department: 'Qualidade' },
+        { id: 't3', name: 'Preenchimento do Registo de Limpeza da Cozinha', department: 'Higiene' },
+        { id: 't4', name: 'Verificação diária do Óleo das Fritadeiras', department: 'Higiene' },
+        { id: 't5', name: 'Inventário de Fardas e Equipamento de Proteção', department: 'Recursos Humanos' },
+        { id: 't6', name: 'Controlo de Prazos de Validade (Mercadoria)', department: 'Qualidade' },
+        { id: 't7', name: 'Verificação do Sistema de Incêndio e Extintores', department: 'Segurança' },
+        { id: 't8', name: 'Leitura e Fecho de Caixas Diário', department: 'Financeiro' },
+      ];
+      localStorage.setItem(`app_manager_tasks_${restaurantId}`, JSON.stringify(defaults));
+      return defaults;
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveManagerTasks(restaurantId: string, tasks: ManagerTask[]): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/manager_tasks`;
+  const saved = localStorage.getItem(`app_manager_tasks_${restaurantId}_synced`);
+  const previousList: ManagerTask[] = saved ? JSON.parse(saved) : [];
+
+  return runFirestoreWrite(
+    async () => {
+      const prevMap = new Map(previousList.map(item => [item.id, item]));
+      const nextMap = new Map(tasks.map(item => [item.id, item]));
+
+      for (const item of tasks) {
+        const prev = prevMap.get(item.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'manager_tasks', item.id);
+          await setDoc(dRef, item);
+        }
+      }
+
+      for (const idToDelete of prevMap.keys()) {
+        if (!nextMap.has(idToDelete)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'manager_tasks', idToDelete);
+          await deleteDoc(dRef);
+        }
+      }
+
+      localStorage.setItem(`app_manager_tasks_${restaurantId}`, JSON.stringify(tasks));
+      localStorage.setItem(`app_manager_tasks_${restaurantId}_synced`, JSON.stringify(tasks));
+    },
+    () => {
+      localStorage.setItem(`app_manager_tasks_${restaurantId}`, JSON.stringify(tasks));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+// --- MANAGER WORK CHECKLISTS_HISTORY ---
+export async function getManagerChecklists(restaurantId: string): Promise<ManagerTaskChecklist[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/manager_checklists`;
+  return runFirestoreOp<ManagerTaskChecklist[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'manager_checklists');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as ManagerTaskChecklist);
+      localStorage.setItem(`app_manager_checklists_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_manager_checklists_${restaurantId}_synced`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_manager_checklists_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveManagerChecklists(restaurantId: string, checklists: ManagerTaskChecklist[]): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/manager_checklists`;
+  const saved = localStorage.getItem(`app_manager_checklists_${restaurantId}_synced`);
+  const previousList: ManagerTaskChecklist[] = saved ? JSON.parse(saved) : [];
+
+  return runFirestoreWrite(
+    async () => {
+      const prevMap = new Map(previousList.map(item => [item.id, item]));
+      const nextMap = new Map(checklists.map(item => [item.id, item]));
+
+      for (const item of checklists) {
+        const prev = prevMap.get(item.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', item.id);
+          await setDoc(dRef, item);
+        }
+      }
+
+      for (const idToDelete of prevMap.keys()) {
+        if (!nextMap.has(idToDelete)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', idToDelete);
+          await deleteDoc(dRef);
+        }
+      }
+
+      localStorage.setItem(`app_manager_checklists_${restaurantId}`, JSON.stringify(checklists));
+      localStorage.setItem(`app_manager_checklists_${restaurantId}_synced`, JSON.stringify(checklists));
+    },
+    () => {
+      localStorage.setItem(`app_manager_checklists_${restaurantId}`, JSON.stringify(checklists));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
 

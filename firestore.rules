@@ -79,6 +79,16 @@ service cloud.firestore {
         allow list: if isValidId(restaurantId);
         allow get, create, update, delete: if isValidId(restaurantId) && isValidId(coinId);
       }
+
+      match /manager_tasks/{taskId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(taskId);
+      }
+
+      match /manager_checklists/{checklistId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(checklistId);
+      }
     }
   }
 }
