@@ -232,6 +232,38 @@
         "isClosed": { "type": "boolean" }
       },
       "required": ["id", "date", "type", "amount", "managerName"]
+    },
+    "ManagerTask": {
+      "title": "Manager Task",
+      "description": "Standard checklist task assigned to restaurant managers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string" }
+      },
+      "required": ["id", "name", "department"]
+    },
+    "ManagerTaskChecklist": {
+      "title": "Manager Task Checklist",
+      "description": "The monthly checklist filled by a specific manager detailing completion status of tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "managerId": { "type": "string" },
+        "managerName": { "type": "string" },
+        "department": { "type": "string" },
+        "monthYear": { "type": "string" },
+        "taskAnswers": { "type": "object" },
+        "comments": { "type": "string" },
+        "notes": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "isApproved": { "type": "boolean" },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "managerId", "managerName", "department", "monthYear"]
     }
   },
   "firestore": {
@@ -286,6 +318,14 @@
     "/restaurants/{restaurantId}/prosegur_coin_movements/{coinId}": {
       "schema": "ProsegurCoinMovement",
       "description": "Sub-collection of coins received/sent from Prosegur"
+    },
+    "/restaurants/{restaurantId}/manager_tasks/{taskId}": {
+      "schema": "ManagerTask",
+      "description": "Sub-collection of customizable manager tasks"
+    },
+    "/restaurants/{restaurantId}/manager_checklists/{checklistId}": {
+      "schema": "ManagerTaskChecklist",
+      "description": "Sub-collection of monthly manager checklists and validations"
     }
   }
 }
