@@ -749,6 +749,22 @@ export const Positioning: React.FC<PositioningProps> = ({
   }, [filteredStations]);
 
   const totalVisibleStations = filteredStations.length;
+  const shiftLeaderName = useMemo(() => {
+      const leaderId = schedule.shiftManagers?.[selectedShift]?.leader;
+      const emp = employees.find(e => e.id === leaderId);
+      if (!emp) return '-';
+      const parts = emp.name.split(' ');
+      return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+  }, [schedule.shiftManagers, selectedShift, employees]);
+
+  const shiftSupportName = useMemo(() => {
+      const supportId = schedule.shiftManagers?.[selectedShift]?.support;
+      const emp = supportId ? employees.find(e => e.id === supportId) : null;
+      if (!emp) return '-';
+      const parts = emp.name.split(' ');
+      return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+  }, [schedule.shiftManagers, selectedShift, employees]);
+
   const shiftManagerName = useMemo(() => {
       const leaderId = schedule.shiftManagers?.[selectedShift]?.leader;
       const emp = employees.find(e => e.id === leaderId);
@@ -1126,8 +1142,9 @@ export const Positioning: React.FC<PositioningProps> = ({
               <div className="bg-slate-950 text-white px-3 py-1 rounded-sm text-[13px] font-black uppercase tracking-wider leading-none">{getShiftLabel(selectedShift).toUpperCase()}</div>
             </div>
           </div>
-          <div className="grid grid-cols-6 gap-1 mb-2">
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px] col-span-1"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftManagerName}</div></div>
+          <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Turno</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftLeaderName}</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Apoio</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftSupportName}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
               <div className="bg-blue-50 border border-blue-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-blue-500 block">Sugerido</span><div className="font-black text-[14px] text-blue-900 leading-none">{requirement.count}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Real</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>

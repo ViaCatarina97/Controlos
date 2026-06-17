@@ -609,13 +609,13 @@ const App: React.FC = () => {
                 onClick={() => setActiveTab('checklist')} 
                 className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'checklist' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
               >
-                <ClipboardCheck size={20} /> {sidebarOpen && <span>Checklist Ativa</span>}
+                <ClipboardCheck size={20} /> {sidebarOpen && <span>Lista de Tarefas</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('history')} 
                 className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'history' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
               >
-                <TrendingUp size={20} /> {sidebarOpen && <span>Dashboard e Resumo</span>}
+                <TrendingUp size={20} /> {sidebarOpen && <span>Resumo</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('admin')} 

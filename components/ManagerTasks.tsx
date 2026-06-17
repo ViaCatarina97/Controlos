@@ -427,41 +427,27 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
           <p className="text-xs text-gray-500 mt-1">Checklists e acompanhamento operacional complementar de gerentes por departamento.</p>
         </div>
 
-        {/* SUB NAVIGATION TAB CLUSTER (MATCHING IMAGE SPECIFICATION) */}
-        <div className="flex bg-[#F1F5F9] p-1.5 rounded-2xl self-start md:self-center border border-slate-200 shadow-inner">
-          <button 
-            id="tab_active_checklist"
-            onClick={() => onTabChange('checklist')}
-            className={`px-5 py-2.5 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 ${
-              activeSubTab === 'checklist' 
-                ? 'bg-[#2c532c] text-white shadow-md border-[3px] border-blue-500' 
-                : 'text-slate-650 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            Checklist Ativa
-          </button>
-          <button 
-            id="tab_checklists_history"
-            onClick={() => onTabChange('history')}
-            className={`px-5 py-2.5 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 ${
-              activeSubTab === 'history' 
-                ? 'bg-[#2c532c] text-white shadow-md border-[3px] border-blue-500' 
-                : 'text-slate-650 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-          >
-            Dashboard e Resumo
-          </button>
-          <button 
-            id="tab_checklists_config"
-            onClick={() => onTabChange('admin')}
-            className={`px-5 py-2.5 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 ${
-              activeSubTab === 'admin' 
-                ? 'bg-[#2c532c] text-white shadow-md border-[3px] border-blue-500' 
-                : 'text-slate-650 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            Gestão de Tarefas
-          </button>
+        {/* GERENTE TAB CLUSTER */}
+        <div className="flex flex-wrap bg-[#F1F5F9] p-1.5 rounded-2xl self-start md:self-center border border-slate-200 shadow-inner gap-1 max-w-full">
+          {managers.map(mgr => {
+            const isSelected = selectedManagerId === mgr.id && activeSubTab === 'checklist';
+            return (
+              <button 
+                key={mgr.id}
+                onClick={() => {
+                  setSelectedManagerId(mgr.id);
+                  onTabChange('checklist');
+                }}
+                className={`px-4 py-2.5 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 ${
+                  isSelected 
+                    ? 'bg-[#2c532c] text-white shadow-md border-[3px] border-blue-500' 
+                    : 'text-slate-650 hover:text-slate-900 hover:bg-slate-200/50'
+                }`}
+              >
+                {mgr.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -589,6 +575,73 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                     </p>
                   </div>
                 )}
+
+                {/* VALIDATOR DROP LIST */}
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Responsável pela Validação</label>
+                  <div className="relative">
+                    <UserCheck size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold" />
+                    <select
+                      id="checklist_select_validator"
+                      value={approvedDetails.by || ''}
+                      onChange={async (e) => {
+                        const valName = e.target.value;
+                        if (!valName) {
+                          // Un-approve
+                          setIsApproved(false);
+                          setApprovedDetails({});
+                          const updated = checklists.map(c => {
+                            if (c.id === activeComputedId) {
+                              return { ...c, isApproved: false, approvedBy: undefined, approvedAt: undefined };
+                            }
+                            return c;
+                          });
+                          setChecklists(updated);
+                          await saveManagerChecklists(restaurantId, updated);
+                        } else {
+                          // Approve
+                          const nowStr = new Date().toISOString();
+                          setIsApproved(true);
+                          setApprovedDetails({ by: valName, at: nowStr });
+                          setIsCompleted(true);
+                          
+                          const mName = employees.find(emp => emp.id === selectedManagerId)?.name || 'Gerente';
+                          const checklistObj: ManagerTaskChecklist = {
+                            id: activeComputedId,
+                            restaurantId,
+                            managerId: selectedManagerId,
+                            managerName: mName,
+                            department: selectedDept,
+                            monthYear: selectedMonth,
+                            taskAnswers: currentAnswers,
+                            comments: currentComments,
+                            notes: currentNotes,
+                            isCompleted: true,
+                            isApproved: true,
+                            approvedBy: valName,
+                            approvedAt: nowStr
+                          };
+                          
+                          let updatedChecklists = [...checklists];
+                          const existsIdx = updatedChecklists.findIndex(c => c.id === activeComputedId);
+                          if (existsIdx >= 0) {
+                            updatedChecklists[existsIdx] = checklistObj;
+                          } else {
+                            updatedChecklists.push(checklistObj);
+                          }
+                          setChecklists(updatedChecklists);
+                          await saveManagerChecklists(restaurantId, updatedChecklists);
+                        }
+                      }}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-1 focus:ring-[#2c532c]"
+                    >
+                      <option value="">— Sem Validação —</option>
+                      {managers.map(e => (
+                        <option key={e.id} value={e.name}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -644,19 +697,6 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                 </button>
 
                 <button
-                  id="action_validate_current_checklist"
-                  onClick={handleToggleValidate}
-                  className={`px-4 py-2 font-extrabold text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isApproved 
-                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' 
-                      : 'bg-[#2c532c] hover:bg-[#234223] text-white shadow-sm'
-                  }`}
-                >
-                  <UserCheck size={14} />
-                  {isApproved ? 'Retirar Validação' : 'Validar Responsável'}
-                </button>
-
-                <button
                   id="action_save_current_checklist"
                   onClick={handleSaveChecklist}
                   disabled={isSaving}
@@ -679,25 +719,8 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                   </div>
                   <div>
                     <span className="block text-[10px] font-black tracking-widest text-[#2c532c] uppercase">VIA CATARINA</span>
-                    <h2 className="text-2xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Checklist Tarefas Secundárias</h2>
+                    <h2 className="text-2xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Lista de Tarefas</h2>
                   </div>
-                </div>
-                
-                {/* Score Note block */}
-                <div className="text-right flex flex-col items-end border-l border-slate-900 pl-6 h-full justify-center">
-                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest leading-none">NOTA / SCORE</span>
-                  <input 
-                    id="checklist_score_notes"
-                    type="text" 
-                    value={currentNotes}
-                    onChange={(e) => {
-                      if (isApproved) return;
-                      setCurrentNotes(e.target.value);
-                    }}
-                    placeholder="—"
-                    disabled={isApproved}
-                    className="mt-1 w-24 h-9 border border-slate-700 bg-slate-50 text-center font-black text-slate-900 text-sm tracking-widest rounded outline-none focus:bg-white placeholder-gray-300 disabled:opacity-80"
-                  />
                 </div>
               </div>
 
@@ -1207,14 +1230,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               </div>
               <div>
                 <span className="block text-[8px] font-black tracking-widest text-[#2c532c] uppercase">{settings.restaurantName.toUpperCase()}</span>
-                <h2 className="text-xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Checklist Tarefas Secundárias</h2>
-              </div>
-            </div>
-            
-            <div className="text-right flex flex-col items-end border-l border-slate-900 pl-6 h-full justify-center">
-              <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest leading-none">NOTA / SCORE</span>
-              <div className="mt-1 w-20 h-8 border border-slate-700 bg-slate-50 flex items-center justify-center font-black text-slate-900 text-xs tracking-widest rounded">
-                {printChecklist.notes || '—'}
+                <h2 className="text-xl font-black uppercase text-slate-950 tracking-tight leading-none mt-0.5">Lista de Tarefas</h2>
               </div>
             </div>
           </div>
@@ -1343,14 +1359,10 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4 text-xs font-semibold bg-slate-50 p-4 border rounded-xl">
+              <div className="grid grid-cols-1 gap-4 text-xs font-semibold bg-slate-50 p-4 border rounded-xl">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Departamento</span> 
                   <span className="font-black text-slate-800 text-sm">{reviewChecklist.department.toUpperCase()}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Nota ou Avaliação</span> 
-                  <span className="font-mono text-slate-800 font-extrabold text-sm">{reviewChecklist.notes || 'Nenhuma nota registada'}</span>
                 </div>
               </div>
 
@@ -1406,13 +1418,16 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                 <label className="block text-[11px] font-black uppercase text-[#a51c24] tracking-wider">
                   Nome do Supervisor / Responsável pela Validação:
                 </label>
-                <input 
-                  type="text"
+                <select 
                   value={reviewValidatorName}
                   onChange={(e) => setReviewValidatorName(e.target.value)}
-                  placeholder="Introduza o seu nome para rubricar a validação..."
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-[#2b532b] focus:outline-none text-xs font-bold text-slate-800 transition-colors shadow-sm"
-                />
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-[#2b532b] focus:outline-none text-xs font-bold text-slate-800 transition-colors shadow-sm bg-white"
+                >
+                  <option value="">— Selecionar Responsável —</option>
+                  {managers.map(e => (
+                    <option key={e.id} value={e.name}>{e.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
