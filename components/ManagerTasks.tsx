@@ -476,7 +476,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
                   >
                     {managers.map(e => (
-                      <option key={e.id} value={e.id}>{e.name} {e.mecanografico ? `(Nº ${e.mecanografico})` : ''}</option>
+                      <option key={e.id} value={e.id}>{e.name}</option>
                     ))}
                   </select>
                 </div>

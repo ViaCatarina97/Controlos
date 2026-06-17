@@ -374,6 +374,81 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
   }, [allInvoicesList]);
 
+  const getTurnOrderIdx = (turn?: string): number => {
+    if (!turn) return 1;
+    const t = turn.toLowerCase();
+    if (t === 'abertura') return 1;
+    if (t === 'tarde' || t === 'intermédio' || t === 'intermedio') return 2;
+    if (t === 'fecho') return 3;
+    return 1;
+  };
+
+  const isCountChronologicallyBeforeOrEqual = (
+    date1: string,
+    turn1: string,
+    date2: string,
+    turn2: string
+  ): boolean => {
+    if (date1 < date2) return true;
+    if (date1 > date2) return false;
+    return getTurnOrderIdx(turn1) <= getTurnOrderIdx(turn2);
+  };
+
+  const getAccumulatedInvoicesAmtForCount = (
+    targetDate: string,
+    targetTurn: string,
+    currentInvoicesList?: FinanceInvoice[]
+  ): number => {
+    let sum = 0;
+    
+    // 1. Process all other (non-editing) cofre counts
+    cofreCounts.forEach(c => {
+      if (editingCofre && c.id === editingCofre.id) {
+        return;
+      }
+      if (c.invoices && c.invoices.length > 0) {
+        c.invoices.forEach(inv => {
+          if (inv.status !== 'arquivada') {
+            if (isCountChronologicallyBeforeOrEqual(c.date, c.turn, targetDate, targetTurn)) {
+              sum += inv.amount;
+            }
+          }
+        });
+      }
+    });
+
+    // 2. Process current candidate invoices list
+    const activeInvoices = currentInvoicesList !== undefined 
+      ? currentInvoicesList 
+      : (editingCofre ? editingCofre.invoices : []);
+      
+    activeInvoices.forEach(inv => {
+      if (inv.status !== 'arquivada') {
+        if (isCountChronologicallyBeforeOrEqual(targetDate, targetTurn, targetDate, targetTurn)) {
+          sum += inv.amount;
+        }
+      }
+    });
+
+    return sum;
+  };
+
+  const getDynamicTotalFaturasForCount = (c: CofreCount): number => {
+    return getAccumulatedInvoicesAmtForCount(c.date, c.turn, c.invoices);
+  };
+
+  const getDynamicTotalGeralForCount = (c: CofreCount): number => {
+    const dynamicTotalFaturas = getDynamicTotalFaturasForCount(c);
+    const fundosTotalVal = Number(c.fundosCount || 0) * 50;
+    const moedasPros = c.moedasProsegur ?? 0;
+    
+    return (c.fundoGerente?.total || 0) + (c.cofre?.total || 0) + dynamicTotalFaturas + moedasPros + fundosTotalVal;
+  };
+
+  const getDynamicDiferencaForCount = (c: CofreCount): number => {
+    return 1000 - getDynamicTotalGeralForCount(c);
+  };
+
   // Filtered list based on selectedMonth
   const filteredInvoices = useMemo(() => {
     if (selectedMonth === 'All') return allInvoicesList;
@@ -589,7 +664,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     // Sum details
     const fGerenteTot = countCopy.fundoGerente.total;
     const cofreTot = countCopy.cofre.total;
-    const faturasTot = countCopy.totalFaturas;
+    const faturasTot = getDynamicTotalFaturasForCount(countCopy);
+    countCopy.totalFaturas = faturasTot;
+    
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurCoinMovements
       ?.filter(m => !m.isClosed)
@@ -627,7 +704,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
     const countCopy = { ...editingCofre };
     countCopy.invoices = [...countCopy.invoices, newInv];
-    countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
+    countCopy.totalFaturas = getDynamicTotalFaturasForCount(countCopy);
     
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurCoinMovements
@@ -648,7 +725,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     if (!editingCofre) return;
     const countCopy = { ...editingCofre };
     countCopy.invoices = countCopy.invoices.filter(i => i.id !== id);
-    countCopy.totalFaturas = countCopy.invoices.reduce((s, i) => s + i.amount, 0);
+    countCopy.totalFaturas = getDynamicTotalFaturasForCount(countCopy);
     
     const fundosTot = Number(countCopy.fundosCount || 0) * 50;
     const moedasPros = prosegurCoinMovements
@@ -671,7 +748,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       ?.filter(m => !m.isClosed)
       ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
     const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
-    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasPros + fundosTotalVal;
+    
+    const autoTotalFaturas = getDynamicTotalFaturasForCount(editingCofre);
+    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + autoTotalFaturas + autoMoedasPros + fundosTotalVal;
     const autoDiferenca = 1000 - autoTotalGeral;
 
     const updatedCount: CofreCount = {
@@ -681,6 +760,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       fundosValuePerFundo: Number(editingCofre.fundosValuePerFundo),
       fundosTotal: fundosTotalVal,
       moedasProsegur: autoMoedasPros,
+      totalFaturas: autoTotalFaturas,
       totalGeral: autoTotalGeral,
       diferenca: autoDiferenca,
       isLocked: finalizeLock ? true : (editingCofre.isLocked || false),
@@ -804,12 +884,44 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       return;
     }
 
-    // Try finding existing cofre count for the selected date
-    let existing = cofreCounts.find(c => c.date === invoiceDateInput);
-
-    if (existing && existing.isLocked) {
-      alert("Não é possível registar faturas nesta data, pois a contagem correspondente já se encontra Validada e Bloqueada.");
-      return;
+    // priority: Abertura -> Tarde -> Fecho
+    const countsOfDay = cofreCounts.filter(c => c.date === invoiceDateInput);
+    
+    let existing: CofreCount | undefined = undefined;
+    let targetTurn: 'Abertura' | 'Tarde' | 'Fecho' = 'Abertura';
+    
+    const ab = countsOfDay.find(c => c.turn === 'Abertura');
+    const ta = countsOfDay.find(c => c.turn === 'Tarde');
+    const fe = countsOfDay.find(c => c.turn === 'Fecho');
+    
+    if (ab) {
+      if (!ab.isLocked) {
+        existing = ab;
+        targetTurn = 'Abertura';
+      } else {
+        if (ta) {
+          if (!ta.isLocked) {
+            existing = ta;
+            targetTurn = 'Tarde';
+          } else {
+            if (fe) {
+              if (!fe.isLocked) {
+                existing = fe;
+                targetTurn = 'Fecho';
+              } else {
+                alert("Não é possível registar faturas nesta data, pois todas as contagens (Abertura, Intermédio e Fecho) já se encontram Validadas e Bloqueadas.");
+                return;
+              }
+            } else {
+              targetTurn = 'Fecho';
+            }
+          }
+        } else {
+          targetTurn = 'Tarde';
+        }
+      }
+    } else {
+      targetTurn = 'Abertura';
     }
 
     setIsLoading(true);
@@ -826,7 +938,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       let updatedCount: CofreCount;
       if (existing) {
         const updatedInvoices = [...(existing.invoices || []), newInv];
-        const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
+        const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(existing.date, existing.turn, updatedInvoices);
         
         // Auto moedas prosegur for recalculating Saved totalGeral:
         const currentMoedasProsegur = prosegurCoinMovements
@@ -848,21 +960,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       } else {
         // Create safe count on-the-fly for Abertura of that date
         const fundosTotalVal = devDefaultGavetaCount * 50;
+        const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(invoiceDateInput, targetTurn, [newInv]);
+        
         updatedCount = {
-          id: `cofre_${invoiceDateInput}_Abertura_${Date.now()}`,
+          id: `cofre_${invoiceDateInput}_${targetTurn}_${Date.now()}`,
           date: invoiceDateInput,
-          turn: 'Abertura',
+          turn: targetTurn,
           managerId: employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '',
           fundoGerente: createEmptyPart(),
           cofre: createEmptyPart(),
           invoices: [newInv],
-          totalFaturas: amt,
+          totalFaturas: updatedTotalFaturas,
           fundosCount: devDefaultGavetaCount,
           fundosValuePerFundo: devDefaultGavetaValue,
           fundosTotal: fundosTotalVal,
           moedasProsegur: prosegurCoinMovements?.filter(m => !m.isClosed)?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0,
-          totalGeral: fundosTotalVal + amt,
-          diferenca: 1000 - (fundosTotalVal + amt),
+          totalGeral: fundosTotalVal + updatedTotalFaturas,
+          diferenca: 1000 - (fundosTotalVal + updatedTotalFaturas),
           observacoes: '',
           isLocked: false,
           isDayClosed: false,
@@ -918,9 +1032,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         return inv;
       });
 
-      const updatedTotalFaturas = updatedInvoices
-        .filter(i => i.status !== 'arquivada')
-        .reduce((s, i) => s + i.amount, 0);
+      const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(parentCount.date, parentCount.turn, updatedInvoices);
 
       const currentMoedasProsegur = prosegurCoinMovements
         ?.filter(m => !m.isClosed)
@@ -964,7 +1076,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     setIsLoading(true);
     try {
       const updatedInvoices = (parentCount.invoices || []).filter(i => i.id !== invoiceId);
-      const updatedTotalFaturas = updatedInvoices.filter(i => i.status !== 'arquivada').reduce((s, i) => s + i.amount, 0);
+      const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(parentCount.date, parentCount.turn, updatedInvoices);
       
       const currentMoedasProsegur = prosegurCoinMovements
         ?.filter(m => !m.isClosed)
@@ -2563,7 +2675,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 </span>
                                 {hasAbertura && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(day.abertura!.totalGeral)}
+                                    {formatEuro(getDynamicTotalGeralForCount(day.abertura!))}
                                   </span>
                                 )}
                               </button>
@@ -2584,7 +2696,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 </span>
                                 {hasTarde && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(day.tarde!.totalGeral)}
+                                    {formatEuro(getDynamicTotalGeralForCount(day.tarde!))}
                                   </span>
                                 )}
                               </button>
@@ -2605,7 +2717,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 </span>
                                 {hasFecho && (
                                   <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(day.fecho!.totalGeral)}
+                                    {formatEuro(getDynamicTotalGeralForCount(day.fecho!))}
                                   </span>
                                 )}
                               </button>
@@ -2695,13 +2807,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   </td>
                                   
                                   <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.abertura ? formatEuro(day.abertura.totalGeral) : '-'}
+                                    {day.abertura ? formatEuro(getDynamicTotalGeralForCount(day.abertura)) : '-'}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.tarde ? formatEuro(day.tarde.totalGeral) : '-'}
+                                    {day.tarde ? formatEuro(getDynamicTotalGeralForCount(day.tarde)) : '-'}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.fecho ? formatEuro(day.fecho.totalGeral) : '-'}
+                                    {day.fecho ? formatEuro(getDynamicTotalGeralForCount(day.fecho)) : '-'}
                                   </td>
                                   
                                   <td className="px-6 py-4 text-center">
@@ -4531,15 +4643,16 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">
                     Nome do Gerente que apaga
                   </label>
-                  <input 
-                    type="text"
-                    required
-                    maxLength={100}
-                    placeholder="Ex: João Silva"
+                  <select 
                     value={deleteDayManager}
                     onChange={(e) => setDeleteDayManager(e.target.value)}
-                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
-                  />
+                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
+                  >
+                    <option value="">-- Selecione o Gerente --</option>
+                    {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Password Geral */}
