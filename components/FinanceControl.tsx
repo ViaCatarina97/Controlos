@@ -439,14 +439,16 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
   const getDynamicTotalGeralForCount = (c: CofreCount): number => {
     const dynamicTotalFaturas = getDynamicTotalFaturasForCount(c);
-    const fundosTotalVal = Number(c.fundosCount || 0) * 50;
-    const moedasPros = c.moedasProsegur ?? 0;
-    
-    return (c.fundoGerente?.total || 0) + (c.cofre?.total || 0) + dynamicTotalFaturas + moedasPros + fundosTotalVal;
+    // Formula: Fundo de Gerente + Cofre + Faturas
+    return (c.fundoGerente?.total || 0) + (c.cofre?.total || 0) + dynamicTotalFaturas;
   };
 
   const getDynamicDiferencaForCount = (c: CofreCount): number => {
-    return 1000 - getDynamicTotalGeralForCount(c);
+    const total = getDynamicTotalGeralForCount(c);
+    const moedasPros = c.moedasProsegur ?? 0;
+    const fundosTotalVal = Number(c.fundosCount || 0) * 50;
+    // Formula: (Total - Moedas Prossegur) + Fundos de Gaveta - 1000
+    return (total - moedasPros) + fundosTotalVal - 1000;
   };
 
   // Filtered list based on selectedMonth
@@ -628,8 +630,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       fundosValuePerFundo: devDefaultGavetaValue,
       fundosTotal: devDefaultGavetaCount * devDefaultGavetaValue,
       moedasProsegur: pendingCoinsTotal,
-      totalGeral: pendingCoinsTotal + (devDefaultGavetaCount * devDefaultGavetaValue),
-      diferenca: 1000 - (pendingCoinsTotal + (devDefaultGavetaCount * devDefaultGavetaValue)),
+      totalGeral: 0,
+      diferenca: (0 - pendingCoinsTotal) + (devDefaultGavetaCount * devDefaultGavetaValue) - 1000,
       observacoes: '',
       isLocked: false,
       isDayClosed: false
@@ -672,9 +674,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       ?.filter(m => !m.isClosed)
       ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
-    // Total Geral = Safe (Cofre) + Manager Fund + Recorded Invoices + Drawer Funds + Moedas Prosegur
-    const computedTotal = fGerenteTot + cofreTot + faturasTot + fundosTot + moedasPros;
-    const computedDiferenca = 1000 - computedTotal;
+    // Total Geral = Fundo de Gerente + Cofre + Faturas
+    const computedTotal = fGerenteTot + cofreTot + faturasTot;
+    // Diferenca = (Total - Moedas Prossegur) + Fundos de Gaveta - 1000
+    const computedDiferenca = (computedTotal - moedasPros) + fundosTot - 1000;
 
     countCopy.totalGeral = computedTotal;
     countCopy.diferenca = computedDiferenca;
@@ -711,9 +714,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       ?.filter(m => !m.isClosed)
       ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
-    // Recalculate Total Geral and Diferenca with Drawer Funds included
-    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
-    countCopy.diferenca = 1000 - countCopy.totalGeral;
+    // Recalculate Total Geral and Diferenca with formulas
+    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas;
+    countCopy.diferenca = (countCopy.totalGeral - moedasPros) + fundosTot - 1000;
 
     setEditingCofre(countCopy);
     setInvNum('');
@@ -732,9 +735,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       ?.filter(m => !m.isClosed)
       ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
-    // Recalculate Total Geral and Diferenca with Drawer Funds included
-    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas + fundosTot + moedasPros;
-    countCopy.diferenca = 1000 - countCopy.totalGeral;
+    // Recalculate Total Geral and Diferenca with formulas
+    countCopy.totalGeral = countCopy.fundoGerente.total + countCopy.cofre.total + countCopy.totalFaturas;
+    countCopy.diferenca = (countCopy.totalGeral - moedasPros) + fundosTot - 1000;
 
     setEditingCofre(countCopy);
   };
@@ -750,8 +753,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
     
     const autoTotalFaturas = getDynamicTotalFaturasForCount(editingCofre);
-    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + autoTotalFaturas + autoMoedasPros + fundosTotalVal;
-    const autoDiferenca = 1000 - autoTotalGeral;
+    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + autoTotalFaturas;
+    const autoDiferenca = (autoTotalGeral - autoMoedasPros) + fundosTotalVal - 1000;
 
     const updatedCount: CofreCount = {
       ...editingCofre,
@@ -947,8 +950,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
         const fundosTotalVal = Number(existing.fundosCount || 0) * 50;
 
-        const updatedTotalGeral = (existing.fundoGerente?.total || 0) + (existing.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
-        const updatedDiferenca = 1000 - updatedTotalGeral;
+        const updatedTotalGeral = (existing.fundoGerente?.total || 0) + (existing.cofre?.total || 0) + updatedTotalFaturas;
+        const updatedDiferenca = (updatedTotalGeral - currentMoedasProsegur) + fundosTotalVal - 1000;
 
         updatedCount = {
           ...existing,
@@ -961,6 +964,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         // Create safe count on-the-fly for Abertura of that date
         const fundosTotalVal = devDefaultGavetaCount * 50;
         const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(invoiceDateInput, targetTurn, [newInv]);
+        const moedasProsVal = prosegurCoinMovements?.filter(m => !m.isClosed)?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
         
         updatedCount = {
           id: `cofre_${invoiceDateInput}_${targetTurn}_${Date.now()}`,
@@ -974,9 +978,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           fundosCount: devDefaultGavetaCount,
           fundosValuePerFundo: devDefaultGavetaValue,
           fundosTotal: fundosTotalVal,
-          moedasProsegur: prosegurCoinMovements?.filter(m => !m.isClosed)?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0,
-          totalGeral: fundosTotalVal + updatedTotalFaturas,
-          diferenca: 1000 - (fundosTotalVal + updatedTotalFaturas),
+          moedasProsegur: moedasProsVal,
+          totalGeral: updatedTotalFaturas,
+          diferenca: (updatedTotalFaturas - moedasProsVal) + fundosTotalVal - 1000,
           observacoes: '',
           isLocked: false,
           isDayClosed: false,
@@ -986,9 +990,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         updatedCount.cofre = calculatePartTotals(updatedCount.cofre);
         
         // final recalc for new
-        const newTotalGeral = updatedCount.fundoGerente.total + updatedCount.cofre.total + updatedCount.totalFaturas + updatedCount.moedasProsegur + fundosTotalVal;
+        const newTotalGeral = updatedCount.fundoGerente.total + updatedCount.cofre.total + updatedCount.totalFaturas;
         updatedCount.totalGeral = newTotalGeral;
-        updatedCount.diferenca = 1000 - newTotalGeral;
+        updatedCount.diferenca = (newTotalGeral - updatedCount.moedasProsegur) + fundosTotalVal - 1000;
       }
 
       await saveCofreCount(restaurantId, updatedCount);
@@ -1040,8 +1044,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
       const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
 
-      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
-      const updatedDiferenca = 1000 - updatedTotalGeral;
+      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas;
+      const updatedDiferenca = (updatedTotalGeral - currentMoedasProsegur) + fundosTotalVal - 1000;
 
       const updatedCount: CofreCount = {
         ...parentCount,
@@ -1083,14 +1087,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
       const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
-      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas + currentMoedasProsegur + fundosTotalVal;
+      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas;
 
       const updatedCount = {
         ...parentCount,
         invoices: updatedInvoices,
         totalFaturas: updatedTotalFaturas,
         totalGeral: updatedTotalGeral,
-        diferenca: 1000 - updatedTotalGeral
+        diferenca: (updatedTotalGeral - currentMoedasProsegur) + fundosTotalVal - 1000
       };
 
       await saveCofreCount(restaurantId, updatedCount);
@@ -1946,8 +1950,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               ?.filter(m => !m.isClosed)
               ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
             const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
-            const autoTotalVal = fundosTotalVal + (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0) + autoMoedasProsegurVal;
-            const autoDiferencaVal = 1000 - autoTotalVal;
+            const autoTotalVal = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + (editingCofre.totalFaturas || 0);
+            const autoDiferencaVal = (autoTotalVal - autoMoedasProsegurVal) + fundosTotalVal - 1000;
 
             return (
               <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-5 gap-4 items-center print:bg-white print:border-t">
