@@ -403,6 +403,10 @@ export const Positioning: React.FC<PositioningProps> = ({
 }) => {
   const [manualPeakHour, setManualPeakHour] = useState<string | null>(null);
   const [showAllStations, setShowAllStations] = useState(false);
+  const [showManualAdjModal, setShowManualAdjModal] = useState(false);
+  const [manualAdjPasswordInput, setManualAdjPasswordInput] = useState('');
+  const [manualAdjCountInput, setManualAdjCountInput] = useState('');
+  const [manualAdjError, setManualAdjError] = useState('');
   
   const availableShifts = settings.activeShifts;
   const today = new Date().toISOString().split('T')[0];
@@ -441,9 +445,16 @@ export const Positioning: React.FC<PositioningProps> = ({
   }, [shiftPeakData]);
 
   const activeSalesData = useMemo(() => {
-      if (!manualPeakHour || shiftPeakData.length === 0) return { totalSales: 0, hour: '' };
-      return shiftPeakData.find(d => d.hour === manualPeakHour) || { totalSales: 0, hour: '' };
-  }, [manualPeakHour, shiftPeakData]);
+      const scheduleSales = schedule.projectedSales?.[selectedShift] || 0;
+      if (!manualPeakHour || shiftPeakData.length === 0) {
+        return { totalSales: scheduleSales, hour: selectedShift === 'FECHO' || selectedShift === 'MADRUGADA' ? '19h-20h' : '12h-13h' };
+      }
+      const found = shiftPeakData.find(d => d.hour === manualPeakHour);
+      if (found) {
+        return { totalSales: scheduleSales || found.totalSales, hour: found.hour };
+      }
+      return { totalSales: scheduleSales, hour: manualPeakHour };
+  }, [manualPeakHour, shiftPeakData, schedule.projectedSales, selectedShift]);
 
   const getRequiredStaff = (sales: number): { count: number; label: string } => {
     if (!staffingTable || staffingTable.length === 0) return { count: 0, label: 'N/A' };
@@ -916,8 +927,11 @@ export const Positioning: React.FC<PositioningProps> = ({
                 )}
                 <button 
                    onClick={() => {
-                      const pass = prompt('Introduza a password das definições:');
-                      if (pass === settings.password || pass === 'Imperial96') {
+                      setManualAdjPasswordInput('');
+                      setManualAdjCountInput(manualAdj !== 0 ? String(manualAdj) : '');
+                      setManualAdjError('');
+                      setShowManualAdjModal(true);
+                      return; /*
                          const val = prompt('Indique o número de funcionários a acrescentar (ex: 2 para somar, -1 para subtrair, ou 0 para limpar):');
                          if (val !== null) {
                              const num = parseInt(val);
@@ -936,7 +950,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                         alert('Password incorreta!');
                       }
                    }}
-                   className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
+                   */ }} className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
                 >
                    Ajuste Manual
                 </button>
@@ -977,6 +991,43 @@ export const Positioning: React.FC<PositioningProps> = ({
                 <div className="lg:col-span-5 lg:border-r border-gray-100 lg:pr-6 flex flex-col justify-between">
                     <div>
                       <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-blue-600" /> Previsão de Vendas</h3>
+                      
+                      <div className="mb-5 bg-blue-50/20 p-4 rounded-2xl border border-blue-100/50">
+                        <label className="block text-[10px] font-black uppercase text-blue-500 tracking-wider mb-2">
+                          Vendas Programadas (€)
+                        </label>
+                        <input 
+                          type="number"
+                          disabled={isShiftLocked}
+                          placeholder="Definir vendas manualmente..."
+                          value={schedule.projectedSales?.[selectedShift] || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            const peakHr = selectedShift === 'FECHO' || selectedShift === 'MADRUGADA' ? '19' : '12';
+                            const peakLabel = peakHr + 'h-' + (parseInt(peakHr) + 1) + 'h';
+                            setSchedule({
+                              ...schedule,
+                              projectedSales: {
+                                ...(schedule.projectedSales || {}),
+                                [selectedShift]: val
+                              },
+                              hourlyProjections: {
+                                ...(schedule.hourlyProjections || {}),
+                                [selectedShift]: schedule.hourlyProjections?.[selectedShift]?.length ? schedule.hourlyProjections[selectedShift] : [
+                                  {
+                                    hour: peakLabel,
+                                    totalSales: val,
+                                    totalGC: Math.round(val / 6),
+                                    channelGC: { counter: 0, sok: 0, drive: 0, delivery: 0 }
+                                  }
+                                ]
+                              }
+                            });
+                          }}
+                          className="bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl font-black text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 transition-all placeholder:text-gray-400/80"
+                        />
+                      </div>
+
                       {shiftPeakData.length > 0 ? (
                         <div className="space-y-2.5">
                           {shiftPeakData.map((data, idx) => { 
@@ -984,7 +1035,16 @@ export const Positioning: React.FC<PositioningProps> = ({
                             return (
                               <button 
                                 key={idx} 
-                                onClick={() => setManualPeakHour(data.hour)} 
+                                onClick={() => {
+                                  setManualPeakHour(data.hour);
+                                  setSchedule({
+                                    ...schedule,
+                                    projectedSales: {
+                                      ...(schedule.projectedSales || {}),
+                                      [selectedShift]: data.totalSales
+                                    }
+                                  });
+                                }} 
                                 className={`w-full flex justify-between items-center p-3.5 rounded-xl border-2 transition-all cursor-pointer relative overflow-hidden active:scale-99 ${
                                   isActive 
                                     ? 'bg-blue-50/50 border-blue-500 shadow-sm' 
@@ -1134,7 +1194,102 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
       </div>
 
-      <div className="hidden print:block print-container fixed inset-0 bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen print-landscape">
+      {showManualAdjModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="bg-slate-900 px-6 py-4 text-white flex justify-between items-center">
+              <h3 className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                <Calculator size={18} className="text-amber-400" />
+                Ajuste Manual
+              </h3>
+              <button 
+                onClick={() => setShowManualAdjModal(false)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer text-sm font-black"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {manualAdjError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2">
+                  <span className="text-sm">⚠</span> {manualAdjError}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  Password das Definições
+                </label>
+                <input 
+                  type="password"
+                  placeholder="Introduza a password..."
+                  value={manualAdjPasswordInput}
+                  onChange={(e) => setManualAdjPasswordInput(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-bold text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  Funcionários a Ajustar
+                </label>
+                <input 
+                  type="number"
+                  placeholder="Ex: 2 ou -1 (0 para limpar)"
+                  value={manualAdjCountInput}
+                  onChange={(e) => setManualAdjCountInput(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-black text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
+                />
+                <span className="text-[10px] text-slate-400 font-bold mt-1 block">
+                  Indique número positivo para somar, negativo para subtrair, ou 0 para limpar o ajuste.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-150 flex justify-end gap-3 font-sans">
+              <button 
+                onClick={() => setShowManualAdjModal(false)}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl font-bold text-xs uppercase text-slate-600 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  setManualAdjError('');
+                  if (manualAdjPasswordInput === settings.password || manualAdjPasswordInput === 'Imperial96') {
+                    const num = parseInt(manualAdjCountInput, 10);
+                    if (isNaN(num)) {
+                      setManualAdjError('Por favor introduza um número válido.');
+                      return;
+                    }
+                    const currentAdjustments = schedule.manualAdjustments || {};
+                    setSchedule({ 
+                      ...schedule, 
+                      manualAdjustments: { 
+                        ...currentAdjustments, 
+                        [selectedShift]: num 
+                      } 
+                    });
+                    setShowManualAdjModal(false);
+                  } else {
+                    setManualAdjError('Password incorreta!');
+                  }
+                }}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-850 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm animate-pulse-subtle"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="hidden print:block print-container bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen print-landscape">
           <div className="flex justify-between items-end mb-1 border-b border-slate-900 pb-0.5">
             <h1 className="text-[18px] font-black uppercase tracking-tight text-slate-950 leading-none">{settings.restaurantName.toUpperCase()}</h1>
             <div className="flex items-center gap-4">
