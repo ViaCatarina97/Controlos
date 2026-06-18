@@ -233,6 +233,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [deleteDayManager, setDeleteDayManager] = useState<string>('');
   const [deleteDayTargetObj, setDeleteDayTargetObj] = useState<any>(null);
 
+  // States for Deleting a Deposit Record (Folha de Depósito)
+  const [deleteDepositModalOpen, setDeleteDepositModalOpen] = useState<boolean>(false);
+  const [deleteDepositTargetId, setDeleteDepositTargetId] = useState<string | null>(null);
+  const [deleteDepositPassword, setDeleteDepositPassword] = useState<string>('');
+  const [deleteDepositManager, setDeleteDepositManager] = useState<string>('');
+
   useEffect(() => {
     if (!weeklySlotEditor) {
       setSlotValue('');
@@ -1160,15 +1166,43 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     }
   };
 
-  const handleDeleteDepositAction = async (id: string) => {
-    if (confirm("Desejas eliminar este depósito?")) {
-      try {
-        await deleteDeposit(restaurantId, id);
-        await loadData();
-      } catch (err) {
-        console.error(err);
-      }
+  const handleTriggerDeleteDepositModal = (id: string) => {
+    setDeleteDepositTargetId(id);
+    setDeleteDepositPassword('');
+    setDeleteDepositManager('');
+    setDeleteDepositModalOpen(true);
+  };
+
+  const handleConfirmDeleteDeposit = async () => {
+    if (!deleteDepositTargetId) return;
+
+    if (deleteDepositPassword !== 'Imperial96') {
+      alert("Password geral incorreta. Não tem permissão para eliminar.");
+      return;
     }
+
+    if (!deleteDepositManager.trim()) {
+      alert("O nome do gerente que está a apagar a folha de depósito é obrigatório.");
+      return;
+    }
+
+    setIsLoading(true);
+    setDeleteDepositModalOpen(false);
+    try {
+      await deleteDeposit(restaurantId, deleteDepositTargetId);
+      setEditingDeposit(null);
+      await loadData();
+      alert(`Folha de depósito eliminada com sucesso pelo gerente ${deleteDepositManager.trim()}.`);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao eliminar a folha de depósito.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteDepositAction = async (id: string) => {
+    handleTriggerDeleteDepositModal(id);
   };
 
   const handleCloseDayDeposits = async (date: string, dayState: any) => {
@@ -2418,7 +2452,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           </div>
 
           {/* Controller Actions Panel */}
-          <div className="flex justify-between pt-6 border-t border-slate-100">
+          <div className="flex justify-between pt-6 border-t border-slate-100 font-sans">
             {editingDeposit.isLocked ? (
               <div className="w-full flex justify-between gap-3">
                 <button
@@ -2431,13 +2465,22 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 >
                   🔓 Desbloquear Folha
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingDeposit(null)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
-                >
-                  Sair da Visualização
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDeleteDepositModal(editingDeposit.id)}
+                    className="px-4 py-2 bg-red-50 hover:bg-red-105 text-red-650 border border-red-100 font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Trash2 size={13} /> Eliminar Folha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDeposit(null)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
+                  >
+                    Sair da Visualização
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="w-full flex justify-between">
@@ -2458,6 +2501,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   </button>
                 </div>
                 <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDeleteDepositModal(editingDeposit.id)}
+                    className="px-4 py-2 bg-red-50 hover:bg-red-105 text-red-650 border border-red-100 font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Trash2 size={13} /> Eliminar Folha
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEditingDeposit(null)}
@@ -3027,6 +3077,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       >
                                         Verificar
                                       </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTriggerDeleteDepositModal(day.abertura!.id)}
+                                        className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                        title="Eliminar esta folha de depósito"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
                                     </div>
                                   </div>
                                 ) : (
@@ -3076,6 +3134,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                         className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
                                       >
                                         Verificar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTriggerDeleteDepositModal(day.fecho!.id)}
+                                        className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                        title="Eliminar esta folha de depósito"
+                                      >
+                                        <Trash2 size={13} />
                                       </button>
                                     </div>
                                   </div>
@@ -4725,6 +4791,90 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmDeleteDayCounts}
+                  className="flex-1 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-100"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Deposit Secure Modal */}
+      {deleteDepositModalOpen && deleteDepositTargetId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in print:hidden">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-scale-in">
+            <div className="p-5 bg-red-650 text-white flex justify-between items-center">
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-widest text-red-200">Segurança de Dados</span>
+                <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Eliminar Folha de Depósito</h3>
+              </div>
+              <button 
+                onClick={() => setDeleteDepositModalOpen(false)}
+                className="text-white hover:text-red-200 transition-all text-xs font-black uppercase p-1.5 focus:outline-none"
+              >
+                ✖️
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex gap-3 items-start font-sans">
+                <span className="text-xl mt-0.5">⚠️</span>
+                <div className="text-xs">
+                  <p className="font-black text-red-900 uppercase">Aviso de Operação Irreversível</p>
+                  <p className="text-red-700 mt-1 font-semibold leading-normal">
+                    Pretende apagar de forma definitiva este registo de folha de depósito. Esta ação irá apagar permanentemente os dados gravados de faturas e depósitos registados neste turno e não poderá ser restabelecida.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Nome do Gerente */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                    Nome do Gerente que apaga
+                  </label>
+                  <select 
+                    value={deleteDepositManager}
+                    onChange={(e) => setDeleteDepositManager(e.target.value)}
+                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
+                  >
+                    <option value="">-- Selecione o Gerente --</option>
+                    {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Password Geral */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                    Password de Segurança
+                  </label>
+                  <input 
+                    type="password"
+                    required
+                    placeholder="Introduza a password..."
+                    value={deleteDepositPassword}
+                    onChange={(e) => setDeleteDepositPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-red-500 hover:bg-slate-100 transition-all focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteDepositModalOpen(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-50 transition-all bg-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteDeposit}
                   className="flex-1 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-100"
                 >
                   Confirmar

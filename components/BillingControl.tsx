@@ -243,6 +243,8 @@ const DeliveriesTab: React.FC<{
 }> = ({ records, employees, onSelect, onDelete, onOpenCreate }) => {
   const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
+  const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date));
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
@@ -274,7 +276,7 @@ const DeliveriesTab: React.FC<{
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {records.map(record => {
+              {sortedRecords.map(record => {
                 const diff = calculateDeliveryFinalDifference(record);
                 const manager = employees.find(e => e.id === record.managerId)?.name || '-';
 

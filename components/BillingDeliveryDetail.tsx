@@ -167,7 +167,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   const [newMissing, setNewMissing] = useState({
     product: '',
-    group: 'Comida',
+    group: 'Congelados',
     priceHavi: 0,
     reason: MISSING_REASONS[0]
   });
@@ -249,7 +249,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       reason: newMissing.reason 
     };
     setLocal(prev => ({ ...prev, missingProducts: [...prev.missingProducts, newItem] }));
-    setNewMissing({ product: '', group: 'Comida', priceHavi: 0, reason: MISSING_REASONS[0] });
+    setNewMissing({ product: '', group: 'Congelados', priceHavi: 0, reason: MISSING_REASONS[0] });
     setShowMissingModal(false);
   };
 
@@ -657,12 +657,11 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
-                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo MyStore</label>
+                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Grupo HAVI</label>
                      <select value={newMissing.group} onChange={e => setNewMissing({...newMissing, group: e.target.value})} className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium">
-                        <option value="Comida">Comida</option>
-                        <option value="Papel">Papel</option>
-                        <option value="Outros">Outros</option>
-                        <option value="Happy Meal">Happy Meal</option>
+                        {HAVI_GROUPS_LIST.map(g => (
+                           <option key={g} value={g}>{g}</option>
+                        ))}
                      </select>
                   </div>
                   <div>
