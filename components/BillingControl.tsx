@@ -46,7 +46,7 @@ const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
 
   const baseDiff = categoryDifferences.reduce((s, d) => s + d, 0);
   const missingTotal = (record.missingProducts || []).reduce((s, m) => s + (m.priceHavi || 0), 0);
-  return baseDiff + missingTotal;
+  return baseDiff - missingTotal;
 };
 
 const upgradeDeliveryRecord = (d: DeliveryRecord): DeliveryRecord => {
