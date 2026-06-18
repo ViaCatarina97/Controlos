@@ -1244,6 +1244,24 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
   const getDepositRecordTotal = (dep?: DepositRecord): number => {
     if (!dep) return 0;
+    
+    // Find the matching cofre count for the same date and turn
+    const matchingCofre = cofreCounts.find(c => 
+      c.date === dep.date && 
+      c.turn.toLowerCase() === dep.turn?.toLowerCase()
+    );
+
+    if (matchingCofre) {
+      const fundoGerenteTot = matchingCofre.fundoGerente?.total || 0;
+      const cofreTot = matchingCofre.cofre?.total || 0;
+      const faturasTot = getDynamicTotalFaturasForCount(matchingCofre);
+      const moedasProsegurTot = matchingCofre.moedasProsegur ?? 0;
+      const fundosTotalVal = Number(matchingCofre.fundosCount || 0) * 50;
+      
+      // Formula: Fundo de gerente + cofre + faturas - moedas prossegur + fundos de gaveta
+      return fundoGerenteTot + cofreTot + faturasTot - moedasProsegurTot + fundosTotalVal;
+    }
+
     if (!dep.rows) return (dep as any).amount || 0;
     return dep.rows.reduce((sum, row) => {
       return sum + (row.dinheiro || 0) + (row.sangria || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
@@ -2314,7 +2332,15 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 }, 0);
 
               const cashTotalVal = totDinheiro + totSangria;
-              const grandTotalVal = cashTotalVal + totMultibanco + totTickets + totDelivery + totMOP + dayInvoicesTotal;
+              
+              const matchingCofre = cofreCounts.find(c => c.date === editingDeposit.date && c.turn.toLowerCase() === editingDeposit.turn.toLowerCase());
+              const fundoGerenteTot = matchingCofre ? (matchingCofre.fundoGerente?.total || 0) : 0;
+              const cofreTot = matchingCofre ? (matchingCofre.cofre?.total || 0) : 0;
+              const faturasTot = matchingCofre ? getDynamicTotalFaturasForCount(matchingCofre) : 0;
+              const moedasProsegurTot = matchingCofre ? (matchingCofre.moedasProsegur ?? 0) : 0;
+              const fundosTotalVal = matchingCofre ? (Number(matchingCofre.fundosCount || 0) * 50) : (devDefaultGavetaCount * 50);
+
+              const grandTotalVal = fundoGerenteTot + cofreTot + faturasTot - moedasProsegurTot + fundosTotalVal;
 
               const cardClass = (val: number) => 
                 val > 0 
@@ -2674,8 +2700,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   {!hasAbertura ? 'Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
                                 </span>
                                 {hasAbertura && (
-                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(getDynamicTotalGeralForCount(day.abertura!))}
+                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.abertura!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatEuro(getDynamicDiferencaForCount(day.abertura!))}
                                   </span>
                                 )}
                               </button>
@@ -2695,8 +2721,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   {!hasTarde ? 'Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
                                 </span>
                                 {hasTarde && (
-                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(getDynamicTotalGeralForCount(day.tarde!))}
+                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.tarde!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatEuro(getDynamicDiferencaForCount(day.tarde!))}
                                   </span>
                                 )}
                               </button>
@@ -2716,8 +2742,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   {!hasFecho ? 'Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
                                 </span>
                                 {hasFecho && (
-                                  <span className="font-mono text-[10px] font-extrabold text-slate-600 block mt-0.5">
-                                    {formatEuro(getDynamicTotalGeralForCount(day.fecho!))}
+                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.fecho!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatEuro(getDynamicDiferencaForCount(day.fecho!))}
                                   </span>
                                 )}
                               </button>
@@ -2806,14 +2832,26 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     </span>
                                   </td>
                                   
-                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.abertura ? formatEuro(getDynamicTotalGeralForCount(day.abertura)) : '-'}
+                                  <td className="px-6 py-4 text-right font-mono">
+                                    {day.abertura ? (
+                                      <span className={getDynamicDiferencaForCount(day.abertura) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
+                                        {formatEuro(getDynamicDiferencaForCount(day.abertura))}
+                                      </span>
+                                    ) : '-'}
                                   </td>
-                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.tarde ? formatEuro(getDynamicTotalGeralForCount(day.tarde)) : '-'}
+                                  <td className="px-6 py-4 text-right font-mono">
+                                    {day.tarde ? (
+                                      <span className={getDynamicDiferencaForCount(day.tarde) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
+                                        {formatEuro(getDynamicDiferencaForCount(day.tarde))}
+                                      </span>
+                                    ) : '-'}
                                   </td>
-                                  <td className="px-6 py-4 text-right font-mono text-slate-600">
-                                    {day.fecho ? formatEuro(getDynamicTotalGeralForCount(day.fecho)) : '-'}
+                                  <td className="px-6 py-4 text-right font-mono">
+                                    {day.fecho ? (
+                                      <span className={getDynamicDiferencaForCount(day.fecho) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
+                                        {formatEuro(getDynamicDiferencaForCount(day.fecho))}
+                                      </span>
+                                    ) : '-'}
                                   </td>
                                   
                                   <td className="px-6 py-4 text-center">
