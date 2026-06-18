@@ -207,8 +207,10 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
   }, [local.haviGroups, local.smsValues, diffBySmsGroup]);
 
   const finalDifference = useMemo(() => {
-    return categoryDifferences.reduce((s, d) => s + d, 0);
-  }, [categoryDifferences]);
+    const baseDiff = categoryDifferences.reduce((s, d) => s + d, 0);
+    const missingTotal = (local.missingProducts || []).reduce((s, m) => s + (m.priceHavi || 0), 0);
+    return baseDiff + missingTotal;
+  }, [categoryDifferences, local.missingProducts]);
 
   const handleUpdateGroupTotal = (groupCode: string, value: number) => {
     setLocal(prev => ({
