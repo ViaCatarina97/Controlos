@@ -93,10 +93,80 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
   }, [selectedMonth, restaurantId]);
 
   const saveToStore = async (updated: MonthlyOperationalData) => {
-    setMonthlyData(updated);
-    localStorage.setItem(`monthly_ops_data_${selectedMonth}`, JSON.stringify(updated));
+    // Inject calculated values before saving
+    const totalAirLiquideVal = updated.otherSuppliers
+      .filter(s => s.supplier?.toLowerCase() === 'air liquide')
+      .reduce((sum, s) => sum + (s.invoiceValue || 0), 0);
+
+    const totalMaiaPapperVal = updated.otherSuppliers
+      .filter(s => s.supplier?.toLowerCase() === 'maiapapper')
+      .reduce((sum, s) => sum + (s.invoiceValue || 0), 0);
+
+    const compComprasComida = 
+      (aggregatedHavi['A']?.total || 0) +
+      (aggregatedHavi['B']?.total || 0) +
+      (aggregatedHavi['C']?.total || 0) +
+      (aggregatedHavi['H']?.total || 0) +
+      (aggregatedHavi['J']?.total || 0) +
+      (aggregatedHavi['L']?.total || 0) +
+      (aggregatedHavi['T']?.total || 0) +
+      totalAirLiquideVal;
+
+    const compComprasPapel = 
+      (aggregatedHavi['D']?.total || 0) +
+      (aggregatedHavi['U']?.total || 0);
+
+    const compComprasTotalOps = 
+      (aggregatedHavi['E']?.total || 0) +
+      (aggregatedHavi['I']?.total || 0) +
+      (aggregatedHavi['M']?.total || 0) +
+      (aggregatedHavi['O']?.total || 0);
+
+    const compComprasOpsHavi = 
+      (aggregatedHavi['E']?.total || 0) +
+      (aggregatedHavi['I']?.total || 0) +
+      (aggregatedHavi['O']?.total || 0) +
+      (aggregatedHavi['M']?.total || 0);
+
+    const compComprasOpsMaiaPapper = totalMaiaPapperVal;
+
+    const compConsumoComida = 
+      (updated.invInicialComida || 0) +
+      compComprasComida -
+      (updated.perdasComida || 0) -
+      (updated.refeicoesComida || 0) -
+      (updated.promoComida || 0) -
+      (updated.invFinalComida || 0);
+
+    const compConsumoPapel = 
+      (updated.invInicialPapel || 0) +
+      compComprasPapel -
+      (updated.perdasPapel || 0) -
+      (updated.refeicoesPapel || 0) -
+      (updated.promoPapel || 0) -
+      (updated.invFinalPapel || 0);
+
+    const compConsumoOps = 
+      (updated.invInicialOps || 0) +
+      compComprasTotalOps -
+      (updated.invFinalOps || 0);
+
+    const enriched: MonthlyOperationalData = {
+      ...updated,
+      comprasComida: compComprasComida,
+      comprasPapel: compComprasPapel,
+      comprasTotalOps: compComprasTotalOps,
+      comprasOpsHavi: compComprasOpsHavi,
+      comprasOpsMaiaPapper: compComprasOpsMaiaPapper,
+      consumoComida: compConsumoComida,
+      consumoPapel: compConsumoPapel,
+      consumoOps: compConsumoOps
+    };
+
+    setMonthlyData(enriched);
+    localStorage.setItem(`monthly_ops_data_${selectedMonth}`, JSON.stringify(enriched));
     try {
-      await saveMonthlyOps(restaurantId, updated);
+      await saveMonthlyOps(restaurantId, enriched);
     } catch (err) {
       console.error("Failed to save monthly ops to cloud:", err);
     }
@@ -208,6 +278,88 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
   };
 
   const gerentes = employees.filter(e => e.role === 'GERENTE');
+
+  const totalAirLiquide = useMemo(() => {
+    return monthlyData.otherSuppliers
+      .filter(s => s.supplier?.toLowerCase() === 'air liquide')
+      .reduce((sum, s) => sum + (s.invoiceValue || 0), 0);
+  }, [monthlyData.otherSuppliers]);
+
+  const totalMaiaPapper = useMemo(() => {
+    return monthlyData.otherSuppliers
+      .filter(s => s.supplier?.toLowerCase() === 'maiapapper')
+      .reduce((sum, s) => sum + (s.invoiceValue || 0), 0);
+  }, [monthlyData.otherSuppliers]);
+
+  const computedComprasComida = useMemo(() => {
+    return (
+      (aggregatedHavi['A']?.total || 0) +
+      (aggregatedHavi['B']?.total || 0) +
+      (aggregatedHavi['C']?.total || 0) +
+      (aggregatedHavi['H']?.total || 0) +
+      (aggregatedHavi['J']?.total || 0) +
+      (aggregatedHavi['L']?.total || 0) +
+      (aggregatedHavi['T']?.total || 0) +
+      totalAirLiquide
+    );
+  }, [aggregatedHavi, totalAirLiquide]);
+
+  const computedComprasPapel = useMemo(() => {
+    return (
+      (aggregatedHavi['D']?.total || 0) +
+      (aggregatedHavi['U']?.total || 0)
+    );
+  }, [aggregatedHavi]);
+
+  const computedComprasTotalOps = useMemo(() => {
+    return (
+      (aggregatedHavi['E']?.total || 0) +
+      (aggregatedHavi['I']?.total || 0) +
+      (aggregatedHavi['M']?.total || 0) +
+      (aggregatedHavi['O']?.total || 0)
+    );
+  }, [aggregatedHavi]);
+
+  const computedComprasOpsHavi = useMemo(() => {
+    return (
+      (aggregatedHavi['E']?.total || 0) +
+      (aggregatedHavi['I']?.total || 0) +
+      (aggregatedHavi['O']?.total || 0) +
+      (aggregatedHavi['M']?.total || 0)
+    );
+  }, [aggregatedHavi]);
+
+  const computedComprasOpsMaiaPapper = totalMaiaPapper;
+
+  const computedConsumoComida = useMemo(() => {
+    return (
+      (monthlyData.invInicialComida || 0) +
+      computedComprasComida -
+      (monthlyData.perdasComida || 0) -
+      (monthlyData.refeicoesComida || 0) -
+      (monthlyData.promoComida || 0) -
+      (monthlyData.invFinalComida || 0)
+    );
+  }, [monthlyData.invInicialComida, computedComprasComida, monthlyData.perdasComida, monthlyData.refeicoesComida, monthlyData.promoComida, monthlyData.invFinalComida]);
+
+  const computedConsumoPapel = useMemo(() => {
+    return (
+      (monthlyData.invInicialPapel || 0) +
+      computedComprasPapel -
+      (monthlyData.perdasPapel || 0) -
+      (monthlyData.refeicoesPapel || 0) -
+      (monthlyData.promoPapel || 0) -
+      (monthlyData.invFinalPapel || 0)
+    );
+  }, [monthlyData.invInicialPapel, computedComprasPapel, monthlyData.perdasPapel, monthlyData.refeicoesPapel, monthlyData.promoPapel, monthlyData.invFinalPapel]);
+
+  const computedConsumoOps = useMemo(() => {
+    return (
+      (monthlyData.invInicialOps || 0) +
+      computedComprasTotalOps -
+      (monthlyData.invFinalOps || 0)
+    );
+  }, [monthlyData.invInicialOps, computedComprasTotalOps, monthlyData.invFinalOps]);
 
   return (
     <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar print:h-auto print:overflow-visible print:p-0">
@@ -401,14 +553,14 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
              <div className="space-y-4">
                 <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
                 <div className="space-y-1">
-                   <DataInputRow label="Compras Comida" value={monthlyData.comprasComida} onChange={v => handleUpdateMonthlyField('comprasComida', v)} />
-                   <DataInputRow label="Compras Papel" value={monthlyData.comprasPapel} onChange={v => handleUpdateMonthlyField('comprasPapel', v)} />
-                   <DataInputRow label="Compras Total Ops" value={monthlyData.comprasTotalOps} onChange={v => handleUpdateMonthlyField('comprasTotalOps', v)} />
+                   <DataDisplayRow label="Compras Comida" value={`${computedComprasComida.toFixed(2)} €`} />
+                   <DataDisplayRow label="Compras Papel" value={`${computedComprasPapel.toFixed(2)} €`} />
+                   <DataDisplayRow label="Compras Total Ops" value={`${computedComprasTotalOps.toFixed(2)} €`} />
                 </div>
                 <div className="space-y-1">
-                   <DataInputRow label="Consumo Comida" value={monthlyData.consumoComida} onChange={v => handleUpdateMonthlyField('consumoComida', v)} />
-                   <DataInputRow label="Consumo Papel" value={monthlyData.consumoPapel} onChange={v => handleUpdateMonthlyField('consumoPapel', v)} />
-                   <DataInputRow label="Consumo OPS" value={monthlyData.consumoOps} onChange={v => handleUpdateMonthlyField('consumoOps', v)} />
+                   <DataDisplayRow label="Consumo Comida" value={`${computedConsumoComida.toFixed(2)} €`} />
+                   <DataDisplayRow label="Consumo Papel" value={`${computedConsumoPapel.toFixed(2)} €`} />
+                   <DataDisplayRow label="Consumo OPS" value={`${computedConsumoOps.toFixed(2)} €`} />
                 </div>
              </div>
 
@@ -425,7 +577,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                   <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
                   <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
                   <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
-                  <DataInputRow label="Compras OPS Havi" value={monthlyData.comprasOpsHavi} onChange={v => handleUpdateMonthlyField('comprasOpsHavi', v)} />
+                  <DataDisplayRow label="Compras OPS Havi" value={`${computedComprasOpsHavi.toFixed(2)} €`} />
                 </div>
              </div>
 
@@ -438,10 +590,10 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                   <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
                 </div>
                 <div className="space-y-1">
-                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataDisplayRow label="% Custo OPS" value={monthlyData.vendasMes > 0 ? ((monthlyData.consumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataInputRow label="Compras OPS MaiaPapper" value={monthlyData.comprasOpsMaiaPapper} onChange={v => handleUpdateMonthlyField('comprasOpsMaiaPapper', v)} />
+                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((computedConsumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((computedConsumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataDisplayRow label="% Consumo OPS" value={monthlyData.vendasMes > 0 ? ((computedConsumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
+                   <DataDisplayRow label="Compras OPS MaiaPapper" value={`${computedComprasOpsMaiaPapper.toFixed(2)} €`} />
                 </div>
              </div>
           </div>
