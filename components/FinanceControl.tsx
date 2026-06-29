@@ -440,16 +440,25 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   const getDynamicTotalFaturasForCount = (c: CofreCount): number => {
+    if (c.isLocked) {
+      return c.totalFaturas ?? 0;
+    }
     return getAccumulatedInvoicesAmtForCount(c.date, c.turn, c.invoices);
   };
 
   const getDynamicTotalGeralForCount = (c: CofreCount): number => {
+    if (c.isLocked) {
+      return c.totalGeral ?? 0;
+    }
     const dynamicTotalFaturas = getDynamicTotalFaturasForCount(c);
     // Formula: Fundo de Gerente + Cofre + Faturas
     return (c.fundoGerente?.total || 0) + (c.cofre?.total || 0) + dynamicTotalFaturas;
   };
 
   const getDynamicDiferencaForCount = (c: CofreCount): number => {
+    if (c.isLocked) {
+      return c.diferenca ?? 0;
+    }
     const total = getDynamicTotalGeralForCount(c);
     const moedasPros = c.moedasProsegur ?? 0;
     const fundosTotalVal = Number(c.fundosCount || 0) * 50;
@@ -1042,16 +1051,22 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         return inv;
       });
 
-      const updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(parentCount.date, parentCount.turn, updatedInvoices);
+      let updatedTotalFaturas = parentCount.totalFaturas;
+      let updatedTotalGeral = parentCount.totalGeral;
+      let updatedDiferenca = parentCount.diferenca;
 
-      const currentMoedasProsegur = prosegurCoinMovements
-        ?.filter(m => !m.isClosed)
-        ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
+      if (!parentCount.isLocked) {
+        updatedTotalFaturas = getAccumulatedInvoicesAmtForCount(parentCount.date, parentCount.turn, updatedInvoices);
 
-      const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
+        const currentMoedasProsegur = prosegurCoinMovements
+          ?.filter(m => !m.isClosed)
+          ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
 
-      const updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas;
-      const updatedDiferenca = (updatedTotalGeral - currentMoedasProsegur) + fundosTotalVal - 1000;
+        const fundosTotalVal = Number(parentCount.fundosCount || 0) * 50;
+
+        updatedTotalGeral = (parentCount.fundoGerente?.total || 0) + (parentCount.cofre?.total || 0) + updatedTotalFaturas;
+        updatedDiferenca = (updatedTotalGeral - currentMoedasProsegur) + fundosTotalVal - 1000;
+      }
 
       const updatedCount: CofreCount = {
         ...parentCount,
