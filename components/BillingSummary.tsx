@@ -277,6 +277,18 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     return `${months[parseInt(m) - 1]} ${y}`;
   };
 
+  const formatEuro = (val: number) => {
+    return val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  };
+
+  const formatPercent = (val: number) => {
+    return val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  };
+
+  const formatNumber = (val: number) => {
+    return val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const gerentes = employees.filter(e => e.role === 'GERENTE');
 
   const totalAirLiquide = useMemo(() => {
@@ -413,13 +425,13 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                 <div key={code} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-2 px-2 py-0.5 border-r border-gray-50">{code}</div>
                   <div className="col-span-7 px-2 py-0.5 border-r border-gray-50 truncate">{g.desc}</div>
-                  <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{g.total.toFixed(2)} €</div>
+                  <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{formatEuro(g.total)}</div>
                 </div>
               ))}
               {/* Removed Ponto Verde row */}
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{grandTotalHavi.toFixed(2)} €</div>
+              <div className="text-2xl font-black text-slate-900">{formatEuro(grandTotalHavi)}</div>
             </div>
           </div>
 
@@ -433,12 +445,12 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
               {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, val]) => (
                 <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
                   <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
-                  <div className="col-span-4 px-2 py-1 text-right tabular-nums">{val.toFixed(2)} €</div>
+                  <div className="col-span-4 px-2 py-1 text-right tabular-nums">{formatEuro(val)}</div>
                 </div>
               ))}
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{grandTotalSms.toFixed(2)} €</div>
+              <div className="text-2xl font-black text-slate-900">{formatEuro(grandTotalSms)}</div>
             </div>
           </div>
 
@@ -463,7 +475,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                     <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0">
                       <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
                       <div className={`col-span-4 px-2 py-1 text-right tabular-nums ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-gray-400'}`}>
-                        {diff.toFixed(2)} €
+                        {formatEuro(diff)}
                       </div>
                     </div>
                    );
@@ -471,7 +483,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
                <div className={`text-2xl font-black ${Math.abs(grandTotalHavi - grandTotalSms) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {(grandTotalHavi - grandTotalSms).toFixed(2)} €
+                  {formatEuro(grandTotalHavi - grandTotalSms)}
                </div>
             </div>
           </div>
@@ -520,7 +532,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                                 <input type="number" value={entry.myStoreValue || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'myStoreValue', parseFloat(e.target.value) || 0)} className="w-full text-right bg-transparent border-none outline-none font-bold" placeholder="0.00" />
                             </td>
                             <td className="p-1 border-r border-gray-50 text-right font-black tabular-nums">
-                                {(entry.invoiceValue - entry.myStoreValue).toFixed(2)}
+                                {formatNumber(entry.invoiceValue - entry.myStoreValue)}
                             </td>
                             <td className="p-1 border-r border-gray-50">
                                 <select value={entry.managerId} onChange={e => handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)} className="w-full bg-transparent border-none outline-none font-medium truncate">
@@ -553,14 +565,14 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
              <div className="space-y-4">
                 <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
                 <div className="space-y-1">
-                   <DataDisplayRow label="Compras Comida" value={`${computedComprasComida.toFixed(2)} €`} />
-                   <DataDisplayRow label="Compras Papel" value={`${computedComprasPapel.toFixed(2)} €`} />
-                   <DataDisplayRow label="Compras Total Ops" value={`${computedComprasTotalOps.toFixed(2)} €`} />
+                   <DataDisplayRow label="Compras Comida" value={formatEuro(computedComprasComida)} />
+                   <DataDisplayRow label="Compras Papel" value={formatEuro(computedComprasPapel)} />
+                   <DataDisplayRow label="Compras Total Ops" value={formatEuro(computedComprasTotalOps)} />
                 </div>
                 <div className="space-y-1">
-                   <DataDisplayRow label="Consumo Comida" value={`${computedConsumoComida.toFixed(2)} €`} />
-                   <DataDisplayRow label="Consumo Papel" value={`${computedConsumoPapel.toFixed(2)} €`} />
-                   <DataDisplayRow label="Consumo OPS" value={`${computedConsumoOps.toFixed(2)} €`} />
+                   <DataDisplayRow label="Consumo Comida" value={formatEuro(computedConsumoComida)} />
+                   <DataDisplayRow label="Consumo Papel" value={formatEuro(computedConsumoPapel)} />
+                   <DataDisplayRow label="Consumo OPS" value={formatEuro(computedConsumoOps)} />
                 </div>
              </div>
 
@@ -577,7 +589,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                   <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
                   <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
                   <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
-                  <DataDisplayRow label="Compras OPS Havi" value={`${computedComprasOpsHavi.toFixed(2)} €`} />
+                  <DataDisplayRow label="Compras OPS Havi" value={formatEuro(computedComprasOpsHavi)} />
                 </div>
              </div>
 
@@ -590,10 +602,10 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                   <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
                 </div>
                 <div className="space-y-1">
-                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? ((computedConsumoComida / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? ((computedConsumoPapel / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataDisplayRow label="% Consumo OPS" value={monthlyData.vendasMes > 0 ? ((computedConsumoOps / monthlyData.vendasMes) * 100).toFixed(2) + '%' : '0.00%'} />
-                   <DataDisplayRow label="Compras OPS MaiaPapper" value={`${computedComprasOpsMaiaPapper.toFixed(2)} €`} />
+                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoComida / monthlyData.vendasMes) * 100) : '0,00%'} />
+                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoPapel / monthlyData.vendasMes) * 100) : '0,00%'} />
+                   <DataDisplayRow label="% Consumo OPS" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoOps / monthlyData.vendasMes) * 100) : '0,00%'} />
+                   <DataDisplayRow label="Compras OPS MaiaPapper" value={formatEuro(computedComprasOpsMaiaPapper)} />
                 </div>
              </div>
           </div>
