@@ -2768,7 +2768,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 <span className="text-xs font-bold block whitespace-nowrap">
                                   {!hasAbertura ? 'Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
                                 </span>
-                                {hasAbertura && (
+                                {!hasAbertura || !isAberturaLocked ? (
+                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
+                                    Não realizada
+                                  </span>
+                                ) : (
                                   <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.abertura!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {formatEuro(getDynamicDiferencaForCount(day.abertura!))}
                                   </span>
@@ -2789,7 +2793,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 <span className="text-xs font-bold block whitespace-nowrap">
                                   {!hasTarde ? 'Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
                                 </span>
-                                {hasTarde && (
+                                {!hasTarde || !isTardeLocked ? (
+                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
+                                    Não realizada
+                                  </span>
+                                ) : (
                                   <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.tarde!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {formatEuro(getDynamicDiferencaForCount(day.tarde!))}
                                   </span>
@@ -2810,7 +2818,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 <span className="text-xs font-bold block whitespace-nowrap">
                                   {!hasFecho ? 'Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
                                 </span>
-                                {hasFecho && (
+                                {!hasFecho || !isFechoLocked ? (
+                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
+                                    Não realizada
+                                  </span>
+                                ) : (
                                   <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.fecho!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {formatEuro(getDynamicDiferencaForCount(day.fecho!))}
                                   </span>
@@ -2836,11 +2848,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   >
                                     Encerrar Dia
                                   </button>
-                                  {(!hasAbertura || !hasTarde || !hasFecho) && (
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 block text-center lg:text-right">
-                                      {!hasAbertura || !hasTarde || !hasFecho ? '' : 'Falta validar turnos'}
-                                    </span>
-                                  )}
+                                  <span className="text-[9px] text-red-500 font-black uppercase mt-1 block text-center lg:text-right">
+                                    {!hasAbertura || !hasTarde || !hasFecho 
+                                      ? 'Contagem não realizada' 
+                                      : 'Falta validar turnos'}
+                                  </span>
                                 </div>
                               )}
 
@@ -2906,21 +2918,27 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       <span className={getDynamicDiferencaForCount(day.abertura) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.abertura))}
                                       </span>
-                                    ) : '-'}
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
+                                    )}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono">
                                     {day.tarde ? (
                                       <span className={getDynamicDiferencaForCount(day.tarde) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.tarde))}
                                       </span>
-                                    ) : '-'}
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
+                                    )}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono">
                                     {day.fecho ? (
                                       <span className={getDynamicDiferencaForCount(day.fecho) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.fecho))}
                                       </span>
-                                    ) : '-'}
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
+                                    )}
                                   </td>
                                   
                                   <td className="px-6 py-4 text-center">
