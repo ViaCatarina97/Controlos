@@ -65,6 +65,11 @@ service cloud.firestore {
         allow get, create, update, delete: if isValidId(restaurantId) && isValidId(depositId);
       }
 
+      match /caixas_surpresa/{caixaSurpresaId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(caixaSurpresaId);
+      }
+
       match /prosegur_deposits/{prosegurDepositId} {
         allow list: if isValidId(restaurantId);
         allow get, create, update, delete: if isValidId(restaurantId) && isValidId(prosegurDepositId);

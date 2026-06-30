@@ -8,7 +8,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { 
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
-  CofreCount, DepositRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
+  CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
   ManagerTask, ManagerTaskChecklist
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
@@ -925,6 +925,82 @@ export async function deleteDeposit(restaurantId: string, id: string): Promise<v
         let list: DepositRecord[] = JSON.parse(saved);
         list = list.filter(d => d.id !== id);
         localStorage.setItem(`app_deposits_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+// --- CAIXAS SURPRESA ---
+
+export async function getCaixasSurpresa(restaurantId: string): Promise<CaixaSurpresaRecord[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/caixas_surpresa`;
+  return runFirestoreOp<CaixaSurpresaRecord[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'caixas_surpresa');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as CaixaSurpresaRecord);
+      localStorage.setItem(`app_caixas_surpresa_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_caixas_surpresa_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveCaixaSurpresa(restaurantId: string, record: CaixaSurpresaRecord): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/caixas_surpresa/${record.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'caixas_surpresa', record.id);
+      await setDoc(dRef, record);
+      
+      const saved = localStorage.getItem(`app_caixas_surpresa_${restaurantId}`);
+      let list: CaixaSurpresaRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== record.id);
+      list.push(record);
+      localStorage.setItem(`app_caixas_surpresa_${restaurantId}`, JSON.stringify(list));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_caixas_surpresa_${restaurantId}`);
+      let list: CaixaSurpresaRecord[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(c => c.id !== record.id);
+      list.push(record);
+      localStorage.setItem(`app_caixas_surpresa_${restaurantId}`, JSON.stringify(list));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteCaixaSurpresa(restaurantId: string, id: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/caixas_surpresa/${id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'caixas_surpresa', id);
+      await deleteDoc(dRef);
+      
+      const saved = localStorage.getItem(`app_caixas_surpresa_${restaurantId}`);
+      if (saved) {
+        let list: CaixaSurpresaRecord[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_caixas_surpresa_${restaurantId}`, JSON.stringify(list));
+      }
+    },
+    () => {
+      const saved = localStorage.getItem(`app_caixas_surpresa_${restaurantId}`);
+      if (saved) {
+        let list: CaixaSurpresaRecord[] = JSON.parse(saved);
+        list = list.filter(c => c.id !== id);
+        localStorage.setItem(`app_caixas_surpresa_${restaurantId}`, JSON.stringify(list));
       }
     },
     OperationType.DELETE,

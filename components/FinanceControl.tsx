@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Employee, AppSettings, CofreCount, DepositRecord, DepositRow, ProsegurDepositRecord, FinanceInvoice, 
-  ProsegurWeeklyDeposit, ProsegurCoinMovement, ProsegurDailyDeposit
+  ProsegurWeeklyDeposit, ProsegurCoinMovement, ProsegurDailyDeposit, CaixaSurpresaRecord
 } from '../types';
 import { 
   getCofreCounts, saveCofreCount, deleteCofreCount,
   getDeposits, saveDeposit, deleteDeposit,
   getProsegurDeposits, saveProsegurDeposit, deleteProsegurDeposit,
   getProsegurWeeklyDeposits, saveProsegurWeeklyDeposit, deleteProsegurWeeklyDeposit,
-  getProsegurCoinMovements, saveProsegurCoinMovement, deleteProsegurCoinMovement
+  getProsegurCoinMovements, saveProsegurCoinMovement, deleteProsegurCoinMovement,
+  getCaixasSurpresa, saveCaixaSurpresa, deleteCaixaSurpresa
 } from '../services/firebaseService';
 import { 
   Calculator, Coins, CreditCard, Landmark, Plus, Trash2, Edit2, 
@@ -209,6 +210,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   // Active/Detail editors
   const [editingCofre, setEditingCofre] = useState<CofreCount | null>(null);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
+  const [depositoSubTab, setDepositoSubTab] = useState<'folhas' | 'sangrias' | 'caixas_surpresa' | 'diferencas'>('folhas');
+  const [caixasSurpresa, setCaixasSurpresa] = useState<CaixaSurpresaRecord[]>([]);
+  const [showAddCaixaSurpresa, setShowAddCaixaSurpresa] = useState(false);
+  const [newCaixaSurpresa, setNewCaixaSurpresa] = useState<Omit<CaixaSurpresaRecord, 'id' | 'difference'>>({
+    date: new Date().toISOString().substring(0, 10),
+    turn: 'Abertura',
+    expectedValue: 0,
+    actualValue: 0,
+    employeeName: '',
+    managerName: ''
+  });
+  const [diferencaMonth, setDiferencaMonth] = useState<string>(() => new Date().toISOString().substring(0, 7));
   const [editingProsegur, setEditingProsegur] = useState<ProsegurDepositRecord | null>(null);
   const [editingWeekly, setEditingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
   const [editingCoin, setEditingCoin] = useState<ProsegurCoinMovement | null>(null);
@@ -298,12 +311,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [counts, deps, pros, weeklies, coins] = await Promise.all([
+      const [counts, deps, pros, weeklies, coins, csList] = await Promise.all([
         getCofreCounts(restaurantId),
         getDeposits(restaurantId),
         getProsegurDeposits(restaurantId),
         getProsegurWeeklyDeposits(restaurantId),
-        getProsegurCoinMovements(restaurantId)
+        getProsegurCoinMovements(restaurantId),
+        getCaixasSurpresa(restaurantId)
       ]);
       const sortedCoins = coins.sort((a,b) => b.date.localeCompare(a.date));
       const syncedWeeklies = syncWeeklyCoinDeposits(weeklies, sortedCoins);
@@ -312,6 +326,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       setProsegurDeposits(pros.sort((a,b) => b.date.localeCompare(a.date)));
       setProsegurWeeklyDeposits(syncedWeeklies.sort((a,b) => b.startDate.localeCompare(a.startDate)));
       setProsegurCoinMovements(sortedCoins);
+      setCaixasSurpresa(csList.sort((a,b) => b.date.localeCompare(a.date)));
     } catch (err) {
       console.error("Error loading financial data:", err);
     } finally {
@@ -1130,17 +1145,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   // --- DEPOSIT RECORD ACTIONS ---
-  const createDefaultDepositRows = (): DepositRow[] => [
-    { caixa: '4', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '4', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '5', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '5', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '6', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '6', colaboradorNo: '', colaboradorNome: '', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '34', colaboradorNo: '', colaboradorNome: 'UberEats', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '34', colaboradorNo: '', colaboradorNome: 'Glovo', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 },
-    { caixa: '61', colaboradorNo: '', colaboradorNome: 'MOP', valorRapport: 0, sangria: 0, dinheiro: 0, multibanco: 0, tickets: 0, delivery: 0, mop: 0, diferenca: 0 }
-  ];
+  const createDefaultDepositRows = (): DepositRow[] => [];
 
   const handleAddNewDepositForTurn = (date: string, turn: 'Abertura' | 'Fecho') => {
     const existing = deposits.find(d => d.date === date && d.turn === turn);
@@ -2172,6 +2177,37 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           </div>
 
+          {/* Action to Add Row */}
+          {!editingDeposit.isLocked && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const newRow: DepositRow = {
+                    caixa: '',
+                    colaboradorNo: '',
+                    colaboradorNome: '',
+                    valorRapport: 0,
+                    sangria: 0,
+                    dinheiro: 0,
+                    multibanco: 0,
+                    tickets: 0,
+                    delivery: 0,
+                    mop: 0,
+                    diferenca: 0
+                  };
+                  setEditingDeposit({
+                    ...editingDeposit,
+                    rows: [...editingDeposit.rows, newRow]
+                  });
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-amber-100"
+              >
+                <Plus size={14} /> Inserir Contagem
+              </button>
+            </div>
+          )}
+
           {/* Spreadsheet-like Table Board */}
           <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-inner bg-white">
             <table className="w-full text-center border-collapse min-w-[1000px]">
@@ -2188,151 +2224,179 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <th className="px-3 py-3 border-r border-slate-200 text-center w-28">Delivery</th>
                   <th className="px-3 py-3 border-r border-slate-200 text-center w-24">Mop</th>
                   <th className="px-3 py-3 text-center w-28">Diferença</th>
+                  {!editingDeposit.isLocked && <th className="px-2 py-3 text-center w-12 border-l border-slate-200 bg-slate-50/50">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                {editingDeposit.rows.map((row, idx) => {
-                  const isDeliveryOrMop = row.colaboradorNome === 'UberEats' || row.colaboradorNome === 'Glovo' || row.colaboradorNome === 'MOP';
+                {editingDeposit.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={!editingDeposit.isLocked ? 12 : 11} className="px-6 py-12 text-center text-slate-400 font-bold">
+                      Nenhuma contagem inserida. Clique em <span className="text-amber-600 font-black">"Inserir Contagem"</span> acima para adicionar uma linha.
+                    </td>
+                  </tr>
+                ) : (
+                  editingDeposit.rows.map((row, idx) => {
+                    const isDeliveryOrMop = row.colaboradorNome === 'UberEats' || row.colaboradorNome === 'Glovo' || row.colaboradorNome === 'MOP';
 
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      {/* CAIXA */}
-                      <td className="border-r border-slate-150 p-1 bg-slate-50/75 text-center">
-                        <input
-                          type="text"
-                          disabled={editingDeposit.isLocked}
-                          value={row.caixa}
-                          onChange={(e) => handleRowChange(idx, 'caixa', e.target.value)}
-                          className="w-full text-center p-1 bg-transparent border-none text-slate-800 font-extrabold text-xs focus:outline-none"
-                        />
-                      </td>
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        {/* CAIXA */}
+                        <td className="border-r border-slate-150 p-1 bg-slate-50/75 text-center">
+                          <input
+                            type="text"
+                            disabled={editingDeposit.isLocked}
+                            value={row.caixa}
+                            onChange={(e) => handleRowChange(idx, 'caixa', e.target.value)}
+                            className="w-full text-center p-1 bg-transparent border-none text-slate-800 font-extrabold text-xs focus:outline-none"
+                          />
+                        </td>
 
-                      {/* COLABORADOR Nº */}
-                      <td className="border-r border-slate-150 p-1 text-center">
-                        <input
-                          type="text"
-                          list="employees-mecanograficos"
-                          disabled={editingDeposit.isLocked}
-                          value={row.colaboradorNo || ''}
-                          onChange={(e) => handleRowChange(idx, 'colaboradorNo', e.target.value)}
-                          className="w-full text-center p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-700"
-                          placeholder="—"
-                        />
-                      </td>
+                        {/* COLABORADOR Nº */}
+                        <td className="border-r border-slate-150 p-1 text-center">
+                          <input
+                            type="text"
+                            list="employees-mecanograficos"
+                            disabled={editingDeposit.isLocked}
+                            value={row.colaboradorNo || ''}
+                            onChange={(e) => handleRowChange(idx, 'colaboradorNo', e.target.value)}
+                            className="w-full text-center p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-700"
+                            placeholder="—"
+                          />
+                        </td>
 
-                      {/* COLABORADOR NOME */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="text"
-                          list="employees-names"
-                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
-                          value={row.colaboradorNome}
-                          onChange={(e) => handleRowChange(idx, 'colaboradorNome', e.target.value)}
-                          className={`w-full p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded text-xs ${isDeliveryOrMop ? 'font-extrabold text-amber-800' : 'text-slate-850 font-medium'}`}
-                          placeholder="Nome..."
-                        />
-                      </td>
+                        {/* COLABORADOR NOME */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="text"
+                            list="employees-names"
+                            disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                            value={row.colaboradorNome}
+                            onChange={(e) => handleRowChange(idx, 'colaboradorNome', e.target.value)}
+                            className={`w-full p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded text-xs ${isDeliveryOrMop ? 'font-extrabold text-amber-800' : 'text-slate-850 font-medium'}`}
+                            placeholder="Nome..."
+                          />
+                        </td>
 
-                      {/* VALOR RAPPORT */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked}
-                          value={row.valorRapport || ''}
-                          onChange={(e) => handleRowChange(idx, 'valorRapport', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-800"
-                          placeholder="0.00"
-                        />
-                      </td>
+                        {/* VALOR RAPPORT */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked}
+                            value={row.valorRapport || ''}
+                            onChange={(e) => handleRowChange(idx, 'valorRapport', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs text-slate-800"
+                            placeholder="0.00"
+                          />
+                        </td>
 
-                      {/* SANGRIA */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
-                          value={row.sangria || ''}
-                          onChange={(e) => handleRowChange(idx, 'sangria', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* SANGRIA */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                            value={row.sangria || ''}
+                            onChange={(e) => handleRowChange(idx, 'sangria', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* DINHEIRO € */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
-                          value={row.dinheiro || ''}
-                          onChange={(e) => handleRowChange(idx, 'dinheiro', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* DINHEIRO € */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                            value={row.dinheiro || ''}
+                            onChange={(e) => handleRowChange(idx, 'dinheiro', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* MULTIBANCO */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
-                          value={row.multibanco || ''}
-                          onChange={(e) => handleRowChange(idx, 'multibanco', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* MULTIBANCO */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                            value={row.multibanco || ''}
+                            onChange={(e) => handleRowChange(idx, 'multibanco', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* TICKETS */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || isDeliveryOrMop}
-                          value={row.tickets || ''}
-                          onChange={(e) => handleRowChange(idx, 'tickets', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={isDeliveryOrMop ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* TICKETS */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || isDeliveryOrMop}
+                            value={row.tickets || ''}
+                            onChange={(e) => handleRowChange(idx, 'tickets', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={isDeliveryOrMop ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* DELIVERY */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || !isDeliveryOrMop || row.colaboradorNome === 'MOP'}
-                          value={row.delivery || ''}
-                          onChange={(e) => handleRowChange(idx, 'delivery', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={(!isDeliveryOrMop || row.colaboradorNome === 'MOP') ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* DELIVERY */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || !isDeliveryOrMop || row.colaboradorNome === 'MOP'}
+                            value={row.delivery || ''}
+                            onChange={(e) => handleRowChange(idx, 'delivery', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={(!isDeliveryOrMop || row.colaboradorNome === 'MOP') ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* MOP */}
-                      <td className="border-r border-slate-150 p-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          disabled={editingDeposit.isLocked || row.colaboradorNome !== 'MOP'}
-                          value={row.mop || ''}
-                          onChange={(e) => handleRowChange(idx, 'mop', e.target.value)}
-                          className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
-                          placeholder={row.colaboradorNome !== 'MOP' ? "—" : "0.00"}
-                        />
-                      </td>
+                        {/* MOP */}
+                        <td className="border-r border-slate-150 p-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={editingDeposit.isLocked || row.colaboradorNome !== 'MOP'}
+                            value={row.mop || ''}
+                            onChange={(e) => handleRowChange(idx, 'mop', e.target.value)}
+                            className="w-full text-right p-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-mono text-xs disabled:bg-slate-50/80 disabled:text-gray-300"
+                            placeholder={row.colaboradorNome !== 'MOP' ? "—" : "0.00"}
+                          />
+                        </td>
 
-                      {/* DIFERENÇA */}
-                      <td className="p-1 text-right font-mono font-black text-xs bg-slate-50/40">
-                        <span className={row.diferenca === 0 ? "text-green-600" : row.diferenca > 0 ? "text-blue-600" : "text-red-600 font-extrabold"}>
-                          {row.diferenca > 0 ? `+` : ''}{formatEuro(row.diferenca)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* DIFERENÇA */}
+                        <td className={`p-1 text-right font-mono font-black text-xs bg-slate-50/40 ${!editingDeposit.isLocked ? 'border-r border-slate-150' : ''}`}>
+                          <span className={row.diferenca === 0 ? "text-green-600" : row.diferenca > 0 ? "text-blue-600" : "text-red-600 font-extrabold"}>
+                            {row.diferenca > 0 ? `+` : ''}{formatEuro(row.diferenca)}
+                          </span>
+                        </td>
+
+                        {!editingDeposit.isLocked && (
+                          <td className="p-1 text-center bg-slate-50/20">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updatedRows = editingDeposit.rows.filter((_, rIdx) => rIdx !== idx);
+                                setEditingDeposit({
+                                  ...editingDeposit,
+                                  rows: updatedRows
+                                });
+                              }}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                              title="Remover linha"
+                            >
+                              <Trash2 size={14} className="mx-auto" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
 
                 {/* Grid Totals Row */}
                 {(() => {
@@ -2355,7 +2419,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totTickets)}</td>
                       <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totDelivery)}</td>
                       <td className="px-3 py-3 border-r border-slate-200 text-right">{formatEuro(totMOP)}</td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-3 py-3 text-right" colSpan={!editingDeposit.isLocked ? 2 : 1}>
                         <span className={totDiferenca === 0 ? "text-green-600" : totDiferenca > 0 ? "text-blue-600" : "text-red-600"}>
                           {totDiferenca > 0 ? `+` : ''}{formatEuro(totDiferenca)}
                         </span>
@@ -2405,7 +2469,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <h4 className="text-[10px] font-black text-amber-900 uppercase tracking-widest border-b border-slate-100 pb-2">
                     Resumo da Folha de Depósito
                   </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
                     {/* Dinheiro Card */}
                     <div className={cardClass(cashTotalVal)}>
                       <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Dinheiro</span>
@@ -2436,16 +2500,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <span className={`block font-mono font-black text-sm mt-1 ${totMOP > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(totMOP)}</span>
                     </div>
 
-                    {/* Faturas Card */}
-                    <div className={cardClass(dayInvoicesTotal)}>
-                      <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Faturas</span>
-                      <span className={`block font-mono font-black text-sm mt-1 ${dayInvoicesTotal > 0 ? 'text-slate-855' : 'text-slate-350'}`}>{formatEuro(dayInvoicesTotal)}</span>
-                    </div>
-
                     {/* Total Card */}
                     <div className="bg-amber-100/40 border border-amber-305/75 p-4 rounded-2xl shadow-sm text-slate-900 flex flex-col justify-between h-20 font-bold transition-all">
                       <span className="block text-[9px] font-black uppercase tracking-wider text-amber-900">Total</span>
-                      <span className="block font-mono font-black text-sm text-amber-955 mt-1">{formatEuro(grandTotalVal)}</span>
+                      <span className="block font-mono font-black text-sm text-amber-955 mt-1">{formatEuro(cashTotalVal)}</span>
                     </div>
                   </div>
                 </div>
@@ -3013,7 +3071,58 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           {/* Tab 2: DEPÓSITO BANCÁRIO */}
           {activeTab === 'depositos' && (
             <div className="space-y-6">
-              {/* Header Box */}
+              {/* Sub-Tabs Selector */}
+              <div className="flex flex-wrap gap-2 border-b pb-4 border-slate-150">
+                <button
+                  type="button"
+                  onClick={() => setDepositoSubTab('folhas')}
+                  className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+                    depositoSubTab === 'folhas'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Folhas de Depósito
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepositoSubTab('sangrias')}
+                  className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+                    depositoSubTab === 'sangrias'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Sangrias
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepositoSubTab('caixas_surpresa')}
+                  className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+                    depositoSubTab === 'caixas_surpresa'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Caixas Surpresa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepositoSubTab('diferencas')}
+                  className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+                    depositoSubTab === 'diferencas'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Diferenças de Caixa
+                </button>
+              </div>
+
+              {/* Sub-tab: Folhas de Depósito */}
+              {depositoSubTab === 'folhas' && (
+                <div className="space-y-6 animate-fade-in">
+                  {/* Header Box */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
                   <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Folha de Depósito</h4>
@@ -3250,7 +3359,525 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           )}
 
-          {/* Tab 3: DEPÓSITO PROSEGUR */}
+          {/* Sub-tab: Sangrias */}
+          {depositoSubTab === 'sangrias' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="bg-slate-50 p-4 rounded-2xl border">
+                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Histórico de Sangrias</h4>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                  Lista automática de sangrias efetuadas e registadas nas folhas de depósito.
+                </p>
+              </div>
+
+              <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm">
+                <table className="w-full text-center border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                      <th className="px-5 py-4 text-left">Data</th>
+                      <th className="px-5 py-4">Turno</th>
+                      <th className="px-5 py-4 text-right">Valor Sangria</th>
+                      <th className="px-5 py-4 text-left">Colaborador</th>
+                      <th className="px-5 py-4 text-left">Gerente responsável</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                    {(() => {
+                      const allSangrias: Array<{
+                        date: string;
+                        turn: string;
+                        value: number;
+                        employeeName: string;
+                        managerName: string;
+                      }> = [];
+
+                      deposits.forEach(dep => {
+                        const managerName = employees.find(e => e.id === dep.managerId)?.name || dep.managerId;
+                        dep.rows.forEach(row => {
+                          if (row.sangria && row.sangria > 0) {
+                            allSangrias.push({
+                              date: dep.date,
+                              turn: dep.turn,
+                              value: row.sangria,
+                              employeeName: row.colaboradorNome,
+                              managerName: managerName
+                            });
+                          }
+                        });
+                      });
+
+                      allSangrias.sort((a, b) => b.date.localeCompare(a.date));
+
+                      if (allSangrias.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
+                              Nenhuma sangria registada nas folhas de depósito até ao momento.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return allSangrias.map((s, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="px-5 py-4 text-left font-black text-slate-850">
+                            {formatDateToDMY(s.date)}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                              s.turn === 'Abertura' 
+                                ? 'bg-blue-50 border border-blue-100 text-blue-700' 
+                                : 'bg-indigo-50 border border-indigo-100 text-indigo-700'
+                            }`}>
+                              {s.turn}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right font-mono font-black text-slate-900">
+                            {formatEuro(s.value)}
+                          </td>
+                          <td className="px-5 py-4 text-left font-medium text-slate-800">
+                            {s.employeeName}
+                          </td>
+                          <td className="px-5 py-4 text-left font-medium text-slate-500">
+                            {s.managerName}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-tab: Caixas Surpresa */}
+          {depositoSubTab === 'caixas_surpresa' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
+                <div>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Auditorias de Caixa Surpresa</h4>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                    Controlo de caixas surpresa realizadas e verificação de diferenças.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCaixaSurpresa({
+                      date: new Date().toISOString().substring(0, 10),
+                      turn: 'Abertura',
+                      expectedValue: 0,
+                      actualValue: 0,
+                      employeeName: employees[0]?.name || '',
+                      managerName: employees.find(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE'))?.name || employees[0]?.name || ''
+                    });
+                    setShowAddCaixaSurpresa(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black text-xs px-4 py-2 uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-50"
+                >
+                  <Plus size={14} /> Inserir Contagem
+                </button>
+              </div>
+
+              {/* Add Caixa Surpresa Dialog Form */}
+              {showAddCaixaSurpresa && (
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-dashed border-slate-300 space-y-4 animate-fade-in">
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <h5 className="font-black text-xs uppercase text-slate-800 tracking-wider">Nova Contagem de Caixa Surpresa</h5>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCaixaSurpresa(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600 font-bold uppercase"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold text-slate-700">
+                    {/* Data */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Data</label>
+                      <input
+                        type="date"
+                        value={newCaixaSurpresa.date}
+                        onChange={(e) => setNewCaixaSurpresa({ ...newCaixaSurpresa, date: e.target.value })}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
+                      />
+                    </div>
+
+                    {/* Turno */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Turno</label>
+                      <select
+                        value={newCaixaSurpresa.turn}
+                        onChange={(e) => setNewCaixaSurpresa({ ...newCaixaSurpresa, turn: e.target.value })}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
+                      >
+                        <option value="Abertura">Abertura</option>
+                        <option value="Tarde">Tarde</option>
+                        <option value="Fecho">Fecho</option>
+                      </select>
+                    </div>
+
+                    {/* Colaborador */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Colaborador</label>
+                      <select
+                        value={newCaixaSurpresa.employeeName}
+                        onChange={(e) => setNewCaixaSurpresa({ ...newCaixaSurpresa, employeeName: e.target.value })}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
+                      >
+                        <option value="">-- Selecione Colaborador --</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.name}>{emp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Gerente */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Gerente</label>
+                      <select
+                        value={newCaixaSurpresa.managerName}
+                        onChange={(e) => setNewCaixaSurpresa({ ...newCaixaSurpresa, managerName: e.target.value })}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
+                      >
+                        <option value="">-- Selecione Gerente --</option>
+                        {employees.filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE' || e.role === 'TREINADOR').map(emp => (
+                          <option key={emp.id} value={emp.name}>{emp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Valor Esperado */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Valor Esperado</label>
+                      <input
+                        type="text"
+                        placeholder="0,00"
+                        onChange={(e) => {
+                          const valStr = e.target.value.replace(',', '.');
+                          const valNum = parseFloat(valStr) || 0;
+                          setNewCaixaSurpresa({ ...newCaixaSurpresa, expectedValue: valNum });
+                        }}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-mono font-bold text-slate-850"
+                      />
+                    </div>
+
+                    {/* Valor Real */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-500 uppercase text-[9px] font-black tracking-wider">Valor Real</label>
+                      <input
+                        type="text"
+                        placeholder="0,00"
+                        onChange={(e) => {
+                          const valStr = e.target.value.replace(',', '.');
+                          const valNum = parseFloat(valStr) || 0;
+                          setNewCaixaSurpresa({ ...newCaixaSurpresa, actualValue: valNum });
+                        }}
+                        className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-mono font-bold text-slate-850"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Display difference */}
+                  <div className="flex justify-between items-center bg-slate-100 p-3 rounded-xl border">
+                    <span className="text-xs text-slate-500 font-black uppercase">Diferença Calculada:</span>
+                    <span className={`font-mono text-sm font-black ${(newCaixaSurpresa.actualValue - newCaixaSurpresa.expectedValue) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {formatEuro(newCaixaSurpresa.actualValue - newCaixaSurpresa.expectedValue)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCaixaSurpresa(false)}
+                      className="px-4 py-2 border rounded-xl font-bold hover:bg-slate-100 transition-colors text-xs"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!newCaixaSurpresa.employeeName || !newCaixaSurpresa.managerName) {
+                          alert("Por favor, preencha o Colaborador e o Gerente responsável.");
+                          return;
+                        }
+                        const id = 'cs_' + Date.now();
+                        const record: CaixaSurpresaRecord = {
+                          id,
+                          date: newCaixaSurpresa.date,
+                          turn: newCaixaSurpresa.turn,
+                          expectedValue: newCaixaSurpresa.expectedValue,
+                          actualValue: newCaixaSurpresa.actualValue,
+                          difference: newCaixaSurpresa.actualValue - newCaixaSurpresa.expectedValue,
+                          employeeName: newCaixaSurpresa.employeeName,
+                          managerName: newCaixaSurpresa.managerName
+                        };
+
+                        try {
+                          setIsLoading(true);
+                          await saveCaixaSurpresa(restaurantId, record);
+                          setCaixasSurpresa(prev => [record, ...prev].sort((a,b) => b.date.localeCompare(a.date)));
+                          setShowAddCaixaSurpresa(false);
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-wider rounded-xl transition-all text-xs"
+                    >
+                      Submeter Contagem
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Caixas Surpresa Table list */}
+              <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm">
+                <table className="w-full text-center border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                      <th className="px-5 py-4 text-left">Data</th>
+                      <th className="px-5 py-4">Turno</th>
+                      <th className="px-5 py-4 text-right">Esperado</th>
+                      <th className="px-5 py-4 text-right">Real</th>
+                      <th className="px-5 py-4 text-right">Diferença</th>
+                      <th className="px-5 py-4 text-left">Colaborador</th>
+                      <th className="px-5 py-4 text-left">Gerente</th>
+                      <th className="px-5 py-4">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                    {caixasSurpresa.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">
+                          Nenhuma contagem de caixa surpresa registada até ao momento.
+                        </td>
+                      </tr>
+                    ) : (
+                      caixasSurpresa.map((cs) => (
+                        <tr key={cs.id} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="px-5 py-4 text-left font-black text-slate-850">
+                            {formatDateToDMY(cs.date)}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                              cs.turn === 'Abertura' 
+                                ? 'bg-blue-50 border border-blue-100 text-blue-700' 
+                                : cs.turn === 'Tarde'
+                                ? 'bg-amber-50 border border-amber-100 text-amber-700'
+                                : 'bg-indigo-50 border border-indigo-100 text-indigo-700'
+                            }`}>
+                              {cs.turn}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right font-mono text-slate-600">
+                            {formatEuro(cs.expectedValue)}
+                          </td>
+                          <td className="px-5 py-4 text-right font-mono text-slate-600">
+                            {formatEuro(cs.actualValue)}
+                          </td>
+                          <td className={`px-5 py-4 text-right font-mono font-black ${cs.difference >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {cs.difference > 0 ? '+' : ''}{formatEuro(cs.difference)}
+                          </td>
+                          <td className="px-5 py-4 text-left text-slate-800">
+                            {cs.employeeName}
+                          </td>
+                          <td className="px-5 py-4 text-left text-slate-500">
+                            {cs.managerName}
+                          </td>
+                          <td className="px-5 py-4">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm("Tem a certeza que deseja eliminar esta contagem de caixa surpresa?")) {
+                                  try {
+                                    setIsLoading(true);
+                                    await deleteCaixaSurpresa(restaurantId, cs.id);
+                                    setCaixasSurpresa(prev => prev.filter(item => item.id !== cs.id));
+                                  } catch (err) {
+                                    console.error(err);
+                                  } finally {
+                                    setIsLoading(false);
+                                  }
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                              title="Eliminar contagem"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-tab: Diferenças de Caixa */}
+          {depositoSubTab === 'diferencas' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
+                <div>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Tabela de Diferenças de Caixa</h4>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                    Consolidação automática de diferenças das folhas de depósito por colaborador e por dia do mês.
+                  </p>
+                </div>
+
+                {/* Month selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">Mês:</span>
+                  <input
+                    type="month"
+                    value={diferencaMonth}
+                    onChange={(e) => setDiferencaMonth(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Matrix Table */}
+              {(() => {
+                const [yearStr, monthStr] = diferencaMonth.split('-');
+                const year = parseInt(yearStr, 10) || new Date().getFullYear();
+                const monthIndex = (parseInt(monthStr, 10) - 1) || new Date().getMonth();
+                const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+                // Pre-index the differences for fast lookup
+                const diffMap = new Map<string, number>();
+                const hasEntryMap = new Set<string>();
+
+                deposits.forEach(dep => {
+                  if (dep.date.startsWith(diferencaMonth)) {
+                    const dayNum = parseInt(dep.date.substring(8, 10), 10);
+                    dep.rows.forEach(row => {
+                      const empNameNorm = row.colaboradorNome.trim().toLowerCase();
+                      const key = `${empNameNorm}_${dayNum}`;
+                      const currentVal = diffMap.get(key) || 0;
+                      diffMap.set(key, currentVal + (row.diferenca || 0));
+                      hasEntryMap.add(key);
+                    });
+                  }
+                });
+
+                // Calculate totals per employee
+                const employeeTotals: { [empName: string]: number } = {};
+                employees.forEach(emp => {
+                  let empSum = 0;
+                  dayNumbers.forEach(dayNum => {
+                    const key = `${emp.name.trim().toLowerCase()}_${dayNum}`;
+                    if (hasEntryMap.has(key)) {
+                      empSum += diffMap.get(key) || 0;
+                    }
+                  });
+                  employeeTotals[emp.name] = empSum;
+                });
+
+                // Calculate totals per day
+                const dayTotals: { [dayNum: number]: number } = {};
+                dayNumbers.forEach(dayNum => {
+                  let daySum = 0;
+                  employees.forEach(emp => {
+                    const key = `${emp.name.trim().toLowerCase()}_${dayNum}`;
+                    if (hasEntryMap.has(key)) {
+                      daySum += diffMap.get(key) || 0;
+                    }
+                  });
+                  dayTotals[dayNum] = daySum;
+                });
+
+                // Calculate grand total
+                let grandTotal = 0;
+                employees.forEach(emp => {
+                  grandTotal += employeeTotals[emp.name] || 0;
+                });
+
+                return (
+                  <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm">
+                    <table className="w-full text-center border-collapse min-w-[1200px]">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                          <th className="px-3 py-4 text-left w-48 border-r sticky left-0 bg-slate-100 z-10">Colaborador</th>
+                          {dayNumbers.map(d => (
+                            <th key={d} className="px-1.5 py-4 w-10 text-[9px] font-black">{d}</th>
+                          ))}
+                          <th className="px-3 py-4 w-28 border-l bg-slate-100 font-extrabold text-slate-800 uppercase tracking-tight">Total Mês</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-[11px] font-bold text-slate-700">
+                        {employees.map((emp) => {
+                          const empTotal = employeeTotals[emp.name] || 0;
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50/40 transition-colors">
+                              {/* Colaborador Name */}
+                              <td className="px-3 py-3 text-left border-r font-black text-slate-800 sticky left-0 bg-white shadow-[1px_0_0_0_rgba(226,232,240,1)] z-10">
+                                <span className="block truncate max-w-[180px]">{emp.name}</span>
+                                <span className="text-[8.5px] font-black uppercase text-slate-400 mt-0.5 block">{emp.role}</span>
+                              </td>
+
+                              {/* Days Cells */}
+                              {dayNumbers.map(dNum => {
+                                const key = `${emp.name.trim().toLowerCase()}_${dNum}`;
+                                const hasEntry = hasEntryMap.has(key);
+                                const val = diffMap.get(key) || 0;
+
+                                if (!hasEntry) {
+                                  return (
+                                    <td key={dNum} className="px-1 py-3 text-slate-300 font-mono text-[10px]">—</td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={dNum} className={`px-1 py-3 font-mono text-[10px] font-extrabold ${val === 0 ? 'text-slate-400' : val > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {val > 0 ? '+' : ''}{val.toFixed(2).replace('.', ',')}
+                                  </td>
+                                );
+                              })}
+
+                              {/* Total Mês por colaborador */}
+                              <td className={`px-3 py-3 border-l text-right font-mono font-black text-xs bg-slate-50/50 ${empTotal === 0 ? 'text-slate-500' : empTotal > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {empTotal > 0 ? '+' : ''}{formatEuro(empTotal)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* Line final for Total do Mês, por dia */}
+                        <tr className="bg-slate-50 border-t-2 border-slate-200 text-[11px] font-black text-slate-800">
+                          <td className="px-3 py-4 text-left border-r sticky left-0 bg-slate-50 font-black text-xs uppercase tracking-wider z-10">
+                            Total do Dia
+                          </td>
+                          {dayNumbers.map(dNum => {
+                            const val = dayTotals[dNum] || 0;
+                            return (
+                              <td key={dNum} className={`px-1 py-4 font-mono text-[10px] ${val === 0 ? 'text-slate-500' : val > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {val > 0 ? '+' : ''}{val.toFixed(2).replace('.', ',')}
+                              </td>
+                            );
+                          })}
+                          {/* Bottom-right corner: GRAND TOTAL */}
+                          <td className={`px-3 py-4 border-l text-right font-mono text-xs uppercase tracking-wider bg-slate-100/80 ${grandTotal === 0 ? 'text-slate-800' : grandTotal > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                            {grandTotal > 0 ? '+' : ''}{formatEuro(grandTotal)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: DEPÓSITO PROSEGUR */}
           {activeTab === 'prosegur' && (
             <div className="space-y-6">
               {/* Header Box */}

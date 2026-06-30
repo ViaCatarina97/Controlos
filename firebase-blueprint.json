@@ -174,6 +174,22 @@
       },
       "required": ["id", "date", "amount", "ref", "managerId", "bank"]
     },
+    "CaixaSurpresa": {
+      "title": "Surprise Cash Box Record",
+      "description": "Record of surprise cash box counting and validation differences.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "turn": { "type": "string" },
+        "expectedValue": { "type": "number" },
+        "actualValue": { "type": "number" },
+        "difference": { "type": "number" },
+        "employeeName": { "type": "string" },
+        "managerName": { "type": "string" }
+      },
+      "required": ["id", "date", "turn", "expectedValue", "actualValue", "difference", "employeeName", "managerName"]
+    },
     "ProsegurDepositRecord": {
       "title": "Prosegur Cash Collection",
       "description": "Record of high-security armored transport bank bags processed through Prosegur.",
@@ -306,6 +322,10 @@
     "/restaurants/{restaurantId}/deposits/{depositId}": {
       "schema": "DepositRecord",
       "description": "Sub-collection of manual bank cash drops"
+    },
+    "/restaurants/{restaurantId}/caixas_surpresa/{caixaSurpresaId}": {
+      "schema": "CaixaSurpresa",
+      "description": "Sub-collection of surprise cash box counts and audits"
     },
     "/restaurants/{restaurantId}/prosegur_deposits/{prosegurDepositId}": {
       "schema": "ProsegurDepositRecord",

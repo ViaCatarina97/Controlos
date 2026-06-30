@@ -258,6 +258,17 @@ export interface DepositRecord {
   isLocked?: boolean;
 }
 
+export interface CaixaSurpresaRecord {
+  id: string;
+  date: string;
+  turn: string;
+  expectedValue: number;
+  actualValue: number;
+  difference: number;
+  employeeName: string;
+  managerName: string;
+}
+
 export interface ProsegurDepositRecord {
   id: string;
   date: string;
