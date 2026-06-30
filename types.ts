@@ -256,6 +256,7 @@ export interface DepositRecord {
   rows: DepositRow[];
   comments: string;
   isLocked?: boolean;
+  isDayClosed?: boolean;
 }
 
 export interface CaixaSurpresaRecord {

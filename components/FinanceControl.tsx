@@ -1247,6 +1247,34 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     handleTriggerDeleteDepositModal(id);
   };
 
+  const handleConfirmDeleteDayDeposits = async (day: DepositDayState) => {
+    const password = prompt("Insira a password para eliminar o registo de depósito deste dia:");
+    if (password === null) return; // Cancelado
+    if (password !== 'Imperial96') {
+      alert("Password incorreta. Não tem permissão para eliminar.");
+      return;
+    }
+    
+    if (confirm(`Tem a certeza que deseja eliminar DEFINITIVAMENTE todos os registos de depósito do dia ${formatDateToDMY(day.date)}?`)) {
+      setIsLoading(true);
+      try {
+        if (day.abertura) {
+          await deleteDeposit(restaurantId, day.abertura.id);
+        }
+        if (day.fecho) {
+          await deleteDeposit(restaurantId, day.fecho.id);
+        }
+        await loadData();
+        alert("Registos de depósito do dia eliminados com sucesso!");
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao eliminar depósitos do dia.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const handleCloseDayDeposits = async (date: string, dayState: any) => {
     if (!dayState.abertura && !dayState.fecho) {
       alert("Por favor, preencha pelo menos um turno de depósito (Abertura ou Fecho) antes de encerrar o dia.");
@@ -1263,10 +1291,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     setIsLoading(true);
     try {
       if (dayState.abertura) {
-        await saveDeposit(restaurantId, { ...dayState.abertura, isLocked: true });
+        await saveDeposit(restaurantId, { ...dayState.abertura, isLocked: true, isDayClosed: true });
       }
       if (dayState.fecho) {
-        await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true });
+        await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true, isDayClosed: true });
       }
 
       // Calculate the day's total deposit
@@ -1372,24 +1400,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
   const getDepositRecordTotal = (dep?: DepositRecord): number => {
     if (!dep) return 0;
-    
-    // Find the matching cofre count for the same date and turn
-    const matchingCofre = cofreCounts.find(c => 
-      c.date === dep.date && 
-      c.turn.toLowerCase() === dep.turn?.toLowerCase()
-    );
-
-    if (matchingCofre) {
-      const fundoGerenteTot = matchingCofre.fundoGerente?.total || 0;
-      const cofreTot = matchingCofre.cofre?.total || 0;
-      const faturasTot = getDynamicTotalFaturasForCount(matchingCofre);
-      const moedasProsegurTot = matchingCofre.moedasProsegur ?? 0;
-      const fundosTotalVal = Number(matchingCofre.fundosCount || 0) * 50;
-      
-      // Formula: Fundo de gerente + cofre + faturas - moedas prossegur + fundos de gaveta
-      return fundoGerenteTot + cofreTot + faturasTot - moedasProsegurTot + fundosTotalVal;
-    }
-
     if (!dep.rows) return (dep as any).amount || 0;
     return dep.rows.reduce((sum, row) => {
       return sum + (row.dinheiro || 0) + (row.sangria || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
@@ -3222,8 +3232,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
               {/* Sub-tab: Folhas de Depósito */}
               {depositoSubTab === 'folhas' && (() => {
-                const openDays = groupedDeposits.filter(day => !((day.abertura?.isLocked || false) || (day.fecho?.isLocked || false)));
-                const closedDays = groupedDeposits.filter(day => (day.abertura?.isLocked || false) || (day.fecho?.isLocked || false));
+                const openDays = groupedDeposits.filter(day => {
+                  const isAberturaLocked = day.abertura?.isLocked || false;
+                  const isFechoLocked = day.fecho?.isLocked || false;
+                  const isClosed = (day.abertura?.isDayClosed === true || day.fecho?.isDayClosed === true) || (isAberturaLocked && isFechoLocked);
+                  return !isClosed;
+                });
+                const closedDays = groupedDeposits.filter(day => {
+                  const isAberturaLocked = day.abertura?.isLocked || false;
+                  const isFechoLocked = day.fecho?.isLocked || false;
+                  const isClosed = (day.abertura?.isDayClosed === true || day.fecho?.isDayClosed === true) || (isAberturaLocked && isFechoLocked);
+                  return isClosed;
+                });
 
                 const renderDepositTable = (daysList: DepositDayState[], isActiveTable: boolean) => {
                   if (daysList.length === 0) {
@@ -3243,7 +3263,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <th className="px-5 py-4">Depósito de Abertura</th>
                             <th className="px-5 py-4">Depósito de Fecho</th>
                             <th className="px-5 py-4">Total do Dia</th>
-                            <th className="px-5 py-4 w-72">Ações &amp; Estado</th>
+                            <th className="px-5 py-4 w-72">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
@@ -3259,7 +3279,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             const totalFecho = getDepositRecordTotal(day.fecho);
                             const diffFecho = getDepositRecordDifference(day.fecho);
 
-                            const isDayFullyClosed = isAberturaLocked || isFechoLocked;
+                            const isDayFullyClosed = (day.abertura?.isDayClosed === true || day.fecho?.isDayClosed === true) || (isAberturaLocked && isFechoLocked);
                             const totalDayAmt = totalAbertura + totalFecho;
 
                             return (
@@ -3272,9 +3292,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                                 {/* 2. DEPOSITO ABERTURA */}
                                 <td className="px-5 py-4">
-                                  <div className="flex flex-col items-center justify-center gap-1">
-                                    {hasAbertura ? (
-                                      <div className="space-y-1">
+                                  {hasAbertura ? (
+                                    <div className="flex items-center justify-center gap-4">
+                                      {/* Left Column: Total & Difference */}
+                                      <div className="text-right flex flex-col justify-center min-w-[70px]">
                                         <span className="text-xs font-mono font-black text-slate-800 block">
                                           {formatEuro(totalAbertura)}
                                         </span>
@@ -3283,60 +3304,64 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                         }`}>
                                           Dif: {diffAbertura > 0 ? '+' : ''}{formatEuro(diffAbertura)}
                                         </span>
-                                        <div className="flex items-center gap-2 justify-center mt-1">
-                                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                            isAberturaLocked 
-                                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
-                                              : 'bg-amber-50 border-amber-100 text-amber-750'
-                                          }`}>
-                                            {isAberturaLocked ? 'Concluído' : 'Em aberto'}
-                                          </span>
+                                      </div>
+                                      {/* Right Column: Status & Edit/Delete Button */}
+                                      <div className="flex items-center gap-1.5 justify-start">
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                          isAberturaLocked 
+                                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                            : 'bg-amber-50 border-amber-100 text-amber-750'
+                                        }`}>
+                                          {isAberturaLocked ? 'Concluído' : 'Em aberto'}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                          className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                        >
+                                          Editar
+                                        </button>
+                                        {!isAberturaLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleTriggerDeleteDepositModal(day.abertura!.id)}
+                                            className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                            title="Eliminar esta folha de depósito"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center gap-4">
+                                      <div className="text-right flex flex-col justify-center min-w-[70px]">
+                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 justify-start">
+                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                          Em aberto
+                                        </span>
+                                        {!isDayFullyClosed && (
                                           <button
                                             type="button"
                                             onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
-                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
                                           >
-                                            Editar
+                                            ➕ Iniciar
                                           </button>
-                                          {!isAberturaLocked && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleTriggerDeleteDepositModal(day.abertura!.id)}
-                                              className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
-                                              title="Eliminar esta folha de depósito"
-                                            >
-                                              <Trash2 size={13} />
-                                            </button>
-                                          )}
-                                        </div>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <div className="flex flex-col items-center gap-1.5">
-                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
-                                            Em aberto
-                                          </span>
-                                          {!isDayFullyClosed && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
-                                              className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
-                                            >
-                                              ➕ Iniciar
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </td>
 
                                 {/* 3. DEPOSITO FECHO */}
                                 <td className="px-5 py-4">
-                                  <div className="flex flex-col items-center justify-center gap-1">
-                                    {hasFecho ? (
-                                      <div className="space-y-1">
+                                  {hasFecho ? (
+                                    <div className="flex items-center justify-center gap-4">
+                                      {/* Left Column: Total & Difference */}
+                                      <div className="text-right flex flex-col justify-center min-w-[70px]">
                                         <span className="text-xs font-mono font-black text-slate-800 block">
                                           {formatEuro(totalFecho)}
                                         </span>
@@ -3345,53 +3370,56 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                         }`}>
                                           Dif: {diffFecho > 0 ? '+' : ''}{formatEuro(diffFecho)}
                                         </span>
-                                        <div className="flex items-center gap-2 justify-center mt-1">
-                                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                            isFechoLocked 
-                                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
-                                              : 'bg-amber-50 border-amber-100 text-amber-750'
-                                          }`}>
-                                            {isFechoLocked ? 'Concluído' : 'Em aberto'}
-                                          </span>
+                                      </div>
+                                      {/* Right Column: Status & Edit/Delete Button */}
+                                      <div className="flex items-center gap-1.5 justify-start">
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                          isFechoLocked 
+                                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                            : 'bg-amber-50 border-amber-100 text-amber-750'
+                                        }`}>
+                                          {isFechoLocked ? 'Concluído' : 'Em aberto'}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                          className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                        >
+                                          Editar
+                                        </button>
+                                        {!isFechoLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleTriggerDeleteDepositModal(day.fecho!.id)}
+                                            className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                            title="Eliminar esta folha de depósito"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center gap-4">
+                                      <div className="text-right flex flex-col justify-center min-w-[70px]">
+                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 justify-start">
+                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                          Em aberto
+                                        </span>
+                                        {!isDayFullyClosed && (
                                           <button
                                             type="button"
                                             onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
-                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
                                           >
-                                            Editar
+                                            ➕ Iniciar
                                           </button>
-                                          {!isFechoLocked && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleTriggerDeleteDepositModal(day.fecho!.id)}
-                                              className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
-                                              title="Eliminar esta folha de depósito"
-                                            >
-                                              <Trash2 size={13} />
-                                            </button>
-                                          )}
-                                        </div>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <div className="flex flex-col items-center gap-1.5">
-                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
-                                            Em aberto
-                                          </span>
-                                          {!isDayFullyClosed && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
-                                              className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
-                                            >
-                                              ➕ Iniciar
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </td>
 
                                 {/* 4. TOTAL DO DIA */}
@@ -3415,8 +3443,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                         </span>
                                         <button
                                           type="button"
+                                          disabled={!(isAberturaLocked && isFechoLocked)}
                                           onClick={() => handleCloseDayDeposits(day.date, day)}
-                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-650 hover:bg-red-700 text-white font-black text-[9px] uppercase tracking-wider rounded-xl transition-all shadow-sm"
+                                          className={`inline-flex items-center gap-1 px-3 py-1.5 font-black text-[9px] uppercase tracking-wider rounded-xl transition-all shadow-sm ${
+                                            (isAberturaLocked && isFechoLocked)
+                                              ? 'bg-red-650 hover:bg-red-700 text-white cursor-pointer'
+                                              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                                          }`}
+                                          title={!(isAberturaLocked && isFechoLocked) ? "Para encerrar o dia, ambos os turnos de Abertura e Fecho devem estar validados/concluídos." : "Encerrar o dia"}
                                         >
                                           🔒 Encerrar Dia
                                         </button>
@@ -3424,27 +3458,40 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     )}
 
                                     {(hasAbertura || hasFecho) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const printManagerObj = day.fecho || day.abertura;
-                                          const managerId = printManagerObj?.managerId;
-                                          const managerName = employees.find(e => e.id === managerId)?.name || '';
-                                          setPrintDepositData({
-                                            date: day.date,
-                                            managerName: managerName,
-                                            amount: totalDayAmt,
-                                            title: 'DEPOSIT DES VALORES E NUMERÁRIO'
-                                          });
-                                          setTimeout(() => {
-                                            window.print();
-                                          }, 150);
-                                        }}
-                                        className="p-1 px-2.5 text-blue-650 hover:text-blue-800 hover:bg-blue-50 border border-blue-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
-                                        title="Imprimir Guia de Depósito"
-                                      >
-                                        <Printer size={12} /> Imprimir
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const printManagerObj = day.fecho || day.abertura;
+                                            const managerId = printManagerObj?.managerId;
+                                            const managerName = employees.find(e => e.id === managerId)?.name || '';
+                                            setPrintDepositData({
+                                              date: day.date,
+                                              managerName: managerName,
+                                              amount: totalDayAmt,
+                                              title: 'DEPOSIT DES VALORES E NUMERÁRIO'
+                                            });
+                                            setTimeout(() => {
+                                              window.print();
+                                            }, 150);
+                                          }}
+                                          className="p-1 px-2.5 text-blue-650 hover:text-blue-800 hover:bg-blue-50 border border-blue-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
+                                          title="Imprimir Guia de Depósito"
+                                        >
+                                          <Printer size={12} /> Imprimir
+                                        </button>
+
+                                        {!isActiveTable && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleConfirmDeleteDayDeposits(day)}
+                                            className="p-1 px-2.5 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
+                                            title="Eliminar Depósito do Dia"
+                                          >
+                                            <Trash2 size={12} /> Eliminar
+                                          </button>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </td>
