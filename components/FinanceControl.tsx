@@ -4163,7 +4163,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               {isWeekOpen ? 'Em Aberto' : 'Encerrada'}
                             </span>
                             <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">
-                              Semana de {formatDateToDMY(week.startDate)}
+                              Semana Nº {getWeekNumberOfYear(week.startDate)} (de {formatDateToDMY(week.startDate)})
                             </h4>
                           </div>
                           <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
@@ -4184,7 +4184,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             {isWeekOpen && (
                               <button
                                 onClick={() => setClosingWeekly(week)}
-                                className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-50"
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-emerald-50"
                               >
                                 🔒 Encerrar Semana
                               </button>
@@ -4279,6 +4279,69 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   );
                 };
 
+                const renderHistoricWeekRow = (week: ProsegurWeeklyDeposit) => {
+                  const weekNum = getWeekNumberOfYear(week.startDate);
+                  
+                  // Compute dailySum based on week's saved dailyDeposits
+                  const dailySum = week.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                  const coinSum = Number(week.coinDepositsValue1 || 0) + Number(week.coinDepositsValue2 || 0);
+                  const grandTotal = dailySum + coinSum;
+                  
+                  const managerClose = week.managerClose || '—';
+                  const closeDate = week.endDate ? formatDateToDMY(week.endDate) : '—';
+
+                  return (
+                    <div key={week.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 hover:bg-white transition-all shadow-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-7 gap-4 items-center">
+                        {/* 1. Nº da Semana */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Semana</span>
+                          <span className="text-xs font-black text-slate-800">Semana Nº {weekNum}</span>
+                          <span className="block text-[9px] text-gray-450 font-bold mt-0.5">({formatDateToDMY(week.startDate)})</span>
+                        </div>
+                        {/* 2. Total Depósitos */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos</span>
+                          <span className="text-xs font-mono font-black text-slate-700">{formatEuro(dailySum)}</span>
+                        </div>
+                        {/* 3. Total Moedas */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos Moedas</span>
+                          <span className="text-xs font-mono font-black text-slate-700">{formatEuro(coinSum)}</span>
+                        </div>
+                        {/* 4. Total (soma) */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Total</span>
+                          <span className="text-xs font-mono font-black text-emerald-700">{formatEuro(grandTotal)}</span>
+                        </div>
+                        {/* 5. Gerente de Fecho */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Gerente de Fecho</span>
+                          <span className="text-xs font-bold text-slate-700 truncate block" title={managerClose}>{managerClose}</span>
+                        </div>
+                        {/* 6. Data de Finalização */}
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Fecho</span>
+                          <span className="text-xs font-bold text-slate-700">{closeDate}</span>
+                        </div>
+                        {/* 7. Status & Delete */}
+                        <div className="flex md:justify-end items-center gap-2">
+                          <span className="inline-flex items-center text-[8px] font-black uppercase px-2.5 py-1 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-200">
+                            Encerrado
+                          </span>
+                          <button
+                            onClick={() => handleDeleteWeeklyAction(week.id)}
+                            className="p-1 px-2 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                };
+
                 return (
                   <div className="space-y-6">
                     {/* Action Section */}
@@ -4305,7 +4368,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Abertura de Nova Semana de Depósitos</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Data Início de Semana</label>
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">
+                              Data Início de Semana {editingWeekly.startDate && `(Semana Nº ${getWeekNumberOfYear(editingWeekly.startDate)})`}
+                            </label>
                             <input
                               type="date"
                               value={editingWeekly.startDate}
@@ -4386,7 +4451,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             </div>
                           ) : (
                             <div className="space-y-6">
-                              {historicWeeks.map(renderWeekCard)}
+                              {historicWeeks.map(renderHistoricWeekRow)}
                             </div>
                           )}
                         </div>
