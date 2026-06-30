@@ -1672,7 +1672,26 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       return;
     }
 
-    const dailySum = weekly.dailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    // Compute the 7-day daily deposits dynamically from groupedDeposits
+    const updatedDailyDeposits: ProsegurDailyDeposit[] = Array.from({ length: 7 }).map((_, idx) => {
+      const slotDate = new Date(weekly.startDate);
+      slotDate.setDate(slotDate.getDate() + idx);
+      const dateStr = slotDate.toISOString().substring(0, 10);
+      const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
+      const dayTotalAmt = matchingGroup 
+        ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+        : 0;
+      const managerId = matchingGroup?.fecho?.managerId || matchingGroup?.abertura?.managerId;
+      const managerName = employees.find(e => e.id === managerId)?.name || '';
+      return {
+        dayIndex: idx,
+        date: dateStr,
+        amount: dayTotalAmt,
+        managerName: managerName || '—'
+      };
+    });
+
+    const dailySum = updatedDailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
     const coinSum = Number(weekly.coinDepositsValue1 || 0) + Number(weekly.coinDepositsValue2 || 0);
     const totalVal = dailySum + coinSum;
 
@@ -1692,6 +1711,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     // 2. Mark weekly as closed with filled fields
     const closedWeekly: ProsegurWeeklyDeposit = {
       ...weekly,
+      dailyDeposits: updatedDailyDeposits,
       status: 'Encerrado',
       endDate: closingDate,
       managerClose: managerCloseName,
@@ -4092,7 +4112,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                 const renderWeekCard = (week: ProsegurWeeklyDeposit) => {
                   const isWeekOpen = week.status === 'Aberto';
-                  const dailySum = week.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                  
+                  // Dynamically compute dailySum based on groupedDeposits of the 7 days
+                  let dailySum = 0;
+                  for (let idx = 0; idx < 7; idx++) {
+                    const slotDate = new Date(week.startDate);
+                    slotDate.setDate(slotDate.getDate() + idx);
+                    const dateStr = slotDate.toISOString().substring(0, 10);
+                    const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
+                    const dayTotalAmt = matchingGroup 
+                      ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                      : 0;
+                    
+                    const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
+                    const displayAmount = dayTotalAmt > 0 ? dayTotalAmt : (existDep?.amount || 0);
+                    dailySum += displayAmount;
+                  }
+
                   const coinSum = Number(week.coinDepositsValue1 || 0) + Number(week.coinDepositsValue2 || 0);
                   const grandTotal = dailySum + coinSum;
 
@@ -4166,18 +4202,36 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           slotDate.setDate(slotDate.getDate() + idx);
                           const dateStr = slotDate.toISOString().substring(0, 10);
                           const displayDate = formatDateToDMY(existDep?.date || dateStr);
-                          const wName = getWeekdayName(existDep?.date || dateStr);
+                          
+                          // Format day/month like "29/06"
+                          const parts = dateStr.split('-');
+                          const dateShort = parts.length === 3 ? `${parts[2]}/${parts[1]}` : dateStr;
+
+                          const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
+                          const dayTotalAmt = matchingGroup 
+                            ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                            : 0;
+                          
+                          const managerId = matchingGroup?.fecho?.managerId || matchingGroup?.abertura?.managerId;
+                          const managerName = employees.find(e => e.id === managerId)?.name || '';
+
+                          const displayAmount = dayTotalAmt > 0 ? dayTotalAmt : (existDep?.amount || 0);
+                          const displayManager = managerName || existDep?.managerName || '';
                           
                           return (
                             <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-blue-200 hover:bg-white transition-all">
                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 truncate" title={displayDate}>
-                                {wName} ({displayDate.substring(0, 5)})
+                                {dateShort}
                               </span>
                               <div className="flex-1 flex flex-col justify-center mb-2">
-                                {existDep && existDep.amount > 0 ? (
+                                {displayAmount > 0 ? (
                                   <div className="space-y-0.5 animate-fade-in">
-                                    <span className="text-xs font-mono font-black text-slate-800 block">{formatEuro(existDep.amount)}</span>
-                                    <span className="block text-[8px] text-emerald-700 font-extrabold truncate">{existDep.managerName}</span>
+                                    <span className="text-xs font-mono font-black text-slate-800 block">{formatEuro(displayAmount)}</span>
+                                    {displayManager && (
+                                      <span className="block text-[8px] text-emerald-700 font-extrabold truncate" title={displayManager}>
+                                        {displayManager}
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-[10px] text-gray-300 font-bold block">S/ Registo</span>
@@ -4197,15 +4251,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               <span className="text-[10px] text-gray-300 font-bold block">—</span>
                             )}
                           </div>
-                          {isWeekOpen && (
-                            <button
-                              type="button"
-                              onClick={() => setWeeklySlotEditor({ week, type: 'coin1' })}
-                              className="text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
-                            >
-                              Lançar
-                            </button>
-                          )}
                         </div>
 
                         {/* Coin 2 Slot */}
@@ -4218,15 +4263,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               <span className="text-[10px] text-gray-300 font-bold block">—</span>
                             )}
                           </div>
-                          {isWeekOpen && (
-                            <button
-                              type="button"
-                              onClick={() => setWeeklySlotEditor({ week, type: 'coin2' })}
-                              className="text-center text-[9px] font-black text-amber-700 hover:text-amber-900 uppercase tracking-widest border border-amber-100 hover:bg-amber-50 py-1.5 rounded-lg w-full transition-all"
-                            >
-                              Lançar
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
