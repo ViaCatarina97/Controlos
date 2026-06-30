@@ -120,6 +120,23 @@ const converterValorParaExtenso = (valor: number): string => {
   return extenso;
 };
 
+const addDaysToDateStr = (dateStr: string, days: number): string => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // 0-indexed
+  const day = parseInt(parts[2], 10);
+  
+  const dateObj = new Date(Date.UTC(year, month, day));
+  dateObj.setUTCDate(dateObj.getUTCDate() + days);
+  
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const syncWeeklyCoinDeposits = (weeklies: ProsegurWeeklyDeposit[], coins: ProsegurCoinMovement[]): ProsegurWeeklyDeposit[] => {
   return weeklies.map(w => {
     const parts = w.startDate.split('-');
@@ -1682,17 +1699,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       return;
     }
 
-    // Compute the 7-day daily deposits dynamically from groupedDeposits
+    // Validate that all 7 daily deposits are entered (amount > 0)
+    const missingDays: string[] = [];
     const updatedDailyDeposits: ProsegurDailyDeposit[] = Array.from({ length: 7 }).map((_, idx) => {
-      const slotDate = new Date(weekly.startDate);
-      slotDate.setDate(slotDate.getDate() + idx);
-      const dateStr = slotDate.toISOString().substring(0, 10);
+      const dateStr = addDaysToDateStr(weekly.startDate, idx);
       const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
       const dayTotalAmt = matchingGroup 
         ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
         : 0;
       const managerId = matchingGroup?.fecho?.managerId || matchingGroup?.abertura?.managerId;
       const managerName = employees.find(e => e.id === managerId)?.name || '';
+
+      if (dayTotalAmt <= 0) {
+        const parts = dateStr.split('-');
+        const dateShort = parts.length === 3 ? `${parts[2]}/${parts[1]}` : dateStr;
+        missingDays.push(dateShort);
+      }
+
       return {
         dayIndex: idx,
         date: dateStr,
@@ -1700,6 +1723,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         managerName: managerName || '—'
       };
     });
+
+    if (missingDays.length > 0) {
+      alert(`Erro: Para encerrar a semana, todos os 7 dias devem ter depósitos inseridos. Dias em falta: ${missingDays.join(', ')}`);
+      return;
+    }
 
     const dailySum = updatedDailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
     const coinSum = Number(weekly.coinDepositsValue1 || 0) + Number(weekly.coinDepositsValue2 || 0);
@@ -2614,7 +2642,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     {/* Total Card */}
                     <div className="bg-amber-100/40 border border-amber-305/75 p-4 rounded-2xl shadow-sm text-slate-900 flex flex-col justify-between h-20 font-bold transition-all">
                       <span className="block text-[9px] font-black uppercase tracking-wider text-amber-900">Total</span>
-                      <span className="block font-mono font-black text-sm text-amber-955 mt-1">{formatEuro(cashTotalVal)}</span>
+                      <span className="block font-mono font-black text-sm text-amber-955 mt-1">{formatEuro(getDepositRecordTotal(editingDeposit))}</span>
                     </div>
                   </div>
                 </div>
@@ -4173,9 +4201,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   // Dynamically compute dailySum based on groupedDeposits of the 7 days
                   let dailySum = 0;
                   for (let idx = 0; idx < 7; idx++) {
-                    const slotDate = new Date(week.startDate);
-                    slotDate.setDate(slotDate.getDate() + idx);
-                    const dateStr = slotDate.toISOString().substring(0, 10);
+                    const dateStr = addDaysToDateStr(week.startDate, idx);
                     const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
                     const dayTotalAmt = matchingGroup 
                       ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
@@ -4255,9 +4281,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
                           
                           // Calculate the slot's date based on week startDate
-                          const slotDate = new Date(week.startDate);
-                          slotDate.setDate(slotDate.getDate() + idx);
-                          const dateStr = slotDate.toISOString().substring(0, 10);
+                          const dateStr = addDaysToDateStr(week.startDate, idx);
                           const displayDate = formatDateToDMY(existDep?.date || dateStr);
                           
                           // Format day/month like "29/06"
@@ -4732,9 +4756,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           // Dynamically compute dailySum based on groupedDeposits of the 7 days
                           let dailySum = 0;
                           for (let idx = 0; idx < 7; idx++) {
-                            const slotDate = new Date(closingWeekly.startDate);
-                            slotDate.setDate(slotDate.getDate() + idx);
-                            const dateStr = slotDate.toISOString().substring(0, 10);
+                            const dateStr = addDaysToDateStr(closingWeekly.startDate, idx);
                             const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
                             const dayTotalAmt = matchingGroup 
                               ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
