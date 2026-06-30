@@ -1664,11 +1664,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     managerCloseName: string,
     prosegurEmployeeName: string,
     prosegurCredentialNum: string,
-    bagNumberVal: string,
-    prosegurReceiptVal: string
+    bagNumberVal?: string,
+    prosegurReceiptVal?: string
   ) => {
-    if (!closingDate || !managerCloseName || !prosegurEmployeeName || !prosegurCredentialNum || !prosegurReceiptVal) {
-      alert("Por favor, preencha todos os campos obrigatórios (Data de Fecho, Nome do Gerente, Funcionário Prosegur, Nº Credencial e Nº Guia Prosegur).");
+    if (!closingDate || !managerCloseName || !prosegurEmployeeName || !prosegurCredentialNum) {
+      alert("Por favor, preencha todos os campos obrigatórios (Data de Fecho, Nome do Gerente, Funcionário Prosegur e Nº Credencial).");
       return;
     }
 
@@ -1699,11 +1699,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const newRecolha: ProsegurDepositRecord = {
       id: `pros_${closingDate}_${Date.now()}`,
       date: closingDate,
-      bagNumber: bagNumberVal || prosegurCredentialNum,
+      bagNumber: bagNumberVal || prosegurCredentialNum || '',
       amountNotes: dailySum,
       amountCoins: coinSum,
       amountTotal: totalVal,
-      prosegurReceipt: prosegurReceiptVal,
+      prosegurReceipt: prosegurReceiptVal || '',
       status: 'Recolhido',
       comment: `Fecho de depósito semanal de ${formatDateToDMY(weekly.startDate)}. Aberto por ${weekly.managerOpen}, Fechado por ${managerCloseName}. Transp: ${prosegurEmployeeName} (${prosegurCredentialNum})`
     };
@@ -1717,8 +1717,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       managerClose: managerCloseName,
       prosegurEmployee: prosegurEmployeeName,
       prosegurCredential: prosegurCredentialNum,
-      bagNumber: bagNumberVal,
-      prosegurReceipt: prosegurReceiptVal,
+      bagNumber: bagNumberVal || '',
+      prosegurReceipt: prosegurReceiptVal || '',
       totalVal: totalVal
     };
 
@@ -1755,6 +1755,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     const dayName = date.toLocaleDateString('pt-PT', { weekday: 'long' });
     return dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  };
+
+  const getWeekNumberOfYear = (dateStr: string): number => {
+    if (!dateStr) return 0;
+    const parts = dateStr.split('-');
+    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const tempDate = new Date(date.valueOf());
+    tempDate.setDate(tempDate.getDate() + 4 - (tempDate.getDay() || 7));
+    const yearStart = new Date(tempDate.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((tempDate.valueOf() - yearStart.valueOf()) / 86400000) + 1) / 7);
+    return weekNo;
   };
 
   const formatMonthLabel = (yearMonth: string) => {
@@ -4075,7 +4086,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
                   <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Depósitos Prossegur</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Gestão integrada de depósitos diários, recolha de moedas e guias CIT para Depósitos Prossegur.</p>
                 </div>
 
                 {/* Sub-Tabs Switcher */}
@@ -4593,8 +4603,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden">
                         <div className="p-6 bg-slate-900 text-white flex justify-between items-start">
                           <div>
-                            <span className="text-[10px] uppercase font-black tracking-widest text-amber-400">CIT Recolha Prosegur</span>
-                            <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">Encerramento de Depósito de Valores</h3>
+                            <h3 className="font-extrabold text-white text-base uppercase tracking-wider">
+                              Depósito Prossegur - Nº {getWeekNumberOfYear(closingWeekly.startDate)}
+                            </h3>
                           </div>
                           <button 
                             onClick={() => setClosingWeekly(null)}
@@ -4606,7 +4617,22 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         
                         {/* Summary Block */}
                         {(() => {
-                          const dailySum = closingWeekly.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+                          // Dynamically compute dailySum based on groupedDeposits of the 7 days
+                          let dailySum = 0;
+                          for (let idx = 0; idx < 7; idx++) {
+                            const slotDate = new Date(closingWeekly.startDate);
+                            slotDate.setDate(slotDate.getDate() + idx);
+                            const dateStr = slotDate.toISOString().substring(0, 10);
+                            const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
+                            const dayTotalAmt = matchingGroup 
+                              ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                              : 0;
+                            
+                            const existDep = closingWeekly.dailyDeposits?.find(d => d.dayIndex === idx);
+                            const displayAmount = dayTotalAmt > 0 ? dayTotalAmt : (existDep?.amount || 0);
+                            dailySum += displayAmount;
+                          }
+
                           const coinSum = Number(closingWeekly.coinDepositsValue1 || 0) + Number(closingWeekly.coinDepositsValue2 || 0);
                           const totalSoma = dailySum + coinSum;
 
@@ -4622,19 +4648,19 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   fd.get('managerClose') as string,
                                   fd.get('prosegurEmployee') as string,
                                   fd.get('prosegurCredential') as string,
-                                  fd.get('bagNumber') as string,
-                                  fd.get('prosegurReceipt') as string
+                                  '', // bagNumber eliminated
+                                  ''  // prosegurReceipt eliminated
                                 );
                               }}
                               className="p-6 space-y-4"
                             >
                               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 grid grid-cols-3 gap-3 text-center">
                                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Notas (7 Dias)</span>
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos</span>
                                   <span className="text-xs font-mono font-black text-slate-800">{formatEuro(dailySum)}</span>
                                 </div>
                                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Moedas (Saco 1+2)</span>
+                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos Moedas</span>
                                   <span className="text-xs font-mono font-black text-slate-800">{formatEuro(coinSum)}</span>
                                 </div>
                                 <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
@@ -4645,7 +4671,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Data de Fecho / Entrega *</label>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Data</label>
                                   <input 
                                     name="closeDate"
                                     type="date"
@@ -4655,7 +4681,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Confirmado Por (Gerente) *</label>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Gerente</label>
                                   <input 
                                     name="managerClose"
                                     type="text"
@@ -4666,7 +4692,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Funci. Transportadora CIT *</label>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Funcionário Prossegur</label>
                                   <input 
                                     name="prosegurEmployee"
                                     type="text"
@@ -4676,31 +4702,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Credencial / Rota Guarda *</label>
+                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Credencial</label>
                                   <input 
                                     name="prosegurCredential"
                                     type="text"
                                     required
                                     placeholder="Nº da rota ou credencial..."
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Selo / Saco Prosegur</label>
-                                  <input 
-                                    name="bagNumber"
-                                    type="text"
-                                    placeholder="Saco de segurança..."
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nº Guia de Transporte Prosegur *</label>
-                                  <input 
-                                    name="prosegurReceipt"
-                                    type="text"
-                                    required
-                                    placeholder="Guia de valores Prosegur..."
                                     className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
                                   />
                                 </div>
@@ -4718,7 +4725,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   type="submit"
                                   className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-50"
                                 >
-                                  ✔️ Gerar Guia CIT & Fechar
+                                  ✔️ Submeter
                                 </button>
                               </div>
                             </form>
