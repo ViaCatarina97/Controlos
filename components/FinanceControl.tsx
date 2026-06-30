@@ -212,6 +212,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
   const [depositoSubTab, setDepositoSubTab] = useState<'folhas' | 'sangrias' | 'caixas_surpresa' | 'diferencas'>('folhas');
   const [caixasSurpresa, setCaixasSurpresa] = useState<CaixaSurpresaRecord[]>([]);
+  const [caixaSurpresaFilterMonth, setCaixaSurpresaFilterMonth] = useState<string>('');
+  const [caixaSurpresaFilterEmployee, setCaixaSurpresaFilterEmployee] = useState<string>('');
   const [showAddCaixaSurpresa, setShowAddCaixaSurpresa] = useState(false);
   const [newCaixaSurpresa, setNewCaixaSurpresa] = useState<Omit<CaixaSurpresaRecord, 'id' | 'difference'>>({
     date: new Date().toISOString().substring(0, 10),
@@ -633,6 +635,26 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     list.sort((a, b) => b.date.localeCompare(a.date));
     return list;
   }, [deposits, extraDates]);
+
+  const filteredCaixasSurpresa = useMemo(() => {
+    return caixasSurpresa.filter(cs => {
+      const matchesMonth = !caixaSurpresaFilterMonth || cs.date.startsWith(caixaSurpresaFilterMonth);
+      const matchesEmployee = !caixaSurpresaFilterEmployee || cs.employeeName.toLowerCase().includes(caixaSurpresaFilterEmployee.toLowerCase());
+      return matchesMonth && matchesEmployee;
+    });
+  }, [caixasSurpresa, caixaSurpresaFilterMonth, caixaSurpresaFilterEmployee]);
+
+  const totalsCaixaSurpresa = useMemo(() => {
+    let expected = 0;
+    let actual = 0;
+    let diff = 0;
+    filteredCaixasSurpresa.forEach(cs => {
+      expected += cs.expectedValue || 0;
+      actual += cs.actualValue || 0;
+      diff += cs.difference || 0;
+    });
+    return { expected, actual, diff };
+  }, [filteredCaixasSurpresa]);
 
   // Safe Count detailed actions
   const handleAddNewSafeCountForTurn = (date: string, turn: 'Abertura' | 'Tarde' | 'Fecho') => {
@@ -1246,6 +1268,54 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       if (dayState.fecho) {
         await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true });
       }
+
+      // Calculate the day's total deposit
+      const totalAmt = (dayState.abertura ? getDepositRecordTotal(dayState.abertura) : 0) + (dayState.fecho ? getDepositRecordTotal(dayState.fecho) : 0);
+      
+      // Auto-launch total on Prosegur weekly deposit if week is found
+      const getWeeklySlotForDate = (dateStr: string, weeks: ProsegurWeeklyDeposit[]) => {
+        const sorted = [...weeks].sort((a, b) => {
+          if (a.status === 'Aberto' && b.status !== 'Aberto') return -1;
+          if (a.status !== 'Aberto' && b.status === 'Aberto') return 1;
+          return 0;
+        });
+        for (const week of sorted) {
+          if (!week.startDate) continue;
+          const startObj = new Date(week.startDate);
+          const targetObj = new Date(dateStr);
+          const tTime = Date.UTC(targetObj.getFullYear(), targetObj.getMonth(), targetObj.getDate());
+          const sTime = Date.UTC(startObj.getFullYear(), startObj.getMonth(), startObj.getDate());
+          const diffDays = Math.round((tTime - sTime) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 0 && diffDays < 7) {
+            return { week, dayIndex: diffDays };
+          }
+        }
+        return null;
+      };
+
+      const matchedSlot = getWeeklySlotForDate(date, prosegurWeeklyDeposits);
+      if (matchedSlot) {
+        const { week, dayIndex } = matchedSlot;
+        const updatedDeposits = [...(week.dailyDeposits || [])];
+        const existingIdx = updatedDeposits.findIndex(d => d.dayIndex === dayIndex);
+        const newDepData = {
+          dayIndex,
+          date,
+          amount: totalAmt,
+          managerName: managerName.trim()
+        };
+        if (existingIdx !== -1) {
+          updatedDeposits[existingIdx] = newDepData;
+        } else {
+          updatedDeposits.push(newDepData);
+        }
+        const weeklyToSave = { ...week, dailyDeposits: updatedDeposits };
+        const dailySum = weeklyToSave.dailyDeposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+        const coinSum = Number(weeklyToSave.coinDepositsValue1 || 0) + Number(weeklyToSave.coinDepositsValue2 || 0);
+        weeklyToSave.totalVal = dailySum + coinSum;
+        await saveProsegurWeeklyDeposit(restaurantId, weeklyToSave);
+      }
+
       await loadData();
       alert(`Dia encerrado e validado com sucesso por ${managerName.trim()}! 🔒`);
     } catch (err) {
@@ -3120,244 +3190,294 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
 
               {/* Sub-tab: Folhas de Depósito */}
-              {depositoSubTab === 'folhas' && (
-                <div className="space-y-6 animate-fade-in">
-                  {/* Header Box */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
-                <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Folha de Depósito</h4>
-                </div>
+              {depositoSubTab === 'folhas' && (() => {
+                const openDays = groupedDeposits.filter(day => !((day.abertura?.isLocked || false) || (day.fecho?.isLocked || false)));
+                const closedDays = groupedDeposits.filter(day => (day.abertura?.isLocked || false) || (day.fecho?.isLocked || false));
 
-                {/* Add Custom Date Tool */}
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="date"
-                    value={customDateInput}
-                    onChange={(e) => setCustomDateInput(e.target.value)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-705 focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={() => {
-                      if (!customDateInput) return;
-                      if (!extraDates.includes(customDateInput)) {
-                        setExtraDates([...extraDates, customDateInput]);
-                      }
-                      alert(`Dia ${customDateInput} iniciado. Agora pode carregar nas ações abaixo para registar os depósitos.`);
-                    }}
-                    className="flex items-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black text-[10px] px-3.5 py-2 uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-50"
-                  >
-                    <Plus size={14} /> Inserir Depósito
-                  </button>
-                </div>
-              </div>
+                const renderDepositTable = (daysList: DepositDayState[], isActiveTable: boolean) => {
+                  if (daysList.length === 0) {
+                    return (
+                      <div className="p-12 text-center text-xs text-gray-400 font-bold uppercase tracking-widest bg-white border border-slate-200 rounded-3xl">
+                        Nenhum registo de depósito para listar nesta secção.
+                      </div>
+                    );
+                  }
 
-              {/* Grouped Lists: Active vs Archived - Unified Line-by-Line Table */}
-              <div className="space-y-4">
-                <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm animate-fade-in">
-                  <table className="w-full text-center border-collapse min-w-[1050px]">
-                    <thead>
-                      <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        <th className="px-5 py-4 text-left w-48">Data / Dia</th>
-                        <th className="px-5 py-4">Depósito de Abertura</th>
-                        <th className="px-5 py-4">Depósito de Fecho</th>
-                        <th className="px-5 py-4 w-48">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                      {groupedDeposits.map((day) => {
-                        const wName = getWeekdayName(day.date);
-                        
-                        // Abertura turn calculations
-                        const hasAbertura = !!day.abertura;
-                        const isAberturaLocked = day.abertura?.isLocked || false;
-                        const totalAbertura = getDepositRecordTotal(day.abertura);
-                        const diffAbertura = getDepositRecordDifference(day.abertura);
-
-                        // Fecho turn calculations
-                        const hasFecho = !!day.fecho;
-                        const isFechoLocked = day.fecho?.isLocked || false;
-                        const totalFecho = getDepositRecordTotal(day.fecho);
-                        const diffFecho = getDepositRecordDifference(day.fecho);
-
-                        // Day lock condition
-                        const isDayFullyClosed = isAberturaLocked && isFechoLocked;
-
-                        return (
-                          <tr key={day.date} className="hover:bg-slate-50/40 transition-colors">
-                            {/* DATA */}
-                            <td className="px-5 py-4 text-left">
-                              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">{wName}</span>
-                              <span className="text-xs font-black text-slate-800">{formatDateToDMY(day.date)}</span>
-                            </td>
-
-                            {/* DEPOSITO ABERTURA */}
-                            <td className="px-5 py-4">
-                              <div className="flex flex-col items-center justify-center gap-1">
-                                {hasAbertura ? (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2 justify-center">
-                                      <span className={`font-mono text-xs font-black ${
-                                        diffAbertura === 0 ? 'text-slate-800' : diffAbertura > 0 ? 'text-emerald-700' : 'text-rose-700 font-extrabold'
-                                      }`}>
-                                        {diffAbertura > 0 ? '+' : ''}{formatEuro(diffAbertura)}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 justify-center">
-                                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                        isAberturaLocked 
-                                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
-                                          : 'bg-amber-50 border-amber-100 text-amber-750'
-                                      }`}>
-                                        {isAberturaLocked ? 'Concluído' : 'Em aberto'}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleAddNewDepositForTurn(day.date, 'Abertura');
-                                        }}
-                                        className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
-                                      >
-                                        Verificar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleTriggerDeleteDepositModal(day.abertura!.id)}
-                                        className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
-                                        title="Eliminar esta folha de depósito"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
-                                      Em aberto
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        handleAddNewDepositForTurn(day.date, 'Abertura');
-                                      }}
-                                      className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
-                                    >
-                                      ➕ Iniciar
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* DEPOSITO FECHO */}
-                            <td className="px-5 py-4">
-                              <div className="flex flex-col items-center justify-center gap-1">
-                                {hasFecho ? (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2 justify-center">
-                                      <span className={`font-mono text-xs font-black ${
-                                        diffFecho === 0 ? 'text-slate-800' : diffFecho > 0 ? 'text-emerald-700' : 'text-rose-700 font-extrabold'
-                                      }`}>
-                                        {diffFecho > 0 ? '+' : ''}{formatEuro(diffFecho)}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 justify-center">
-                                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                        isFechoLocked 
-                                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
-                                          : 'bg-amber-50 border-amber-100 text-amber-750'
-                                      }`}>
-                                        {isFechoLocked ? 'Concluído' : 'Em aberto'}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleAddNewDepositForTurn(day.date, 'Fecho');
-                                        }}
-                                        className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
-                                      >
-                                        Verificar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleTriggerDeleteDepositModal(day.fecho!.id)}
-                                        className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
-                                        title="Eliminar esta folha de depósito"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
-                                      Em aberto
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        handleAddNewDepositForTurn(day.date, 'Fecho');
-                                      }}
-                                      className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
-                                    >
-                                      ➕ Iniciar
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* ACOES DE ENCERRAMENTO (ENCERRAR DIA) */}
-                            <td className="px-5 py-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                {isDayFullyClosed ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-800 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                    🔒 Encerrado & Validado
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCloseDayDeposits(day.date, day)}
-                                    className="inline-flex items-center gap-1 px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-100 border border-transparent"
-                                  >
-                                    🔒 Encerrar Dia
-                                  </button>
-                                )}
-
-                                {(hasAbertura || hasFecho) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const printManagerObj = day.fecho || day.abertura;
-                                      const managerId = printManagerObj?.managerId;
-                                      const managerName = employees.find(e => e.id === managerId)?.name || '';
-                                      const totalAmt = (day.abertura ? getDepositRecordTotal(day.abertura) : 0) + (day.fecho ? getDepositRecordTotal(day.fecho) : 0);
-                                      setPrintDepositData({
-                                        date: day.date,
-                                        managerName: managerName,
-                                        amount: totalAmt,
-                                        title: 'DEPOSIT DES VALORES E NUMERÁRIO'
-                                      });
-                                      setTimeout(() => {
-                                        window.print();
-                                      }, 150);
-                                    }}
-                                    className="p-1 px-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-105 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    title="Imprimir Guia de Depósito"
-                                  >
-                                    <Printer size={12} /> Imprimir
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                  return (
+                    <div className="overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-sm animate-fade-in">
+                      <table className="w-full text-center border-collapse min-w-[1100px]">
+                        <thead>
+                          <tr className="bg-slate-50/75 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                            <th className="px-5 py-4 text-left w-40">Data / Dia</th>
+                            <th className="px-5 py-4">Depósito de Abertura</th>
+                            <th className="px-5 py-4">Depósito de Fecho</th>
+                            <th className="px-5 py-4">Total do Dia</th>
+                            <th className="px-5 py-4 w-72">Ações &amp; Estado</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                          {daysList.map((day) => {
+                            const wName = getWeekdayName(day.date);
+                            const hasAbertura = !!day.abertura;
+                            const isAberturaLocked = day.abertura?.isLocked || false;
+                            const totalAbertura = getDepositRecordTotal(day.abertura);
+                            const diffAbertura = getDepositRecordDifference(day.abertura);
+
+                            const hasFecho = !!day.fecho;
+                            const isFechoLocked = day.fecho?.isLocked || false;
+                            const totalFecho = getDepositRecordTotal(day.fecho);
+                            const diffFecho = getDepositRecordDifference(day.fecho);
+
+                            const isDayFullyClosed = isAberturaLocked || isFechoLocked;
+                            const totalDayAmt = totalAbertura + totalFecho;
+
+                            return (
+                              <tr key={day.date} className="hover:bg-slate-50/40 transition-colors">
+                                {/* 1. DATA */}
+                                <td className="px-5 py-4 text-left">
+                                  <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">{wName}</span>
+                                  <span className="text-xs font-black text-slate-800">{formatDateToDMY(day.date)}</span>
+                                </td>
+
+                                {/* 2. DEPOSITO ABERTURA */}
+                                <td className="px-5 py-4">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    {hasAbertura ? (
+                                      <div className="space-y-1">
+                                        <span className="text-xs font-mono font-black text-slate-800 block">
+                                          {formatEuro(totalAbertura)}
+                                        </span>
+                                        <span className={`block font-mono text-[10px] ${
+                                          diffAbertura === 0 ? 'text-slate-400' : diffAbertura > 0 ? 'text-emerald-600 font-extrabold' : 'text-rose-650 font-extrabold'
+                                        }`}>
+                                          Dif: {diffAbertura > 0 ? '+' : ''}{formatEuro(diffAbertura)}
+                                        </span>
+                                        <div className="flex items-center gap-2 justify-center mt-1">
+                                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                            isAberturaLocked 
+                                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                              : 'bg-amber-50 border-amber-100 text-amber-750'
+                                          }`}>
+                                            {isAberturaLocked ? 'Concluído' : 'Em aberto'}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                          >
+                                            Editar
+                                          </button>
+                                          {!isAberturaLocked && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleTriggerDeleteDepositModal(day.abertura!.id)}
+                                              className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                              title="Eliminar esta folha de depósito"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-1.5">
+                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                            Em aberto
+                                          </span>
+                                          {!isDayFullyClosed && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleAddNewDepositForTurn(day.date, 'Abertura')}
+                                              className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
+                                            >
+                                              ➕ Iniciar
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* 3. DEPOSITO FECHO */}
+                                <td className="px-5 py-4">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    {hasFecho ? (
+                                      <div className="space-y-1">
+                                        <span className="text-xs font-mono font-black text-slate-800 block">
+                                          {formatEuro(totalFecho)}
+                                        </span>
+                                        <span className={`block font-mono text-[10px] ${
+                                          diffFecho === 0 ? 'text-slate-400' : diffFecho > 0 ? 'text-emerald-600 font-extrabold' : 'text-rose-650 font-extrabold'
+                                        }`}>
+                                          Dif: {diffFecho > 0 ? '+' : ''}{formatEuro(diffFecho)}
+                                        </span>
+                                        <div className="flex items-center gap-2 justify-center mt-1">
+                                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                            isFechoLocked 
+                                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                              : 'bg-amber-50 border-amber-100 text-amber-750'
+                                          }`}>
+                                            {isFechoLocked ? 'Concluído' : 'Em aberto'}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                            className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider transition-all"
+                                          >
+                                            Editar
+                                          </button>
+                                          {!isFechoLocked && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleTriggerDeleteDepositModal(day.fecho!.id)}
+                                              className="p-1 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded transition-all"
+                                              title="Eliminar esta folha de depósito"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-1.5">
+                                        <span className="text-[10px] text-gray-400 font-bold block">—</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-gray-50 border-gray-150 text-gray-400">
+                                            Em aberto
+                                          </span>
+                                          {!isDayFullyClosed && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleAddNewDepositForTurn(day.date, 'Fecho')}
+                                              className="text-[10px] bg-blue-50 hover:bg-blue-105 text-blue-600 font-black px-2.5 py-1 rounded-lg transition-all"
+                                            >
+                                              ➕ Iniciar
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* 4. TOTAL DO DIA */}
+                                <td className="px-5 py-4">
+                                  <span className="text-sm font-mono font-black text-slate-800 block">
+                                    {formatEuro(totalDayAmt)}
+                                  </span>
+                                </td>
+
+                                {/* 5. ACOES & ESTADO */}
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {isDayFullyClosed ? (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-850 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                        🔒 Concluído
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-150 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                          📖 Em aberto
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCloseDayDeposits(day.date, day)}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-650 hover:bg-red-700 text-white font-black text-[9px] uppercase tracking-wider rounded-xl transition-all shadow-sm"
+                                        >
+                                          🔒 Encerrar Dia
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {(hasAbertura || hasFecho) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const printManagerObj = day.fecho || day.abertura;
+                                          const managerId = printManagerObj?.managerId;
+                                          const managerName = employees.find(e => e.id === managerId)?.name || '';
+                                          setPrintDepositData({
+                                            date: day.date,
+                                            managerName: managerName,
+                                            amount: totalDayAmt,
+                                            title: 'DEPOSIT DES VALORES E NUMERÁRIO'
+                                          });
+                                          setTimeout(() => {
+                                            window.print();
+                                          }, 150);
+                                        }}
+                                        className="p-1 px-2.5 text-blue-650 hover:text-blue-800 hover:bg-blue-50 border border-blue-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
+                                        title="Imprimir Guia de Depósito"
+                                      >
+                                        <Printer size={12} /> Imprimir
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Header Box */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Folha de Depósito</h4>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Gestão de depósitos diários (Abertura e Fecho) e encerramento de caixa.</p>
+                      </div>
+
+                      {/* Add Custom Date Tool */}
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="date"
+                          value={customDateInput}
+                          onChange={(e) => setCustomDateInput(e.target.value)}
+                          className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-750 focus:ring-1 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!customDateInput) return;
+                            if (!extraDates.includes(customDateInput)) {
+                              setExtraDates([...extraDates, customDateInput]);
+                            }
+                            alert(`Dia ${customDateInput} iniciado. Agora pode carregar nas ações abaixo para registar os depósitos.`);
+                          }}
+                          className="flex items-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black text-[10px] px-3.5 py-2 uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-50"
+                        >
+                          <Plus size={14} /> Inserir Depósito
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Section 1: Open Days */}
+                    <div className="space-y-4">
+                      <div className="border-l-4 border-amber-400 pl-3">
+                        <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider">Dias em Aberto (Controlo Diário)</h5>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Controlo dos depósitos do dia em curso. O dia deve ser encerrado e validado no final do fecho.</p>
+                      </div>
+                      {renderDepositTable(openDays, true)}
+                    </div>
+
+                    {/* Section 2: Closed Days History */}
+                    <div className="space-y-4 pt-4">
+                      <div className="border-l-4 border-emerald-500 pl-3">
+                        <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider">Histórico de Dias Concluídos</h5>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Depósitos encerrados e validados pelo gerente. Os totais correspondentes são enviados para o controlo Prosegur.</p>
+                      </div>
+                      {renderDepositTable(closedDays, false)}
+                    </div>
+                  </div>
+                );
+              })()}
 
           {/* Sub-tab: Sangrias */}
           {depositoSubTab === 'sangrias' && (
@@ -3454,29 +3574,71 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             <div className="space-y-4 animate-fade-in">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Auditorias de Caixa Surpresa</h4>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Caixa Surpresa</h4>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-                    Controlo de caixas surpresa realizadas e verificação de diferenças.
+                    Deverá ser realizada uma por turno.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
+                    const managerList = employees.filter(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE'));
                     setNewCaixaSurpresa({
                       date: new Date().toISOString().substring(0, 10),
                       turn: 'Abertura',
                       expectedValue: 0,
                       actualValue: 0,
                       employeeName: employees[0]?.name || '',
-                      managerName: employees.find(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE'))?.name || employees[0]?.name || ''
+                      managerName: managerList[0]?.name || ''
                     });
                     setShowAddCaixaSurpresa(true);
                   }}
                   className="flex items-center gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black text-xs px-4 py-2 uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-50"
                 >
-                  <Plus size={14} /> Inserir Contagem
+                  <Plus size={14} /> Inserir Registo
                 </button>
+              </div>
+
+              {/* Filter Section */}
+              <div className="bg-white p-4 rounded-3xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Filtrar por Mês</label>
+                  <input
+                    type="month"
+                    value={caixaSurpresaFilterMonth}
+                    onChange={(e) => setCaixaSurpresaFilterMonth(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Filtrar por Funcionário</label>
+                  <input
+                    type="text"
+                    value={caixaSurpresaFilterEmployee}
+                    onChange={(e) => setCaixaSurpresaFilterEmployee(e.target.value)}
+                    placeholder="Nome do funcionário..."
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Totals Box */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-slate-50 border p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Esperado</span>
+                  <span className="text-base font-black text-slate-850 font-mono mt-2">{formatEuro(totalsCaixaSurpresa.expected)}</span>
+                </div>
+                <div className="bg-slate-50 border p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Real</span>
+                  <span className="text-base font-black text-slate-850 font-mono mt-2">{formatEuro(totalsCaixaSurpresa.actual)}</span>
+                </div>
+                <div className="bg-slate-50 border p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Diferença</span>
+                  <span className={`text-base font-black font-mono mt-2 ${totalsCaixaSurpresa.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {totalsCaixaSurpresa.diff > 0 ? '+' : ''}{formatEuro(totalsCaixaSurpresa.diff)}
+                  </span>
+                </div>
               </div>
 
               {/* Add Caixa Surpresa Dialog Form */}
@@ -3514,7 +3676,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
                       >
                         <option value="Abertura">Abertura</option>
-                        <option value="Tarde">Tarde</option>
                         <option value="Fecho">Fecho</option>
                       </select>
                     </div>
@@ -3543,7 +3704,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
                       >
                         <option value="">-- Selecione Gerente --</option>
-                        {employees.filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE' || e.role === 'TREINADOR').map(emp => (
+                        {employees.filter(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')).map(emp => (
                           <option key={emp.id} value={emp.name}>{emp.name}</option>
                         ))}
                       </select>
@@ -3650,14 +3811,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                    {caixasSurpresa.length === 0 ? (
+                    {filteredCaixasSurpresa.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">
-                          Nenhuma contagem de caixa surpresa registada até ao momento.
+                          Nenhuma contagem de caixa surpresa registada até ao momento para os filtros selecionados.
                         </td>
                       </tr>
                     ) : (
-                      caixasSurpresa.map((cs) => (
+                      filteredCaixasSurpresa.map((cs) => (
                         <tr key={cs.id} className="hover:bg-slate-50/40 transition-colors">
                           <td className="px-5 py-4 text-left font-black text-slate-850">
                             {formatDateToDMY(cs.date)}
@@ -3666,8 +3827,6 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
                               cs.turn === 'Abertura' 
                                 ? 'bg-blue-50 border border-blue-100 text-blue-700' 
-                                : cs.turn === 'Tarde'
-                                ? 'bg-amber-50 border border-amber-100 text-amber-700'
                                 : 'bg-indigo-50 border border-indigo-100 text-indigo-700'
                             }`}>
                               {cs.turn}
@@ -3724,9 +3883,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             <div className="space-y-4 animate-fade-in">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 p-4 rounded-2xl border gap-4">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Tabela de Diferenças de Caixa</h4>
+                  <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Diferenças de Caixa</h4>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-                    Consolidação automática de diferenças das folhas de depósito por colaborador e por dia do mês.
+                    Resumo mensal das diferenças de caixa.
                   </p>
                 </div>
 
@@ -3750,6 +3909,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
                 const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+                // Sort employees alphabetically by name
+                const sortedEmployees = [...employees].sort((a, b) => a.name.localeCompare(b.name));
+
                 // Pre-index the differences for fast lookup
                 const diffMap = new Map<string, number>();
                 const hasEntryMap = new Set<string>();
@@ -3769,7 +3931,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                 // Calculate totals per employee
                 const employeeTotals: { [empName: string]: number } = {};
-                employees.forEach(emp => {
+                sortedEmployees.forEach(emp => {
                   let empSum = 0;
                   dayNumbers.forEach(dayNum => {
                     const key = `${emp.name.trim().toLowerCase()}_${dayNum}`;
@@ -3784,7 +3946,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 const dayTotals: { [dayNum: number]: number } = {};
                 dayNumbers.forEach(dayNum => {
                   let daySum = 0;
-                  employees.forEach(emp => {
+                  sortedEmployees.forEach(emp => {
                     const key = `${emp.name.trim().toLowerCase()}_${dayNum}`;
                     if (hasEntryMap.has(key)) {
                       daySum += diffMap.get(key) || 0;
@@ -3795,7 +3957,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                 // Calculate grand total
                 let grandTotal = 0;
-                employees.forEach(emp => {
+                sortedEmployees.forEach(emp => {
                   grandTotal += employeeTotals[emp.name] || 0;
                 });
 
@@ -3812,7 +3974,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-[11px] font-bold text-slate-700">
-                        {employees.map((emp) => {
+                        {sortedEmployees.map((emp) => {
                           const empTotal = employeeTotals[emp.name] || 0;
                           return (
                             <tr key={emp.id} className="hover:bg-slate-50/40 transition-colors">
@@ -3834,15 +3996,20 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   );
                                 }
 
+                                const isGreen = val >= -0.99 && val <= 0.99;
+                                const textClass = isGreen ? 'text-emerald-600' : 'text-rose-650 font-black';
+
                                 return (
-                                  <td key={dNum} className={`px-1 py-3 font-mono text-[10px] font-extrabold ${val === 0 ? 'text-slate-400' : val > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  <td key={dNum} className={`px-1 py-3 font-mono text-[10px] font-extrabold ${textClass}`}>
                                     {val > 0 ? '+' : ''}{val.toFixed(2).replace('.', ',')}
                                   </td>
                                 );
                               })}
 
                               {/* Total Mês por colaborador */}
-                              <td className={`px-3 py-3 border-l text-right font-mono font-black text-xs bg-slate-50/50 ${empTotal === 0 ? 'text-slate-500' : empTotal > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              <td className={`px-3 py-3 border-l text-right font-mono font-black text-xs bg-slate-50/50 ${
+                                empTotal >= -0.99 && empTotal <= 0.99 ? 'text-emerald-700' : 'text-rose-700 font-extrabold'
+                              }`}>
                                 {empTotal > 0 ? '+' : ''}{formatEuro(empTotal)}
                               </td>
                             </tr>
@@ -3856,14 +4023,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           </td>
                           {dayNumbers.map(dNum => {
                             const val = dayTotals[dNum] || 0;
+                            const isGreen = val >= -0.99 && val <= 0.99;
+                            const textClass = isGreen ? 'text-emerald-700' : 'text-rose-700 font-extrabold';
                             return (
-                              <td key={dNum} className={`px-1 py-4 font-mono text-[10px] ${val === 0 ? 'text-slate-500' : val > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              <td key={dNum} className={`px-1 py-4 font-mono text-[10px] ${textClass}`}>
                                 {val > 0 ? '+' : ''}{val.toFixed(2).replace('.', ',')}
                               </td>
                             );
                           })}
                           {/* Bottom-right corner: GRAND TOTAL */}
-                          <td className={`px-3 py-4 border-l text-right font-mono text-xs uppercase tracking-wider bg-slate-100/80 ${grandTotal === 0 ? 'text-slate-800' : grandTotal > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                          <td className={`px-3 py-4 border-l text-right font-mono text-xs uppercase tracking-wider bg-slate-100/80 ${
+                            grandTotal >= -0.99 && grandTotal <= 0.99 ? 'text-emerald-800' : 'text-rose-850 font-extrabold'
+                          }`}>
                             {grandTotal > 0 ? '+' : ''}{formatEuro(grandTotal)}
                           </td>
                         </tr>
@@ -3989,32 +4160,29 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         {/* Daily Slots */}
                         {Array.from({ length: 7 }).map((_, idx) => {
                           const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
-                          const dayNum = idx + 1;
+                          
+                          // Calculate the slot's date based on week startDate
+                          const slotDate = new Date(week.startDate);
+                          slotDate.setDate(slotDate.getDate() + idx);
+                          const dateStr = slotDate.toISOString().substring(0, 10);
+                          const displayDate = formatDateToDMY(existDep?.date || dateStr);
+                          const wName = getWeekdayName(existDep?.date || dateStr);
                           
                           return (
                             <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-blue-200 hover:bg-white transition-all">
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Depósito {dayNum}</span>
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 truncate" title={displayDate}>
+                                {wName} ({displayDate.substring(0, 5)})
+                              </span>
                               <div className="flex-1 flex flex-col justify-center mb-2">
                                 {existDep && existDep.amount > 0 ? (
-                                  <div className="space-y-0.5">
+                                  <div className="space-y-0.5 animate-fade-in">
                                     <span className="text-xs font-mono font-black text-slate-800 block">{formatEuro(existDep.amount)}</span>
-                                    <span className="block text-[8px] text-gray-500 truncate">{existDep.date ? formatDateToDMY(existDep.date) : '-'}</span>
-                                    <span className="block text-[8px] text-[#2c532c] font-black truncate">{existDep.managerName}</span>
+                                    <span className="block text-[8px] text-emerald-700 font-extrabold truncate">{existDep.managerName}</span>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-gray-300 font-bold block">—</span>
+                                  <span className="text-[10px] text-gray-300 font-bold block">S/ Registo</span>
                                 )}
                               </div>
-                              
-                              {isWeekOpen && (
-                                <button
-                                  type="button"
-                                  onClick={() => setWeeklySlotEditor({ week, type: 'daily', dayIndex: idx })}
-                                  className="text-center text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest border border-blue-100 hover:bg-blue-50 py-1.5 rounded-lg w-full transition-all"
-                                >
-                                  Lançar
-                                </button>
-                              )}
                             </div>
                           );
                         })}
