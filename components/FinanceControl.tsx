@@ -5729,18 +5729,16 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           {/* Slip 1: Original */}
           <div className="border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
             {/* Header */}
-            <div className="flex justify-between items-start border-b-4 border-slate-900 pb-5">
+            <div className="flex justify-between items-center border-b-4 border-slate-900 pb-5">
+              <div>
+                <div className="text-base font-black uppercase text-slate-850 tracking-wider">
+                  DEPÓSITO DE VALORES E NUMERÁRIO
+                </div>
+              </div>
               <div>
                 <div className="bg-[#cc0052] text-white font-extrabold px-4 py-1.5 text-lg tracking-wider rounded inline-block">
                   Millennium <span className="italic font-light text-sm">bcp</span>
                 </div>
-                <div className="text-[10px] font-black uppercase text-slate-500 tracking-wider mt-1.5">
-                  DEPÓSITO DE VALORES E NUMERÁRIO
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="block text-[8px] font-black uppercase text-slate-400">VIA</span>
-                <span className="text-xs font-black uppercase border-2 border-slate-900 px-3 py-1 rounded">ORIGINAL (Para o Banco)</span>
               </div>
             </div>
 
@@ -5777,17 +5775,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             {/* Account Holder Row */}
             <div className="border-2 border-slate-400 p-4 rounded-xl relative">
               <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
-                Titular da Conta (Nome Completo)
+                Titular da conta
               </span>
-              <div className="text-sm font-extrabold mt-1.5 uppercase tracking-wide text-slate-850">
-                MCDONALD'S VIA CATARINA (RESTAURANTE)
+              <div className="text-sm font-extrabold mt-1.5 uppercase tracking-wide text-slate-850 h-5">
+                {"\u00A0"}
               </div>
             </div>
 
             {/* Reference Area */}
             <div className="border-2 border-slate-400 p-4 rounded-xl relative">
               <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
-                Depósito Especial - Referência do Depositante (Preenchimento OBRIGATÓRIO)
+                Depósito Especial Referência do Depositante
               </span>
               <div className="flex gap-1.5 mt-1">
                 {Array.from({ length: 18 }).map((_, i) => (
@@ -5795,50 +5793,45 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     —
                   </div>
                 ))}
-                <div className="text-[7px] text-slate-400 font-bold self-center ml-auto leading-tight uppercase text-right">
-                  Preencher com a refª<br />do restaurante
-                </div>
               </div>
             </div>
 
             {/* Table for values and Importancias */}
             <div className="border-2 border-slate-400 rounded-2xl overflow-hidden">
-              <table className="w-full text-center border-collapse text-xs">
+              <table className="w-full text-center border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-slate-400 text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                    <th className="px-4 py-3 text-left border-r-2 border-slate-400">Banco / Entidade</th>
-                    <th className="px-4 py-3 border-r-2 border-slate-400">N.º Documento / Cheque</th>
-                    <th className="px-4 py-3 text-right">Importâncias (€)</th>
+                    <th className="px-4 py-2 text-left border-r-2 border-slate-400 w-1/3">Banco / CTT</th>
+                    <th className="px-4 py-2 border-r-2 border-slate-400 w-1/5">Nº Conta</th>
+                    <th className="px-4 py-2 border-r-2 border-slate-400 w-1/5">Nº Documento</th>
+                    <th className="px-4 py-2 text-right w-1/4">Importâncias</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-300 font-mono">
-                  <tr>
-                    <td className="px-4 py-3 text-left font-black tracking-wide border-r-2 border-slate-400 uppercase text-slate-800">NUMERÁRIO (NOTAS E MOEDAS)</td>
-                    <td className="px-4 py-3 border-r-2 border-slate-400 text-slate-300 font-sans">—</td>
-                    <td className="px-4 py-3 text-right font-black text-lg text-slate-900">{formatEuro(printDepositData.amount)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 text-left border-r-2 border-slate-400 text-slate-300 italic">Cheques / Outros...</td>
-                    <td className="px-4 py-3 border-r-2 border-slate-400 text-slate-300">—</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-300">—</td>
-                  </tr>
+                  {Array.from({ length: 10 }).map((_, idx) => (
+                    <tr key={idx} className="h-7">
+                      <td className="px-4 py-1 text-left border-r-2 border-slate-400 font-black tracking-wide uppercase text-slate-800">
+                        {"\u00A0"}
+                      </td>
+                      <td className="px-4 py-1 border-r-2 border-slate-400 text-slate-350 text-center">
+                        {"\u00A0"}
+                      </td>
+                      <td className="px-4 py-1 border-r-2 border-slate-400 text-slate-350 text-center">
+                        {idx === 0 ? "—" : "\u00A0"}
+                      </td>
+                      <td className="px-4 py-1 text-right font-black text-slate-900 text-xs">
+                        {idx === 0 ? formatEuro(printDepositData.amount) : "\u00A0"}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             {/* Bottom signatures and values converter */}
             <div className="grid grid-cols-12 gap-8 border-t-2 border-slate-300 pt-5">
-              <div className="col-span-8 space-y-4">
-                <div className="text-[10px] border-2 border-slate-400 p-3.5 rounded-xl bg-slate-50 relative">
-                  <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
-                    Importância Total por Extenso
-                  </span>
-                  <span className="font-extrabold text-slate-800 uppercase text-[10px] block italic leading-normal">
-                    {converterValorParaExtenso(printDepositData.amount)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6 pt-1">
+              <div className="col-span-8 flex flex-col justify-end">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="relative border-2 border-slate-400 p-3 rounded-xl">
                     <span className="absolute -top-2.5 left-3 bg-white px-2 text-[8px] font-black uppercase text-slate-400 tracking-wider">
                       Nome do Depositante
@@ -5852,23 +5845,17 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       Assinatura do Depositante
                     </span>
                     <div className="w-full border-t border-dashed border-slate-300 text-center text-[8px] text-slate-350 uppercase">
-                      Assinado
+                      {"\u00A0"}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-4 bg-slate-900 text-white rounded-2xl p-5 flex flex-col justify-between items-center text-center shadow-md">
+              <div className="col-span-4 bg-slate-900 text-white rounded-2xl p-5 flex flex-col justify-center items-center text-center shadow-md min-h-[96px]">
                 <div className="w-full">
-                  <span className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                    TOTAL A CREDITAR
-                  </span>
                   <div className="text-2xl font-mono font-black border-2 border-dashed border-white/30 px-3 py-2 rounded-xl bg-black/20">
                     {formatEuro(printDepositData.amount)}
                   </div>
-                </div>
-                <div className="text-[7px] text-slate-400 italic uppercase tracking-wider mt-4">
-                  Para Uso Exclusivo do Banco
                 </div>
               </div>
             </div>
