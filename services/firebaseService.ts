@@ -1108,22 +1108,23 @@ export async function getProsegurWeeklyDeposits(restaurantId: string): Promise<P
 export async function saveProsegurWeeklyDeposit(restaurantId: string, weekly: ProsegurWeeklyDeposit): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/prosegur_weekly_deposits/${weekly.id}`;
+  const sanitized = JSON.parse(JSON.stringify(weekly));
   return runFirestoreWrite(
     async () => {
       const dRef = doc(db, 'restaurants', restaurantId, 'prosegur_weekly_deposits', weekly.id);
-      await setDoc(dRef, weekly);
+      await setDoc(dRef, sanitized);
       
       const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
       let list: ProsegurWeeklyDeposit[] = saved ? JSON.parse(saved) : [];
       list = list.filter(d => d.id !== weekly.id);
-      list.push(weekly);
+      list.push(sanitized);
       localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
     },
     () => {
       const saved = localStorage.getItem(`app_prosegur_weekly_deposits_${restaurantId}`);
       let list: ProsegurWeeklyDeposit[] = saved ? JSON.parse(saved) : [];
       list = list.filter(d => d.id !== weekly.id);
-      list.push(weekly);
+      list.push(sanitized);
       localStorage.setItem(`app_prosegur_weekly_deposits_${restaurantId}`, JSON.stringify(list));
     },
     OperationType.WRITE,
