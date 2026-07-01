@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Settings } from './components/Settings';
+import { GlobalSettings } from './components/GlobalSettings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
 import { Login } from './components/Login';
@@ -39,6 +40,7 @@ const App: React.FC = () => {
   const [authenticatedRestaurantId, setAuthenticatedRestaurantId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleType | null>(null);
   const [activeTab, setActiveTab] = useState<string>('positioning');
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
@@ -457,7 +459,23 @@ const App: React.FC = () => {
   }
 
   if (!activeModule) {
-    return <ModuleSelector restaurant={activeRestaurant} onSelectModule={handleModuleSelect} onLogout={handleLogout} />;
+    if (isGlobalSettingsOpen) {
+      return (
+        <GlobalSettings 
+          employees={currentEmployees}
+          setEmployees={setCurrentEmployees}
+          onBack={() => setIsGlobalSettingsOpen(false)}
+        />
+      );
+    }
+    return (
+      <ModuleSelector 
+        restaurant={activeRestaurant} 
+        onSelectModule={handleModuleSelect} 
+        onLogout={handleLogout} 
+        onSettingsClick={() => setIsGlobalSettingsOpen(true)}
+      />
+    );
   }
 
   const renderProtectedTab = (content: React.ReactNode) => {

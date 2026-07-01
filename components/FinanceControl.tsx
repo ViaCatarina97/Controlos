@@ -15,7 +15,7 @@ import {
   Calculator, Coins, CreditCard, Landmark, Plus, Trash2, Edit2, 
   Save, ArrowLeft, Calendar, User, Clock, FileText, Check, AlertTriangle, 
   Sliders, ArrowUpRight, DollarSign, Wallet, ShieldCheck, Printer, CheckCircle,
-  Lock, CheckCheck
+  Lock, CheckCheck, Eye
 } from 'lucide-react';
 
 interface FinanceControlProps {
@@ -245,6 +245,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   const [editingWeekly, setEditingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
   const [editingCoin, setEditingCoin] = useState<ProsegurCoinMovement | null>(null);
   const [closingWeekly, setClosingWeekly] = useState<ProsegurWeeklyDeposit | null>(null);
+  const [viewingHistoricWeek, setViewingHistoricWeek] = useState<ProsegurWeeklyDeposit | null>(null);
   const [weeklySlotEditor, setWeeklySlotEditor] = useState<{
     week: ProsegurWeeklyDeposit;
     type: 'daily' | 'coin1' | 'coin2';
@@ -4397,12 +4398,19 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         </div>
                         {/* 7. Status & Delete */}
                         <div className="flex md:justify-end items-center gap-2">
+                          <button
+                            onClick={() => setViewingHistoricWeek(week)}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-100 transition-all"
+                            title="Visualizar Detalhe"
+                          >
+                            <Eye size={13} />
+                          </button>
                           <span className="inline-flex items-center text-[8px] font-black uppercase px-2.5 py-1 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-200">
                             Encerrado
                           </span>
                           <button
                             onClick={() => handleDeleteWeeklyAction(week.id)}
-                            className="p-1 px-2 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all"
+                            className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all"
                             title="Eliminar"
                           >
                             <Trash2 size={13} />
@@ -4868,6 +4876,152 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       </div>
                     </div>
                   )}
+
+              {/* Viewing Historic Weekly Modal Overlay popup */}
+              {viewingHistoricWeek && (
+                <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in print:hidden">
+                  <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 overflow-hidden">
+                    <div className="p-6 bg-slate-950 text-white flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-[#ffcc00]">
+                          Consulta de Histórico
+                        </span>
+                        <h3 className="font-extrabold text-white text-base uppercase tracking-wider mt-0.5">
+                          Semana Nº {getWeekNumberOfYear(viewingHistoricWeek.startDate)} (de {formatDateToDMY(viewingHistoricWeek.startDate)})
+                        </h3>
+                      </div>
+                      <button 
+                        onClick={() => setViewingHistoricWeek(null)}
+                        className="text-gray-400 hover:text-white transition-all text-xs font-black uppercase p-1.5"
+                      >
+                        ✖️
+                      </button>
+                    </div>
+
+                    <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                      {/* Meta Information Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Iniciada por</span>
+                          <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.managerOpen}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Fechada por</span>
+                          <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.managerClose || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Início</span>
+                          <span className="text-xs font-bold text-slate-800">{formatDateToDMY(viewingHistoricWeek.startDate)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Fecho</span>
+                          <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.endDate ? formatDateToDMY(viewingHistoricWeek.endDate) : '—'}</span>
+                        </div>
+                      </div>
+
+                      {/* Values Grid */}
+                      {(() => {
+                        let dailySum = 0;
+                        const details = Array.from({ length: 7 }).map((_, idx) => {
+                          const dateStr = addDaysToDateStr(viewingHistoricWeek.startDate, idx);
+                          const existDep = viewingHistoricWeek.dailyDeposits?.find(d => d.dayIndex === idx);
+                          const displayAmount = existDep?.amount || 0;
+                          dailySum += displayAmount;
+                          return {
+                            dateStr,
+                            dateShort: dateStr.split('-').slice(1).reverse().join('/'),
+                            amount: displayAmount,
+                            managerName: existDep?.managerName || ''
+                          };
+                        });
+
+                        const coinSum = Number(viewingHistoricWeek.coinDepositsValue1 || 0) + Number(viewingHistoricWeek.coinDepositsValue2 || 0);
+                        const grandTotal = dailySum + coinSum;
+
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 text-center">
+                                <span className="block text-[9px] font-black text-blue-700 uppercase tracking-wider mb-1">Total Depósitos Notas</span>
+                                <span className="text-lg font-mono font-black text-blue-800">{formatEuro(dailySum)}</span>
+                              </div>
+                              <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/50 text-center">
+                                <span className="block text-[9px] font-black text-amber-700 uppercase tracking-wider mb-1">Total Depósitos Moedas</span>
+                                <span className="text-lg font-mono font-black text-amber-800">{formatEuro(coinSum)}</span>
+                              </div>
+                              <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-center">
+                                <span className="block text-[9px] font-black text-emerald-800 uppercase tracking-wider mb-1 font-extrabold">Somatório Total da Semana</span>
+                                <span className="text-lg font-mono font-black text-emerald-900">{formatEuro(grandTotal)}</span>
+                              </div>
+                            </div>
+
+                            {/* Detailed Grid (7 days + 2 coins) */}
+                            <div>
+                              <h4 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider mb-3">Detalhamento dos Lançamentos</h4>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-9 gap-3">
+                                {details.map((day, idx) => (
+                                  <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[90px] text-center">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                      {day.dateShort}
+                                    </span>
+                                    <div className="flex-1 flex flex-col justify-center">
+                                      {day.amount > 0 ? (
+                                        <div className="space-y-0.5">
+                                          <span className="text-xs font-mono font-black text-slate-800 block">{formatEuro(day.amount)}</span>
+                                          {day.managerName && (
+                                            <span className="block text-[8px] text-emerald-700 font-extrabold truncate" title={day.managerName}>
+                                              {day.managerName}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[9px] text-gray-300 font-semibold block">Sem Registo</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {/* Coins 1 */}
+                                <div className="bg-amber-50/20 p-3 rounded-2xl border border-amber-100 flex flex-col justify-between min-h-[90px] text-center">
+                                  <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">Moedas 1</span>
+                                  <div className="flex-1 flex flex-col justify-center">
+                                    {viewingHistoricWeek.coinDepositsValue1 > 0 ? (
+                                      <span className="text-xs font-mono font-black text-amber-900 block">{formatEuro(viewingHistoricWeek.coinDepositsValue1)}</span>
+                                    ) : (
+                                      <span className="text-[9px] text-gray-300 font-semibold block">—</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Coins 2 */}
+                                <div className="bg-amber-50/20 p-3 rounded-2xl border border-amber-100 flex flex-col justify-between min-h-[90px] text-center">
+                                  <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">Moedas 2</span>
+                                  <div className="flex-1 flex flex-col justify-center">
+                                    {viewingHistoricWeek.coinDepositsValue2 > 0 ? (
+                                      <span className="text-xs font-mono font-black text-amber-900 block">{formatEuro(viewingHistoricWeek.coinDepositsValue2)}</span>
+                                    ) : (
+                                      <span className="text-[9px] text-gray-300 font-semibold block">—</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                      <button
+                        onClick={() => setViewingHistoricWeek(null)}
+                        className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md"
+                      >
+                        Fechar Visualização
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* SECTION 2: MOEDAS PROSEGUR */}
               {prosegurSubTab === 'moedas' && (
