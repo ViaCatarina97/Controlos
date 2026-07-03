@@ -29,16 +29,21 @@ const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
   });
 
   const categoryDifferences = record.smsValues.map(v => {
-    const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
-                           v.description === 'Papel' ? ['D','U'] :
-                           v.description === 'F. Operacionais' ? ['E','I','O'] :
-                           v.description === 'Material Adm' ? ['M'] :
-                           v.description === 'Happy Meal' ? ['F'] :
-                           v.description === 'Outros' ? ['G','N','P','R','S'] : [];
+    let haviSubtotal = 0;
+    if (record.isManualInsertion) {
+      haviSubtotal = (record.manualHaviValues || {})[v.description] || 0;
+    } else {
+      const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
+                             v.description === 'Papel' ? ['D','U'] :
+                             v.description === 'F. Operacionais' ? ['E','I','O'] :
+                             v.description === 'Material Adm' ? ['M'] :
+                             v.description === 'Happy Meal' ? ['F'] :
+                             v.description === 'Outros' ? ['G','N','P','R','S'] : [];
 
-    const haviSubtotal = (record.haviGroups || [])
-        .filter(g => haviMatchCodes.includes(g.group))
-        .reduce((s, g) => s + g.total, 0);
+      haviSubtotal = (record.haviGroups || [])
+          .filter(g => haviMatchCodes.includes(g.group))
+          .reduce((s, g) => s + g.total, 0);
+    }
 
     const groupPriceDiff = sums[v.description] || 0;
     return haviSubtotal - (v.amount || 0) - groupPriceDiff;

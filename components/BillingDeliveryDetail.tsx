@@ -174,8 +174,14 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   const formatEuro = (val: number) => val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
-  const totalHaviGroups = useMemo(() => local.haviGroups.reduce((s, g) => s + g.total, 0), [local.haviGroups]);
-  const totalHaviFinal = totalHaviGroups;
+  const totalHaviFinal = useMemo(() => {
+    if (local.isManualInsertion) {
+      const vals = local.manualHaviValues || {};
+      return SMS_GROUPS.reduce((s, cat) => s + (vals[cat] || 0), 0);
+    }
+    return local.haviGroups.reduce((s, g) => s + g.total, 0);
+  }, [local.isManualInsertion, local.manualHaviValues, local.haviGroups]);
+
   const totalMyStore = useMemo(() => local.smsValues.reduce((s, v) => s + v.amount, 0), [local.smsValues]);
   
   const diffBySmsGroup = useMemo(() => {
@@ -190,21 +196,26 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
 
   const categoryDifferences = useMemo(() => {
     return local.smsValues.map(v => {
-      const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
-                             v.description === 'Papel' ? ['D','U'] :
-                             v.description === 'F. Operacionais' ? ['E','I','O'] :
-                             v.description === 'Material Adm' ? ['M'] :
-                             v.description === 'Happy Meal' ? ['F'] :
-                             v.description === 'Outros' ? ['G','N','P','R','S'] : [];
+      let haviSubtotal = 0;
+      if (local.isManualInsertion) {
+        haviSubtotal = (local.manualHaviValues || {})[v.description] || 0;
+      } else {
+        const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
+                               v.description === 'Papel' ? ['D','U'] :
+                               v.description === 'F. Operacionais' ? ['E','I','O'] :
+                               v.description === 'Material Adm' ? ['M'] :
+                               v.description === 'Happy Meal' ? ['F'] :
+                               v.description === 'Outros' ? ['G','N','P','R','S'] : [];
 
-      const haviSubtotal = local.haviGroups
-          .filter(g => haviMatchCodes.includes(g.group))
-          .reduce((s, g) => s + g.total, 0);
+        haviSubtotal = local.haviGroups
+            .filter(g => haviMatchCodes.includes(g.group))
+            .reduce((s, g) => s + g.total, 0);
+      }
 
       const groupPriceDiff = diffBySmsGroup[v.description] || 0;
       return haviSubtotal - v.amount - groupPriceDiff;
     });
-  }, [local.haviGroups, local.smsValues, diffBySmsGroup]);
+  }, [local.isManualInsertion, local.manualHaviValues, local.haviGroups, local.smsValues, diffBySmsGroup]);
 
   const finalDifference = useMemo(() => {
     const baseDiff = categoryDifferences.reduce((s, d) => s + d, 0);
@@ -217,6 +228,46 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
       ...prev,
       haviGroups: prev.haviGroups.map(g => g.group === groupCode ? { ...g, total: value } : g)
     }));
+  };
+
+  const handleUpdateManualHaviValue = (cat: string, value: number) => {
+    setLocal(prev => ({
+      ...prev,
+      manualHaviValues: {
+        ...(prev.manualHaviValues || {}),
+        [cat]: value
+      }
+    }));
+  };
+
+  const handleToggleManualInsertion = () => {
+    setLocal(prev => {
+      const nextManual = !prev.isManualInsertion;
+      let initialVals = prev.manualHaviValues || {};
+      
+      if (nextManual && (!prev.manualHaviValues || Object.keys(prev.manualHaviValues).length === 0)) {
+        const initialized: Record<string, number> = {};
+        SMS_GROUPS.forEach(cat => {
+          const haviMatchCodes = cat === 'Comida' ? ['A','B','C','H','J','L','T'] :
+                                 cat === 'Papel' ? ['D','U'] :
+                                 cat === 'F. Operacionais' ? ['E','I','O'] :
+                                 cat === 'Material Adm' ? ['M'] :
+                                 cat === 'Happy Meal' ? ['F'] :
+                                 cat === 'Outros' ? ['G','N','P','R','S'] : [];
+          const haviSubtotal = prev.haviGroups
+            .filter(g => haviMatchCodes.includes(g.group))
+            .reduce((s, g) => s + g.total, 0);
+          initialized[cat] = haviSubtotal;
+        });
+        initialVals = initialized;
+      }
+      
+      return {
+        ...prev,
+        isManualInsertion: nextManual,
+        manualHaviValues: initialVals
+      };
+    });
   };
 
   const handleUpdateMyStoreValue = (desc: string, value: number) => {
@@ -423,7 +474,18 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
               {isProcessingDelivery ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18}/>}
               {isProcessingDelivery ? (deliveryFilesCount > 1 ? `A processar (${deliveryFilesCount})...` : "A carregar...") : "Carregar Entrega"}
            </button>
-           <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
+           <button 
+              onClick={handleToggleManualInsertion} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold border transition-all shadow-sm ${
+                local.isManualInsertion 
+                  ? 'bg-amber-600 text-white border-amber-700 hover:bg-amber-700' 
+                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+              }`}
+            >
+              <Calculator size={18}/>
+              {local.isManualInsertion ? "Inserção Manual (Ativa)" : "Inserção Manual"}
+            </button>
+            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-bold transition-all"><Printer size={18}/> Imprimir</button>
            <button onClick={() => handleSaveInternal(false)} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 font-bold transition-all"><Save size={18}/> Gravar</button>
            <button onClick={() => handleSaveInternal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 font-bold shadow-md transition-all active:scale-95"><CheckCircle2 size={18}/> Finalizar</button>
         </div>
@@ -466,16 +528,45 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                  <div className="col-span-9">Descrição</div>
                  <div className="col-span-3 text-right">Total</div>
                </div>
-               {local.haviGroups.map(group => (
+               {local.isManualInsertion ? (
+                  SMS_GROUPS.map(cat => {
+                    const val = (local.manualHaviValues || {})[cat] || 0;
+                    return (
+                      <div key={cat} className="grid grid-cols-12 gap-1 px-2 py-1.5 items-center hover:bg-purple-50/50">
+                        <div className="col-span-9 text-[11px] font-bold text-gray-700">{cat}</div>
+                        <div className="col-span-3">
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            value={val || ''} 
+                            onChange={(e) => handleUpdateManualHaviValue(cat, parseFloat(e.target.value) || 0)} 
+                            className="w-full text-right bg-white border-none p-0 text-[11px] font-black text-slate-900 focus:ring-0" 
+                            placeholder="0,00" 
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  local.haviGroups.map(group => (
                  <div key={group.group} className="grid grid-cols-12 gap-1 px-2 py-0.5 items-center hover:bg-purple-50/50">
                     <div className="col-span-9 text-[10px] font-medium text-gray-700">{group.description}</div>
                     <div className="col-span-3">
                       <input type="number" step="0.01" value={group.total || ''} onChange={(e) => handleUpdateGroupTotal(group.group, parseFloat(e.target.value) || 0)} className="w-full text-right bg-white border-none p-0 text-[10px] font-black text-slate-900 focus:ring-0" placeholder="0,00" />
                     </div>
                  </div>
-               ))}
-               <div className="p-3 bg-purple-100/50 text-right font-black text-purple-900 text-lg border-t border-purple-500">
-                  {formatEuro(totalHaviFinal)}
+               )))}
+               <div className={`${local.isManualInsertion ? 'mt-12 p-3 text-center' : 'p-3 text-right'} bg-purple-100/50 font-black text-purple-900 border-t border-purple-500`}>
+                  {local.isManualInsertion ? (
+                    <div>
+                      <div className="text-2xl font-black text-purple-900 leading-none mb-2">{formatEuro(totalHaviFinal)}</div>
+                      <div className="text-[10px] uppercase font-bold text-purple-600">Total HAVI Consolidado</div>
+                    </div>
+                  ) : (
+                    <div className="text-lg">
+                      {formatEuro(totalHaviFinal)}
+                    </div>
+                  )}
                </div>
             </div>
           </div>

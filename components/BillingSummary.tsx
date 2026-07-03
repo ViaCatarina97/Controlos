@@ -211,12 +211,39 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     
     // Add deliveries
     filteredRecords.forEach(rec => {
-      rec.haviGroups.forEach(g => {
-        if (!groups[g.group]) {
-          groups[g.group] = { desc: g.description, total: 0 };
-        }
-        groups[g.group].total += g.total;
-      });
+      if (rec.isManualInsertion && rec.manualHaviValues) {
+        const mapping: Record<string, string> = {
+          'Comida': 'A',
+          'Papel': 'D',
+          'F. Operacionais': 'E',
+          'Material Adm': 'M',
+          'Happy Meal': 'F',
+          'Outros': 'G'
+        };
+        const standardNames: Record<string, string> = {
+          'A': 'Congelados',
+          'D': 'Secos Papel',
+          'E': 'Manutenção & Limpeza',
+          'M': 'Material Adm',
+          'F': 'Marketing IPL',
+          'G': 'Marketing Geral'
+        };
+        Object.entries(rec.manualHaviValues).forEach(([cat, val]) => {
+          const code = mapping[cat] || 'G';
+          const desc = standardNames[code] || cat;
+          if (!groups[code]) {
+            groups[code] = { desc, total: 0 };
+          }
+          groups[code].total += (val as number) || 0;
+        });
+      } else {
+        rec.haviGroups.forEach(g => {
+          if (!groups[g.group]) {
+            groups[g.group] = { desc: g.description, total: 0 };
+          }
+          groups[g.group].total += g.total;
+        });
+      }
     });
 
     // Discount Credit Notes (Valor HAVI)

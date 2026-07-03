@@ -160,6 +160,8 @@ export interface DeliveryRecord {
   missingProducts: MissingProduct[];
   comments: string;
   isFinalized: boolean;
+  isManualInsertion?: boolean;
+  manualHaviValues?: Record<string, number>;
 }
 
 export interface CreditNoteRecord {
