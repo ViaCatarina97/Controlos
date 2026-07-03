@@ -3497,7 +3497,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                             setPrintDepositData({
                                               date: day.date,
                                               managerName: managerName,
-                                              amount: totalDayAmt,
+                                              amount: getDepositRecordCash(day.abertura) + getDepositRecordCash(day.fecho),
                                               title: 'DEPOSIT DES VALORES E NUMERÁRIO'
                                             });
                                             setTimeout(() => {
