@@ -1315,8 +1315,8 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
         await saveDeposit(restaurantId, { ...dayState.fecho, isLocked: true, isDayClosed: true });
       }
 
-      // Calculate the day's total deposit
-      const totalAmt = (dayState.abertura ? getDepositRecordTotal(dayState.abertura) : 0) + (dayState.fecho ? getDepositRecordTotal(dayState.fecho) : 0);
+      // Calculate the day's total deposit (only physical cash/dinheiro + sangria)
+      const totalAmt = (dayState.abertura ? getDepositRecordCash(dayState.abertura) : 0) + (dayState.fecho ? getDepositRecordCash(dayState.fecho) : 0);
       
       // Auto-launch total on Prosegur weekly deposit if week is found
       const getWeeklySlotForDate = (dateStr: string, weeks: ProsegurWeeklyDeposit[]) => {
@@ -1706,7 +1706,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       const dateStr = addDaysToDateStr(weekly.startDate, idx);
       const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
       const dayTotalAmt = matchingGroup 
-        ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+        ? (getDepositRecordCash(matchingGroup.abertura) + getDepositRecordCash(matchingGroup.fecho))
         : 0;
       const managerId = matchingGroup?.fecho?.managerId || matchingGroup?.abertura?.managerId;
       const managerName = employees.find(e => e.id === managerId)?.name || '';
@@ -3300,12 +3300,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             const wName = getWeekdayName(day.date);
                             const hasAbertura = !!day.abertura;
                             const isAberturaLocked = day.abertura?.isLocked || false;
-                            const totalAbertura = getDepositRecordTotal(day.abertura);
+                            const totalAbertura = getDepositRecordCash(day.abertura);
                             const diffAbertura = getDepositRecordDifference(day.abertura);
 
                             const hasFecho = !!day.fecho;
                             const isFechoLocked = day.fecho?.isLocked || false;
-                            const totalFecho = getDepositRecordTotal(day.fecho);
+                            const totalFecho = getDepositRecordCash(day.fecho);
                             const diffFecho = getDepositRecordDifference(day.fecho);
 
                             const isDayFullyClosed = (day.abertura?.isDayClosed === true || day.fecho?.isDayClosed === true) || (isAberturaLocked && isFechoLocked);
@@ -4205,7 +4205,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     const dateStr = addDaysToDateStr(week.startDate, idx);
                     const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
                     const dayTotalAmt = matchingGroup 
-                      ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                      ? (getDepositRecordCash(matchingGroup.abertura) + getDepositRecordCash(matchingGroup.fecho))
                       : 0;
                     
                     const existDep = week.dailyDeposits?.find(d => d.dayIndex === idx);
@@ -4291,7 +4291,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                           const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
                           const dayTotalAmt = matchingGroup 
-                            ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                            ? (getDepositRecordCash(matchingGroup.abertura) + getDepositRecordCash(matchingGroup.fecho))
                             : 0;
                           
                           const managerId = matchingGroup?.fecho?.managerId || matchingGroup?.abertura?.managerId;
@@ -4767,7 +4767,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             const dateStr = addDaysToDateStr(closingWeekly.startDate, idx);
                             const matchingGroup = groupedDeposits.find(d => d.date === dateStr);
                             const dayTotalAmt = matchingGroup 
-                              ? (getDepositRecordTotal(matchingGroup.abertura) + getDepositRecordTotal(matchingGroup.fecho))
+                              ? (getDepositRecordCash(matchingGroup.abertura) + getDepositRecordCash(matchingGroup.fecho))
                               : 0;
                             
                             const existDep = closingWeekly.dailyDeposits?.find(d => d.dayIndex === idx);
