@@ -475,6 +475,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   const getDynamicTotalFaturasForCount = (c: CofreCount): number => {
+    if (c.isNotPerformed) return 0;
     if (c.isLocked) {
       return c.totalFaturas ?? 0;
     }
@@ -482,6 +483,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   const getDynamicTotalGeralForCount = (c: CofreCount): number => {
+    if (c.isNotPerformed) return 0;
     if (c.isLocked) {
       return c.totalGeral ?? 0;
     }
@@ -491,6 +493,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   };
 
   const getDynamicDiferencaForCount = (c: CofreCount): number => {
+    if (c.isNotPerformed) return 0;
     if (c.isLocked) {
       return c.diferenca ?? 0;
     }
@@ -816,21 +819,23 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     if (!editingCofre) return;
     
     const finalizeLock = shouldLock === true;
+    const isNotPerf = editingCofre.isNotPerformed === true;
     
-    const autoMoedasPros = prosegurCoinMovements
+    const autoMoedasPros = isNotPerf ? 0 : (prosegurCoinMovements
       ?.filter(m => !m.isClosed)
-      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
-    const fundosTotalVal = Number(editingCofre.fundosCount || 0) * 50;
+      ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0);
+    const fundosTotalVal = isNotPerf ? 0 : (Number(editingCofre.fundosCount || 0) * 50);
     
-    const autoTotalFaturas = getDynamicTotalFaturasForCount(editingCofre);
-    const autoTotalGeral = (editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + autoTotalFaturas;
-    const autoDiferenca = (autoTotalGeral - autoMoedasPros) + fundosTotalVal - 1000;
+    const autoTotalFaturas = isNotPerf ? 0 : getDynamicTotalFaturasForCount(editingCofre);
+    const autoTotalGeral = isNotPerf ? 0 : ((editingCofre.fundoGerente?.total || 0) + (editingCofre.cofre?.total || 0) + autoTotalFaturas);
+    const autoDiferenca = isNotPerf ? 0 : ((autoTotalGeral - autoMoedasPros) + fundosTotalVal - 1000);
 
     const updatedCount: CofreCount = {
       ...editingCofre,
       isRealCount: true,
-      fundosCount: Number(editingCofre.fundosCount),
-      fundosValuePerFundo: Number(editingCofre.fundosValuePerFundo),
+      isNotPerformed: isNotPerf,
+      fundosCount: isNotPerf ? 0 : Number(editingCofre.fundosCount),
+      fundosValuePerFundo: isNotPerf ? 0 : Number(editingCofre.fundosValuePerFundo),
       fundosTotal: fundosTotalVal,
       moedasProsegur: autoMoedasPros,
       totalFaturas: autoTotalFaturas,
@@ -1860,7 +1865,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           )}
 
           {/* Form Meta Setup */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 print:bg-white print:border-0 print:grid-cols-4 print:p-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 print:bg-white print:border-0 print:grid-cols-5 print:p-2">
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Data</label>
               <div className="relative">
@@ -1892,17 +1897,38 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
             </div>
 
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Estado do Turno</label>
+              <div className="relative">
+                <select
+                  disabled={editingCofre.isLocked}
+                  value={editingCofre.isNotPerformed ? 'nao_realizada' : 'realizada'}
+                  onChange={(e) => {
+                    const isNotPerf = e.target.value === 'nao_realizada';
+                    setEditingCofre({ 
+                      ...editingCofre, 
+                      isNotPerformed: isNotPerf
+                    });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="realizada">✅ Realizada</option>
+                  <option value="nao_realizada">❌ Não Realizada</option>
+                </select>
+              </div>
+            </div>
+
             {editingCofre.turn === 'Tarde' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:col-span-2">
+              <div className="grid grid-cols-1 gap-2">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente Abertura</label>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-[2px]">Gerente Abertura</label>
                   <div className="relative">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                     <select
                       disabled={editingCofre.isLocked}
                       value={editingCofre.managerId}
                       onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full pl-10 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
@@ -1911,14 +1937,14 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente de Fecho</label>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-[2px]">Gerente de Fecho</label>
                   <div className="relative">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                     <select
                       disabled={editingCofre.isLocked}
                       value={editingCofre.managerId2 || ''}
                       onChange={(e) => setEditingCofre({ ...editingCofre, managerId2: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full pl-10 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       <option value="">-- Selecione o Gerente de Fecho --</option>
                       {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
@@ -1968,178 +1994,200 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
-              
-              {/* CARD 1: FUNDO DE GERENTE (AZUL ESCURO) */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
-                  <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
-                    <User size={14} className="text-blue-400" /> FUNDO DE GERENTE
-                  </h4>
-                  <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
-                    {formatEuro(editingCofre.fundoGerente.total)}
-                  </div>
-                </div>
-
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Moedas */}
-                  <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
-                      Moedas
-                    </div>
-                    {DENOMINATIONS_COINS.map(coin => {
-                      const coinKey = coin.value.toFixed(2);
-                      const qty = editingCofre.fundoGerente.moedas[coinKey] || 0;
-                      return (
-                        <div key={`fg_coin_${coinKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
-                          <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
-                          <input 
-                            type="number"
-                            disabled={editingCofre.isLocked}
-                            min="0"
-                            placeholder="Qtd"
-                            value={qty || ''}
-                            onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', coinKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
-                          />
-                          <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
-                            {formatEuro(qty * coin.rollValue)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {/* Loose/Soltas */}
-                    <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
-                      <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
-                      <input 
-                        type="number"
-                        disabled={editingCofre.isLocked}
-                        step="0.01"
-                        placeholder="Valor €"
-                        value={editingCofre.fundoGerente.moedas.loose || ''}
-                        onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Notas */}
-                  <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
-                      Notas
-                    </div>
-                    {DENOMINATIONS_NOTES.map(note => {
-                      const noteKey = note.value.toString();
-                      const qty = editingCofre.fundoGerente.notas[noteKey] || 0;
-                      return (
-                        <div key={`fg_note_${noteKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
-                          <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
-                          <input 
-                            type="number"
-                            disabled={editingCofre.isLocked}
-                            min="0"
-                            placeholder="Qtd"
-                            value={qty || ''}
-                            onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'notas', noteKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
-                          />
-                          <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
-                            {formatEuro(qty * note.value)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+          {editingCofre.isNotPerformed ? (
+            <div className="bg-amber-50/55 border-2 border-dashed border-amber-300 rounded-3xl p-8 text-center flex flex-col items-center justify-center gap-4 my-8">
+              <div className="p-4 bg-amber-100 rounded-full text-amber-600">
+                <AlertTriangle size={32} />
               </div>
-
-              {/* CARD 2: COFRE (AZUL ESCURO) */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
-                  <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
-                    <Coins size={14} className="text-blue-400" /> Cofre
-                  </h4>
-                  <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
-                    {formatEuro(editingCofre.cofre.total)}
-                  </div>
-                </div>
-
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Moedas */}
-                  <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
-                      Moedas
-                    </div>
-                    {DENOMINATIONS_COINS.map(coin => {
-                      const coinKey = coin.value.toFixed(2);
-                      const qty = editingCofre.cofre.moedas[coinKey] || 0;
-                      return (
-                        <div key={`cof_coin_${coinKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
-                          <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
-                          <input 
-                            type="number"
-                            disabled={editingCofre.isLocked}
-                            min="0"
-                            placeholder="Qtd"
-                            value={qty || ''}
-                            onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', coinKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
-                          />
-                          <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
-                            {formatEuro(qty * coin.rollValue)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {/* Loose/Soltas */}
-                    <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
-                      <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
-                      <input 
-                        type="number"
-                        disabled={editingCofre.isLocked}
-                        step="0.01"
-                        placeholder="Valor €"
-                        value={editingCofre.cofre.moedas.loose || ''}
-                        onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', 'loose', Number(e.target.value))}
-                        className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Notas */}
-                  <div className="space-y-2">
-                    <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
-                      Notas
-                    </div>
-                    {DENOMINATIONS_NOTES.map(note => {
-                      const noteKey = note.value.toString();
-                      const qty = editingCofre.cofre.notas[noteKey] || 0;
-                      return (
-                        <div key={`cof_note_${noteKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
-                          <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
-                          <input 
-                            type="number"
-                            disabled={editingCofre.isLocked}
-                            min="0"
-                            placeholder="Qtd"
-                            value={qty || ''}
-                            onChange={(e) => handleUpdateSafeCountInput('cofre', 'notas', noteKey, Number(e.target.value))}
-                            className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
-                          />
-                          <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
-                            {formatEuro(qty * note.value)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div>
+                <h4 className="text-lg font-black text-amber-900 uppercase tracking-tight">Turno Marcado como Não Realizado</h4>
+                <p className="text-xs text-amber-700 font-bold max-w-md mx-auto mt-2 leading-relaxed uppercase tracking-wide">
+                  Este turno não teve contagem física de cofre registada. Não é necessário preencher as moedas, notas ou faturas associadas. Pode guardar ou validar este turno normalmente para efeitos de encerramento do dia.
+                </p>
               </div>
-
             </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
+                
+                {/* CARD 1: FUNDO DE GERENTE (AZUL ESCURO) */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
+                    <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
+                      <User size={14} className="text-blue-400" /> FUNDO DE GERENTE
+                    </h4>
+                    <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
+                      {formatEuro(editingCofre.fundoGerente.total)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Moedas */}
+                    <div className="space-y-2">
+                      <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                        Moedas
+                      </div>
+                      {DENOMINATIONS_COINS.map(coin => {
+                        const coinKey = coin.value.toFixed(2);
+                        const qty = editingCofre.fundoGerente.moedas[coinKey] || 0;
+                        return (
+                          <div key={`fg_coin_${coinKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
+                            <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
+                            <input 
+                              type="number"
+                              disabled={editingCofre.isLocked}
+                              min="0"
+                              placeholder="Qtd"
+                              value={qty || ''}
+                              onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', coinKey, Number(e.target.value))}
+                              className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
+                            />
+                            <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
+                              {formatEuro(qty * coin.rollValue)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {/* Loose/Soltas */}
+                      <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
+                        <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
+                        <input 
+                          type="number"
+                          disabled={editingCofre.isLocked}
+                          step="0.01"
+                          placeholder="Valor €"
+                          value={editingCofre.fundoGerente.moedas.loose || ''}
+                          onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'moedas', 'loose', Number(e.target.value))}
+                          className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notas */}
+                    <div className="space-y-2">
+                      <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                        Notas
+                      </div>
+                      {DENOMINATIONS_NOTES.map(note => {
+                        const noteKey = note.value.toString();
+                        const qty = editingCofre.fundoGerente.notas[noteKey] || 0;
+                        return (
+                          <div key={`fg_note_${noteKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
+                            <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
+                            <input 
+                              type="number"
+                              disabled={editingCofre.isLocked}
+                              min="0"
+                              placeholder="Qtd"
+                              value={qty || ''}
+                              onChange={(e) => handleUpdateSafeCountInput('fundoGerente', 'notas', noteKey, Number(e.target.value))}
+                              className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
+                            />
+                            <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
+                              {formatEuro(qty * note.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* CARD 2: COFRE (AZUL ESCURO) */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-200">
+                    <h4 className="font-extrabold uppercase text-xs tracking-wider flex items-center gap-2">
+                      <Coins size={14} className="text-blue-400" /> Cofre
+                    </h4>
+                    <div className="bg-white text-blue-900 px-3 py-1 rounded-lg border border-slate-200 font-black text-sm shadow-sm">
+                      {formatEuro(editingCofre.cofre.total)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Moedas */}
+                    <div className="space-y-2">
+                      <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                        Moedas
+                      </div>
+                      {DENOMINATIONS_COINS.map(coin => {
+                        const coinKey = coin.value.toFixed(2);
+                        const qty = editingCofre.cofre.moedas[coinKey] || 0;
+                        return (
+                          <div key={`cof_coin_${coinKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
+                            <span className="text-xs font-bold text-gray-500 w-16">{coin.label}</span>
+                            <input 
+                              type="number"
+                              disabled={editingCofre.isLocked}
+                              min="0"
+                              placeholder="Qtd"
+                              value={qty || ''}
+                              onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', coinKey, Number(e.target.value))}
+                              className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
+                            />
+                            <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
+                              {formatEuro(qty * coin.rollValue)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {/* Loose/Soltas */}
+                      <div className="flex flex-col items-center justify-center gap-1.5 pt-2 border-t border-dashed">
+                        <span className="text-xs font-extrabold text-blue-600 text-center block w-full">Moedas Soltas</span>
+                        <input 
+                          type="number"
+                          disabled={editingCofre.isLocked}
+                          step="0.01"
+                          placeholder="Valor €"
+                          value={editingCofre.cofre.moedas.loose || ''}
+                          onChange={(e) => handleUpdateSafeCountInput('cofre', 'moedas', 'loose', Number(e.target.value))}
+                          className="w-24 h-8 text-center px-2 bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notas */}
+                    <div className="space-y-2">
+                      <div className="bg-gray-50 px-2 py-1.5 rounded-lg text-slate-500 font-extrabold text-[10px] uppercase text-center border">
+                        Notas
+                      </div>
+                      {DENOMINATIONS_NOTES.map(note => {
+                        const noteKey = note.value.toString();
+                        const qty = editingCofre.cofre.notas[noteKey] || 0;
+                        return (
+                          <div key={`cof_note_${noteKey}`} className="flex items-center justify-between gap-2 border-b border-gray-50 pb-2">
+                            <span className="text-xs font-bold text-gray-500 w-16">{note.label}</span>
+                            <input 
+                              type="number"
+                              disabled={editingCofre.isLocked}
+                              min="0"
+                              placeholder="Qtd"
+                              value={qty || ''}
+                              onChange={(e) => handleUpdateSafeCountInput('cofre', 'notas', noteKey, Number(e.target.value))}
+                              className="w-16 h-8 text-center bg-gray-50 border rounded-lg text-xs font-bold font-mono outline-none focus:bg-white print:border-0 disabled:opacity-50"
+                            />
+                            <span className="text-xs font-mono font-bold text-gray-700 w-16 text-right">
+                              {formatEuro(qty * note.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+          )}
 
           {/* BOTTOM SUMMARY - SYSTEM DARK BLUE STYLE */}
           {(() => {
+            if (editingCofre.isNotPerformed) {
+              return (
+                <div className="bg-gray-100/60 border border-gray-200 p-4 rounded-2xl text-center text-xs text-gray-500 font-extrabold uppercase tracking-wide">
+                  Contagem não realizada — Sem valores ou diferenças para apresentar
+                </div>
+              );
+            }
+
             const autoMoedasProsegurVal = prosegurCoinMovements
               ?.filter(m => !m.isClosed)
               ?.reduce((sum, m) => sum + (m.amount || 0), 0) || 0;
@@ -2956,7 +3004,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               <button
                                 onClick={() => handleAddNewSafeCountForTurn(day.date, 'Abertura')}
                                 className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasAbertura 
+                                  !hasAbertura || day.abertura?.isNotPerformed
                                     ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
                                     : !isAberturaLocked
                                       ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
@@ -2964,9 +3012,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 }`}
                               >
                                 <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasAbertura ? 'Abertura' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
+                                  {!hasAbertura ? 'Abertura' : day.abertura?.isNotPerformed ? '🚫 Abertura Skip' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
                                 </span>
-                                {!hasAbertura || !isAberturaLocked ? (
+                                {!hasAbertura || day.abertura?.isNotPerformed || !isAberturaLocked ? (
                                   <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
                                     Não realizada
                                   </span>
@@ -2981,7 +3029,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               <button
                                 onClick={() => handleAddNewSafeCountForTurn(day.date, 'Tarde')}
                                 className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasTarde 
+                                  !hasTarde || day.tarde?.isNotPerformed
                                     ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
                                     : !isTardeLocked
                                       ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
@@ -2989,9 +3037,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 }`}
                               >
                                 <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasTarde ? 'Intermédio' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
+                                  {!hasTarde ? 'Intermédio' : day.tarde?.isNotPerformed ? '🚫 Intermédio Skip' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
                                 </span>
-                                {!hasTarde || !isTardeLocked ? (
+                                {!hasTarde || day.tarde?.isNotPerformed || !isTardeLocked ? (
                                   <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
                                     Não realizada
                                   </span>
@@ -3006,7 +3054,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               <button
                                 onClick={() => handleAddNewSafeCountForTurn(day.date, 'Fecho')}
                                 className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasFecho 
+                                  !hasFecho || day.fecho?.isNotPerformed
                                     ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
                                     : !isFechoLocked
                                       ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
@@ -3014,9 +3062,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                 }`}
                               >
                                 <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasFecho ? 'Fecho' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
+                                  {!hasFecho ? 'Fecho' : day.fecho?.isNotPerformed ? '🚫 Fecho Skip' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
                                 </span>
-                                {!hasFecho || !isFechoLocked ? (
+                                {!hasFecho || day.fecho?.isNotPerformed || !isFechoLocked ? (
                                   <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
                                     Não realizada
                                   </span>
@@ -3112,7 +3160,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                   </td>
                                   
                                   <td className="px-6 py-4 text-right font-mono">
-                                    {day.abertura ? (
+                                    {day.abertura && !day.abertura.isNotPerformed ? (
                                       <span className={getDynamicDiferencaForCount(day.abertura) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.abertura))}
                                       </span>
@@ -3121,7 +3169,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     )}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono">
-                                    {day.tarde ? (
+                                    {day.tarde && !day.tarde.isNotPerformed ? (
                                       <span className={getDynamicDiferencaForCount(day.tarde) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.tarde))}
                                       </span>
@@ -3130,7 +3178,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                     )}
                                   </td>
                                   <td className="px-6 py-4 text-right font-mono">
-                                    {day.fecho ? (
+                                    {day.fecho && !day.fecho.isNotPerformed ? (
                                       <span className={getDynamicDiferencaForCount(day.fecho) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
                                         {formatEuro(getDynamicDiferencaForCount(day.fecho))}
                                       </span>
