@@ -694,7 +694,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       id: `cofre_${date}_${turn}_${Date.now()}`,
       date: date,
       turn: turn,
-      managerId: employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '',
+      managerId: '',
       fundoGerente: createEmptyPart(),
       cofre: createEmptyPart(),
       invoices: [],
@@ -819,6 +819,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     if (!editingCofre) return;
     
     const finalizeLock = shouldLock === true;
+
+    if (finalizeLock) {
+      if (!editingCofre.managerId) {
+        alert("Erro: Deve selecionar o Gerente antes de validar/bloquear a contagem.");
+        return;
+      }
+      if (editingCofre.turn === 'Tarde' && !editingCofre.managerId2) {
+        alert("Erro: Deve selecionar o Gerente de Fecho antes de validar/bloquear a contagem.");
+        return;
+      }
+    }
+    
     const isNotPerf = editingCofre.isNotPerformed === true;
     
     const autoMoedasPros = isNotPerf ? 0 : (prosegurCoinMovements
@@ -1045,7 +1057,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           id: `cofre_${invoiceDateInput}_${targetTurn}_${Date.now()}`,
           date: invoiceDateInput,
           turn: targetTurn,
-          managerId: employees.find(e => e.isActive && e.role?.toUpperCase() === 'GERENTE')?.id || employees[0]?.id || '',
+          managerId: '',
           fundoGerente: createEmptyPart(),
           cofre: createEmptyPart(),
           invoices: [newInv],
@@ -1926,10 +1938,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                     <select
                       disabled={editingCofre.isLocked}
-                      value={editingCofre.managerId}
+                      value={editingCofre.managerId || ''}
                       onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
                       className="w-full pl-10 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
+                      <option value="">(--) Selecione o Gerente</option>
                       {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
@@ -1946,7 +1959,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       onChange={(e) => setEditingCofre({ ...editingCofre, managerId2: e.target.value })}
                       className="w-full pl-10 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      <option value="">-- Selecione o Gerente de Fecho --</option>
+                      <option value="">(--) Selecione o Gerente de Fecho</option>
                       {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
@@ -1961,10 +1974,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                   <select
                     disabled={editingCofre.isLocked}
-                    value={editingCofre.managerId}
+                    value={editingCofre.managerId || ''}
                     onChange={(e) => setEditingCofre({ ...editingCofre, managerId: e.target.value })}
                     className="w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 print:border-0 print:pl-0 appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
+                    <option value="">(--) Selecione o Gerente</option>
                     {employees.filter(e => e.role?.toUpperCase() === 'GERENTE').map(e => (
                       <option key={e.id} value={e.id}>{e.name}</option>
                     ))}
