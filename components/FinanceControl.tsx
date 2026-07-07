@@ -140,15 +140,16 @@ const addDaysToDateStr = (dateStr: string, days: number): string => {
 const syncWeeklyCoinDeposits = (weeklies: ProsegurWeeklyDeposit[], coins: ProsegurCoinMovement[]): ProsegurWeeklyDeposit[] => {
   return weeklies.map(w => {
     const parts = w.startDate.split('-');
-    const weekStart = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    // Parse as UTC midnight to avoid any timezone/DST shift issues
+    const weekStart = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
     const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
     const matchingCoins = coins.filter(c => {
       if (!c.isClosed || !c.sendDate || !c.sendAmount) return false;
       const cParts = c.sendDate.split('-');
-      const sendDateObj = new Date(Number(cParts[0]), Number(cParts[1]) - 1, Number(cParts[2]));
-      return sendDateObj >= weekStart && sendDateObj < weekEnd;
+      const sendDateObj = new Date(Date.UTC(Number(cParts[0]), Number(cParts[1]) - 1, Number(cParts[2])));
+      return sendDateObj.getTime() >= weekStart.getTime() && sendDateObj.getTime() < weekEnd.getTime();
     });
 
     const updatedWeek = { ...w };
