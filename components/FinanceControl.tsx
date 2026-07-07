@@ -3371,7 +3371,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             <th colSpan={3} className="px-5 py-2 border-b border-slate-200 border-r border-slate-100 text-center">Depósito de Abertura</th>
                             <th colSpan={3} className="px-5 py-2 border-b border-slate-200 border-r border-slate-100 text-center">Depósito de Fecho</th>
                             <th rowSpan={2} className="px-5 py-4 border-r border-slate-100 text-center">Total do Dia</th>
-                            <th rowSpan={2} className="px-5 py-4 text-center w-80">Validação</th>
+                            <th rowSpan={2} className="px-5 py-4 text-center w-32">Validação</th>
                           </tr>
                           <tr className="bg-slate-50/40 border-b border-slate-200 text-[9px] font-black uppercase text-slate-400 tracking-wider">
                             <th className="px-3 py-2 border-r border-slate-100 text-center">Valor</th>
@@ -3547,27 +3547,28 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                                 {/* 5. VALIDAÇÃO */}
                                 <td className="px-5 py-4 text-center">
-                                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
                                     {isDayFullyClosed ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-150 text-emerald-850 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                        🔒 Concluído
+                                      <span 
+                                        className="p-1.5 bg-emerald-50 border border-emerald-150 text-emerald-700 rounded-lg flex items-center justify-center"
+                                        title="Validado e Concluído"
+                                      >
+                                        <Lock size={14} />
                                       </span>
                                     ) : (
-                                      <>
-                                        <button
-                                          type="button"
-                                          disabled={!(isAberturaLocked && isFechoLocked)}
-                                          onClick={() => handleCloseDayDeposits(day.date, day)}
-                                          className={`inline-flex items-center gap-1 px-3 py-1.5 font-black text-[9px] uppercase tracking-wider rounded-xl transition-all shadow-sm ${
-                                            (isAberturaLocked && isFechoLocked)
-                                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                                              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                                          }`}
-                                          title={!(isAberturaLocked && isFechoLocked) ? "Para validar o dia, ambos os turnos de Abertura e Fecho devem estar validados/concluídos." : "Validar dia"}
-                                        >
-                                          Validar dia
-                                        </button>
-                                      </>
+                                      <button
+                                        type="button"
+                                        disabled={!(isAberturaLocked && isFechoLocked)}
+                                        onClick={() => handleCloseDayDeposits(day.date, day)}
+                                        className={`p-1.5 rounded-lg transition-all border flex items-center justify-center shadow-sm ${
+                                          (isAberturaLocked && isFechoLocked)
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 cursor-pointer'
+                                            : 'bg-slate-50 text-slate-350 cursor-not-allowed border-slate-200'
+                                        }`}
+                                        title={!(isAberturaLocked && isFechoLocked) ? "Para validar o dia, ambos os turnos de Abertura e Fecho devem estar validados/concluídos." : "Validar dia"}
+                                      >
+                                        <CheckCircle size={14} />
+                                      </button>
                                     )}
 
                                     {(hasAbertura || hasFecho) && (
@@ -3587,10 +3588,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                             window.print();
                                           }, 150);
                                         }}
-                                        className="p-1 px-2.5 text-blue-650 hover:text-blue-800 hover:bg-blue-50 border border-blue-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
+                                        className="p-1.5 text-blue-650 hover:text-blue-800 hover:bg-blue-50 border border-blue-100 rounded-lg transition-all flex items-center justify-center focus:outline-none"
                                         title="Imprimir Guia de Depósito"
                                       >
-                                        <Printer size={12} /> Imprimir
+                                        <Printer size={14} />
                                       </button>
                                     )}
 
@@ -3598,10 +3599,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleConfirmDeleteDayDeposits(day)}
-                                        className="p-1 px-2.5 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-100 rounded-lg text-[9px] font-black transition-all inline-flex items-center gap-1 uppercase tracking-wider focus:outline-none"
+                                        className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-100 rounded-lg transition-all flex items-center justify-center focus:outline-none"
                                         title="Eliminar Depósito do Dia"
                                       >
-                                        <Trash2 size={12} /> Eliminar
+                                        <Trash2 size={14} />
                                       </button>
                                     )}
                                   </div>
