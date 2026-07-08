@@ -1442,7 +1442,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     if (!dep) return 0;
     if (!dep.rows) return (dep as any).amount || 0;
     return dep.rows.reduce((sum, row) => {
-      return sum + (row.dinheiro || 0) + (row.sangria || 0) + (row.multibanco || 0) + (row.tickets || 0) + (row.delivery || 0) + (row.mop || 0);
+      return sum + (row.dinheiro || 0) + (row.sangria || 0);
     }, 0);
   };
 
