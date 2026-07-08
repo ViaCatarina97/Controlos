@@ -2362,18 +2362,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               <input 
                 type="date"
                 value={editingDeposit.date}
-                disabled={editingDeposit.isLocked}
+                disabled={true}
                 onChange={(e) => setEditingDeposit({ ...editingDeposit, date: e.target.value })}
-                className="w-full h-9 px-4 border rounded-xl font-bold text-xs bg-white text-slate-700 focus:ring-1 focus:ring-amber-500 shadow-sm"
+                className="w-full h-9 px-4 border rounded-xl font-bold text-xs bg-slate-50 text-slate-500 cursor-not-allowed focus:ring-0 shadow-sm"
               />
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Turno</label>
               <select
                 value={editingDeposit.turn}
-                disabled={editingDeposit.isLocked}
+                disabled={true}
                 onChange={(e) => setEditingDeposit({ ...editingDeposit, turn: e.target.value as 'Abertura' | 'Fecho' })}
-                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-white text-slate-700"
+                className="w-full px-4 py-2 border rounded-xl font-bold text-xs bg-slate-50 text-slate-500 cursor-not-allowed"
               >
                 <option value="Abertura">Abertura</option>
                 <option value="Fecho">Fecho</option>
