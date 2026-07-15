@@ -149,24 +149,39 @@ const syncWeeklyCoinDeposits = (weeklies: ProsegurWeeklyDeposit[], coins: Proseg
       if (!c.isClosed || !c.sendDate || !c.sendAmount) return false;
       const cParts = c.sendDate.split('-');
       const sendDateObj = new Date(Date.UTC(Number(cParts[0]), Number(cParts[1]) - 1, Number(cParts[2])));
-      return sendDateObj.getTime() >= weekStart.getTime() && sendDateObj.getTime() < weekEnd.getTime();
+      return sendDateObj.getTime() > weekStart.getTime() && sendDateObj.getTime() <= weekEnd.getTime();
     });
 
     const updatedWeek = { ...w };
-    if (matchingCoins.length >= 1) {
+
+    // Handle Slot 1
+    if (updatedWeek.coinDepositId1) {
+      // Manually linked. Let's find the current coin movement to keep it up to date.
+      const linkedCoin = coins.find(c => c.id === updatedWeek.coinDepositId1);
+      if (linkedCoin) {
+        updatedWeek.coinDepositsValue1 = linkedCoin.sendAmount || linkedCoin.amount || 0;
+      }
+    } else if (updatedWeek.coinDepositsValue1 > 0) {
+      // Custom manual value (no ID). Preserve it!
+    } else if (matchingCoins.length >= 1) {
+      // Auto-fill from matching coins
       updatedWeek.coinDepositsValue1 = matchingCoins[0].sendAmount || 0;
       updatedWeek.coinDepositId1 = matchingCoins[0].id;
-    } else {
-      updatedWeek.coinDepositsValue1 = 0;
-      updatedWeek.coinDepositId1 = undefined;
     }
 
-    if (matchingCoins.length >= 2) {
+    // Handle Slot 2
+    if (updatedWeek.coinDepositId2) {
+      // Manually linked. Let's find the current coin movement to keep it up to date.
+      const linkedCoin = coins.find(c => c.id === updatedWeek.coinDepositId2);
+      if (linkedCoin) {
+        updatedWeek.coinDepositsValue2 = linkedCoin.sendAmount || linkedCoin.amount || 0;
+      }
+    } else if (updatedWeek.coinDepositsValue2 > 0) {
+      // Custom manual value (no ID). Preserve it!
+    } else if (matchingCoins.length >= 2) {
+      // Auto-fill from matching coins
       updatedWeek.coinDepositsValue2 = matchingCoins[1].sendAmount || 0;
       updatedWeek.coinDepositId2 = matchingCoins[1].id;
-    } else {
-      updatedWeek.coinDepositsValue2 = 0;
-      updatedWeek.coinDepositId2 = undefined;
     }
 
     const dailySum = updatedWeek.dailyDeposits?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
@@ -4384,7 +4399,13 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           const displayManager = managerName || existDep?.managerName || '';
                           
                           return (
-                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-blue-200 hover:bg-white transition-all">
+                            <div 
+                              key={idx} 
+                              onClick={isWeekOpen ? () => setWeeklySlotEditor({ week, type: 'daily', dayIndex: idx }) : undefined}
+                              className={`bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:bg-white transition-all ${
+                                isWeekOpen ? 'cursor-pointer hover:border-blue-300 hover:shadow-sm' : ''
+                              }`}
+                            >
                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 truncate" title={displayDate}>
                                 {dateShort}
                               </span>
@@ -4407,7 +4428,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         })}
 
                         {/* Coin 1 Slot */}
-                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-yellow-300 hover:bg-white transition-all">
+                        <div 
+                          onClick={isWeekOpen ? () => setWeeklySlotEditor({ week, type: 'coin1' }) : undefined}
+                          className={`bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:bg-white transition-all ${
+                            isWeekOpen ? 'cursor-pointer hover:border-yellow-300 hover:shadow-sm' : ''
+                          }`}
+                        >
                           <span className="text-[10px] font-black text-amber-850 uppercase tracking-widest block mb-2">Depósito Moedas 1</span>
                           <div className="flex-1 flex flex-col justify-center mb-2">
                             {week.coinDepositsValue1 > 0 ? (
@@ -4419,7 +4445,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         </div>
 
                         {/* Coin 2 Slot */}
-                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:border-yellow-300 hover:bg-white transition-all">
+                        <div 
+                          onClick={isWeekOpen ? () => setWeeklySlotEditor({ week, type: 'coin2' }) : undefined}
+                          className={`bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col justify-between min-h-[110px] text-center hover:bg-white transition-all ${
+                            isWeekOpen ? 'cursor-pointer hover:border-yellow-300 hover:shadow-sm' : ''
+                          }`}
+                        >
                           <span className="text-[10px] font-black text-amber-855 uppercase tracking-widest block mb-2">Depósito Moedas 2</span>
                           <div className="flex-1 flex flex-col justify-center mb-2">
                             {week.coinDepositsValue2 > 0 ? (

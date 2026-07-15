@@ -295,6 +295,93 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     [aggregatedSms]
   );
 
+  const categoryDifferences = useMemo(() => {
+    const getCategoryFromHaviGroupCode = (code: string): string => {
+      if (['A','B','C','H','J','L','T'].includes(code)) return 'Comida';
+      if (['D','U'].includes(code)) return 'Papel';
+      if (['E','I','O'].includes(code)) return 'F. Operacionais';
+      if (['M'].includes(code)) return 'Material Adm';
+      if (['F'].includes(code)) return 'Happy Meal';
+      return 'Outros';
+    };
+
+    const categories = ['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Happy Meal', 'Outros'];
+    const diffs: Record<string, number> = {};
+
+    categories.forEach(cat => {
+      // 1. Calculate sum of delivery differences for this category
+      let deliveryDiffSum = 0;
+      filteredRecords.forEach(rec => {
+        // Find MyStore amount for this category in the delivery
+        const smsVal = rec.smsValues?.find(v => v.description === cat)?.amount || 0;
+
+        // Find HAVI subtotal for this category in the delivery
+        let haviSubtotal = 0;
+        if (rec.isManualInsertion) {
+          haviSubtotal = (rec.manualHaviValues || {})[cat] || 0;
+        } else {
+          const haviMatchCodes = cat === 'Comida' ? ['A','B','C','H','J','L','T'] :
+                                 cat === 'Papel' ? ['D','U'] :
+                                 cat === 'F. Operacionais' ? ['E','I','O'] :
+                                 cat === 'Material Adm' ? ['M'] :
+                                 cat === 'Happy Meal' ? ['F'] :
+                                 cat === 'Outros' ? ['G','N','P','R','S'] : [];
+
+          haviSubtotal = (rec.haviGroups || [])
+            .filter(g => haviMatchCodes.includes(g.group))
+            .reduce((s, g) => s + g.total, 0);
+        }
+
+        // Find price differences for this category in the delivery
+        const priceDiffs = rec.priceDifferences || [];
+        const groupPriceDiff = priceDiffs
+          .filter(i => i.category === cat)
+          .reduce((s, i) => s + (i.priceHavi - i.priceSms), 0);
+
+        // Find missing products for this category in the delivery
+        const missingProducts = rec.missingProducts || [];
+        const missingTotalForCat = missingProducts
+          .filter(m => {
+            const mappedCat = getCategoryFromHaviGroupCode(m.group);
+            return mappedCat === cat;
+          })
+          .reduce((s, m) => s + (m.priceHavi || 0), 0);
+
+        // The delivery difference for this category is:
+        const deliveryDiff = haviSubtotal - smsVal - groupPriceDiff - missingTotalForCat;
+        deliveryDiffSum += deliveryDiff;
+      });
+
+      // 2. Adjust for credit notes of this category
+      let creditHaviSum = 0;
+      let creditSmsSum = 0;
+      filteredCredits.forEach(c => {
+        // Check if credit note matches this category
+        const myStoreMatch = c.myStoreGroup === cat;
+        
+        const haviGroupName = c.haviGroup || 'Outros';
+        const haviCode = HAVI_NAME_TO_CODE[haviGroupName] || 'G';
+        const haviCat = getCategoryFromHaviGroupCode(haviCode);
+        const haviMatch = haviCat === cat;
+
+        if (myStoreMatch) {
+          creditSmsSum += c.valueMyStore ?? 0;
+        }
+        if (haviMatch) {
+          creditHaviSum += c.valueHavi ?? c.value ?? 0;
+        }
+      });
+
+      diffs[cat] = deliveryDiffSum - (creditHaviSum - creditSmsSum);
+    });
+
+    return diffs;
+  }, [filteredRecords, filteredCredits]);
+
+  const grandTotalDiff = useMemo(() => {
+    return (Object.values(categoryDifferences) as number[]).reduce((s, d) => s + d, 0);
+  }, [categoryDifferences]);
+
   const formatMonthHeader = (monthStr: string) => {
     const [y, m] = monthStr.split('-');
     const months = [
@@ -488,16 +575,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
               <div className="col-span-4 px-2 py-1 text-right">Total</div>
             </div>
             <div className="flex flex-col bg-white">
-                 {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, smsVal]) => {
-                   let haviMatch = 0;
-                   if (desc === 'Comida') haviMatch = ['A','B','C','H','J','L','T'].reduce((s, c) => s + (aggregatedHavi[c]?.total || 0), 0);
-                   else if (desc === 'Papel') haviMatch = ['D','U']?.reduce((s, c) => s + (aggregatedHavi[c]?.total || 0), 0);
-                   else if (desc === 'F. Operacionais') haviMatch = (aggregatedHavi['E']?.total || 0) + (aggregatedHavi['I']?.total || 0) + (aggregatedHavi['O']?.total || 0);
-                   else if (desc === 'Material Adm') haviMatch = (aggregatedHavi['M']?.total || 0);
-                   else if (desc === 'Happy Meal') haviMatch = (aggregatedHavi['F']?.total || 0);
-                   else if (desc === 'Outros') haviMatch = (aggregatedHavi['G']?.total || 0) + (aggregatedHavi['N']?.total || 0) + (aggregatedHavi['P']?.total || 0) + (aggregatedHavi['R']?.total || 0) + (aggregatedHavi['S']?.total || 0);
-
-                   const diff = haviMatch - smsVal;
+                 {(Object.entries(categoryDifferences) as [string, number][]).map(([desc, diff]) => {
                    return (
                     <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0">
                       <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
@@ -509,8 +587,8 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                  })}
             </div>
             <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-               <div className={`text-2xl font-black ${Math.abs(grandTotalHavi - grandTotalSms) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {formatEuro(grandTotalHavi - grandTotalSms)}
+               <div className={`text-2xl font-black ${Math.abs(grandTotalDiff) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {formatEuro(grandTotalDiff)}
                </div>
             </div>
           </div>
