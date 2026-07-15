@@ -306,7 +306,8 @@ const matchSingle = (rowLabel: string, targetStr: string): boolean => {
   }
   // Se o utilizador especificou "Bebidas 1" mas a estação ativa não tem nenhum número (ex: "Bebidas" genérico)
   else if (rDigit !== null && tDigit === null) {
-    if (rDigit !== "1") return false;
+    // Permitido: Não restringimos a "1" se a estação não tiver número (ex: "McCafé Prep", "Delivery Prep"),
+    // permitindo que "Preparador 2" ou "Salão 1" correspondam à estação genérica sem número.
   }
 
   // Agora comparamos os textos sem os números
@@ -606,6 +607,16 @@ export const Positioning: React.FC<PositioningProps> = ({
                 chosenIds.add(looseMatch.id);
             }
         }
+    }
+    
+    // 3. Garantir que o número de postos recomendados (visíveis) seja pelo menos igual ao total de funcionários previstos (targetStaffCount)
+    const baseStaffCount = finalMatchIdx !== -1 ? sortedStaffingTable[finalMatchIdx].staffCount : 0;
+    const targetStaffCount = Math.max(0, baseStaffCount + manualAdj);
+    if (chosenIds.size < targetStaffCount) {
+      for (const s of activeStations) {
+        if (chosenIds.size >= targetStaffCount) break;
+        chosenIds.add(s.id);
+      }
     }
     
     return chosenIds;
