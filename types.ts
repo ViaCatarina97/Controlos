@@ -99,6 +99,9 @@ export interface DailySchedule {
   manualAdjustments?: {
     [key in ShiftType]?: number;
   };
+  manualStationAdditions?: {
+    [key in ShiftType]?: string[];
+  };
   shiftManagersCounted?: boolean;
   shiftObjectives?: {
     [key in ShiftType]?: {
@@ -320,6 +323,7 @@ export interface MonthlyOperationalData {
   promoPapel: number;
   comprasOpsMaiaPapper: number;
   otherSuppliers: OtherSupplierEntry[];
+  isFinalized?: boolean;
 }
 
 export interface ProsegurDailyDeposit {

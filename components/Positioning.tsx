@@ -408,6 +408,9 @@ export const Positioning: React.FC<PositioningProps> = ({
   const [manualAdjPasswordInput, setManualAdjPasswordInput] = useState('');
   const [manualAdjCountInput, setManualAdjCountInput] = useState('');
   const [manualAdjError, setManualAdjError] = useState('');
+  const [manualAdjStep, setManualAdjStep] = useState<1 | 2 | 3>(1);
+  const [manualAdjType, setManualAdjType] = useState<'staffing' | 'custom'>('staffing');
+  const [selectedCustomStations, setSelectedCustomStations] = useState<string[]>([]);
   
   const availableShifts = settings.activeShifts;
   const today = new Date().toISOString().split('T')[0];
@@ -551,9 +554,19 @@ export const Positioning: React.FC<PositioningProps> = ({
       }
     }
 
-    if (manualAdj !== 0 && sortedStaffingTable.length > 0) {
+    // Determine if we have custom station additions
+    const customStations = schedule.manualStationAdditions?.[selectedShift] || [];
+    const hasCustomStations = customStations.length > 0;
+
+    // If we have custom station additions, we don't shift the staffing table index
+    let effectiveManualAdj = manualAdj;
+    if (hasCustomStations) {
+      effectiveManualAdj = 0;
+    }
+
+    if (effectiveManualAdj !== 0 && sortedStaffingTable.length > 0) {
       const baseStaffCount = finalMatchIdx !== -1 ? sortedStaffingTable[finalMatchIdx].staffCount : 0;
-      const targetStaffCount = Math.max(0, baseStaffCount + manualAdj);
+      const targetStaffCount = Math.max(0, baseStaffCount + effectiveManualAdj);
       
       let adjustedMatchIdx = sortedStaffingTable.findIndex(row => row.staffCount === targetStaffCount);
       
@@ -611,16 +624,25 @@ export const Positioning: React.FC<PositioningProps> = ({
     
     // 3. Garantir que o número de postos recomendados (visíveis) seja pelo menos igual ao total de funcionários previstos (targetStaffCount)
     const baseStaffCount = finalMatchIdx !== -1 ? sortedStaffingTable[finalMatchIdx].staffCount : 0;
-    const targetStaffCount = Math.max(0, baseStaffCount + manualAdj);
+    const targetStaffCount = Math.max(0, baseStaffCount + effectiveManualAdj);
     if (chosenIds.size < targetStaffCount) {
       for (const s of activeStations) {
         if (chosenIds.size >= targetStaffCount) break;
         chosenIds.add(s.id);
       }
     }
+
+    // 4. Se houver postos adicionados manualmente, adicioná-los explicitamente!
+    if (hasCustomStations) {
+      customStations.forEach(id => {
+        if (activeStations.some(s => s.id === id)) {
+          chosenIds.add(id);
+        }
+      });
+    }
     
     return chosenIds;
-  }, [sortedStaffingTable, activeSalesData.totalSales, activeStations, manualAdj]);
+  }, [sortedStaffingTable, activeSalesData.totalSales, activeStations, manualAdj, schedule.manualStationAdditions, selectedShift]);
 
   const handleManagerChange = (field: 'leader' | 'support', empId: string) => {
       if (isShiftLocked) return;
@@ -941,27 +963,13 @@ export const Positioning: React.FC<PositioningProps> = ({
                       setManualAdjPasswordInput('');
                       setManualAdjCountInput(manualAdj !== 0 ? String(manualAdj) : '');
                       setManualAdjError('');
+                      setManualAdjStep(1);
+                      const currentCustoms = schedule.manualStationAdditions?.[selectedShift] || [];
+                      setSelectedCustomStations(currentCustoms);
+                      setManualAdjType(currentCustoms.length > 0 ? 'custom' : 'staffing');
                       setShowManualAdjModal(true);
-                      return; /*
-                         const val = prompt('Indique o número de funcionários a acrescentar (ex: 2 para somar, -1 para subtrair, ou 0 para limpar):');
-                         if (val !== null) {
-                             const num = parseInt(val);
-                             if (!isNaN(num)) {
-                                const currentAdjustments = schedule.manualAdjustments || {};
-                                setSchedule({ 
-                                   ...schedule, 
-                                   manualAdjustments: { 
-                                      ...currentAdjustments, 
-                                      [selectedShift]: num 
-                                   } 
-                                });
-                             }
-                         }
-                      } else {
-                        alert('Password incorreta!');
-                      }
                    }}
-                   */ }} className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
+                   className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
                 >
                    Ajuste Manual
                 </button>
@@ -1210,10 +1218,15 @@ export const Positioning: React.FC<PositioningProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
             {/* Modal Header */}
             <div className="bg-slate-900 px-6 py-4 text-white flex justify-between items-center">
-              <h3 className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
-                <Calculator size={18} className="text-amber-400" />
-                Ajuste Manual
-              </h3>
+              <div>
+                <h3 className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                  <Calculator size={18} className="text-amber-400" />
+                  Ajuste Manual
+                </h3>
+                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider mt-0.5">
+                  Passo {manualAdjStep} de 3 {manualAdjStep === 1 ? '• Identificação' : manualAdjStep === 2 ? '• Ajuste' : '• Alocação'}
+                </p>
+              </div>
               <button 
                 onClick={() => setShowManualAdjModal(false)}
                 className="text-slate-400 hover:text-white transition-colors cursor-pointer text-sm font-black"
@@ -1225,76 +1238,275 @@ export const Positioning: React.FC<PositioningProps> = ({
             {/* Modal Body */}
             <div className="p-6 space-y-4">
               {manualAdjError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2">
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2 animate-fade-in">
                   <span className="text-sm">⚠</span> {manualAdjError}
                 </div>
               )}
               
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                  Password das Definições
-                </label>
-                <input 
-                  type="password"
-                  placeholder="Introduza a password..."
-                  value={manualAdjPasswordInput}
-                  onChange={(e) => setManualAdjPasswordInput(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-bold text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
-                  autoFocus
-                />
-              </div>
+              {/* Passo 1: Password */}
+              {manualAdjStep === 1 && (
+                <div className="space-y-3 animate-fade-in">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                      Password das Definições
+                    </label>
+                    <input 
+                      type="password"
+                      placeholder="Introduza a password..."
+                      value={manualAdjPasswordInput}
+                      onChange={(e) => setManualAdjPasswordInput(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-bold text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setManualAdjError('');
+                          if (manualAdjPasswordInput === settings.password || manualAdjPasswordInput === 'Imperial96') {
+                            setManualAdjStep(2);
+                          } else {
+                            setManualAdjError('Password incorreta!');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                  Funcionários a Ajustar
-                </label>
-                <input 
-                  type="number"
-                  placeholder="Ex: 2 ou -1 (0 para limpar)"
-                  value={manualAdjCountInput}
-                  onChange={(e) => setManualAdjCountInput(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-black text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
-                />
-                <span className="text-[10px] text-slate-400 font-bold mt-1 block">
-                  Indique número positivo para somar, negativo para subtrair, ou 0 para limpar o ajuste.
-                </span>
-              </div>
+              {/* Passo 2: Quantidade de Funcionários */}
+              {manualAdjStep === 2 && (
+                <div className="space-y-3 animate-fade-in">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                      Funcionários a Ajustar
+                    </label>
+                    <input 
+                      type="number"
+                      placeholder="Ex: 2 ou -1 (0 para limpar)"
+                      value={manualAdjCountInput}
+                      onChange={(e) => setManualAdjCountInput(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-black text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 transition-all"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setManualAdjError('');
+                          const num = parseInt(manualAdjCountInput, 10);
+                          if (isNaN(num)) {
+                            setManualAdjError('Por favor introduza um número válido.');
+                            return;
+                          }
+                          if (num <= 0) {
+                            const currentAdjustments = schedule.manualAdjustments || {};
+                            const currentStationAdditions = schedule.manualStationAdditions || {};
+                            setSchedule({ 
+                              ...schedule, 
+                              manualAdjustments: { 
+                                ...currentAdjustments, 
+                                [selectedShift]: num 
+                              },
+                              manualStationAdditions: {
+                                ...currentStationAdditions,
+                                [selectedShift]: []
+                              }
+                            });
+                            setShowManualAdjModal(false);
+                          } else {
+                            setManualAdjStep(3);
+                          }
+                        }
+                      }}
+                    />
+                    <span className="text-[10px] text-slate-400 font-bold mt-1.5 block">
+                      Indique número positivo para somar, negativo para subtrair, ou 0 para limpar o ajuste.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Passo 3: Ordem de Staffing vs Postos específicos */}
+              {manualAdjStep === 3 && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                      Como deseja alocar o valor acrescentado?
+                    </label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualAdjType('staffing')}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          manualAdjType === 'staffing'
+                            ? 'border-amber-500 bg-amber-50/20 text-slate-800'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <div className="font-extrabold text-xs">Seguir ordem do staffing</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Os postos abrem de forma automática respeitando a tabela de staffing.</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setManualAdjType('custom')}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          manualAdjType === 'custom'
+                            ? 'border-amber-500 bg-amber-50/20 text-slate-800'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <div className="font-extrabold text-xs">Indicar o posto que acrescenta</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Escolha especificamente quais os postos que deseja que sejam recomendados.</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {manualAdjType === 'custom' && (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                          Selecione o(s) Posto(s) a Acrescentar:
+                        </label>
+                        <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                          Selecionados: {selectedCustomStations.length}
+                        </span>
+                      </div>
+                      
+                      <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto p-2 bg-slate-50/40 divide-y divide-slate-100">
+                        {activeStations.map(s => {
+                          const isChecked = selectedCustomStations.includes(s.id);
+                          return (
+                            <label key={s.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer text-xs font-bold text-slate-700">
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCustomStations([...selectedCustomStations, s.id]);
+                                  } else {
+                                    setSelectedCustomStations(selectedCustomStations.filter(id => id !== s.id));
+                                  }
+                                }}
+                                className="rounded text-amber-600 focus:ring-amber-500/20 h-4 w-4 border-slate-300 cursor-pointer"
+                              />
+                              <div className="flex flex-col">
+                                <span>{s.label}</span>
+                                {s.designation && <span className="text-[9px] text-slate-400 font-medium">{s.designation}</span>}
+                              </div>
+                              <span className="text-[9px] text-slate-400 font-black uppercase ml-auto tracking-wide">{getAreaLabel(s.area)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-150 flex justify-end gap-3 font-sans">
-              <button 
-                onClick={() => setShowManualAdjModal(false)}
-                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl font-bold text-xs uppercase text-slate-600 transition-all cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={() => {
-                  setManualAdjError('');
-                  if (manualAdjPasswordInput === settings.password || manualAdjPasswordInput === 'Imperial96') {
-                    const num = parseInt(manualAdjCountInput, 10);
-                    if (isNaN(num)) {
-                      setManualAdjError('Por favor introduza um número válido.');
-                      return;
-                    }
-                    const currentAdjustments = schedule.manualAdjustments || {};
-                    setSchedule({ 
-                      ...schedule, 
-                      manualAdjustments: { 
-                        ...currentAdjustments, 
-                        [selectedShift]: num 
-                      } 
-                    });
-                    setShowManualAdjModal(false);
-                  } else {
-                    setManualAdjError('Password incorreta!');
-                  }
-                }}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-850 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm animate-pulse-subtle"
-              >
-                Confirmar
-              </button>
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-150 flex justify-between items-center font-sans">
+              <div>
+                {manualAdjStep > 1 && (
+                  <button 
+                    onClick={() => {
+                      setManualAdjError('');
+                      setManualAdjStep((manualAdjStep - 1) as any);
+                    }}
+                    className="px-4 py-2 border border-slate-200 hover:bg-slate-100 bg-white rounded-xl font-bold text-xs uppercase text-slate-600 transition-all cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowManualAdjModal(false)}
+                  className="px-4 py-2 border border-transparent hover:bg-slate-200 rounded-xl font-bold text-xs uppercase text-slate-500 transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                
+                {manualAdjStep === 1 && (
+                  <button 
+                    onClick={() => {
+                      setManualAdjError('');
+                      if (manualAdjPasswordInput === settings.password || manualAdjPasswordInput === 'Imperial96') {
+                        setManualAdjStep(2);
+                      } else {
+                        setManualAdjError('Password incorreta!');
+                      }
+                    }}
+                    className="px-5 py-2 bg-slate-900 hover:bg-slate-850 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                  >
+                    Seguinte
+                  </button>
+                )}
+
+                {manualAdjStep === 2 && (
+                  <button 
+                    onClick={() => {
+                      setManualAdjError('');
+                      const num = parseInt(manualAdjCountInput, 10);
+                      if (isNaN(num)) {
+                        setManualAdjError('Por favor introduza um número válido.');
+                        return;
+                      }
+                      if (num <= 0) {
+                        const currentAdjustments = schedule.manualAdjustments || {};
+                        const currentStationAdditions = schedule.manualStationAdditions || {};
+                        setSchedule({ 
+                          ...schedule, 
+                          manualAdjustments: { 
+                            ...currentAdjustments, 
+                            [selectedShift]: num 
+                          },
+                          manualStationAdditions: {
+                            ...currentStationAdditions,
+                            [selectedShift]: []
+                          }
+                        });
+                        setShowManualAdjModal(false);
+                      } else {
+                        setManualAdjStep(3);
+                      }
+                    }}
+                    className="px-5 py-2 bg-slate-900 hover:bg-slate-850 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                  >
+                    Seguinte
+                  </button>
+                )}
+
+                {manualAdjStep === 3 && (
+                  <button 
+                    onClick={() => {
+                      setManualAdjError('');
+                      const num = parseInt(manualAdjCountInput, 10);
+                      if (isNaN(num)) {
+                        setManualAdjError('Por favor introduza um número válido.');
+                        return;
+                      }
+                      
+                      const currentAdjustments = schedule.manualAdjustments || {};
+                      const currentStationAdditions = schedule.manualStationAdditions || {};
+                      
+                      setSchedule({ 
+                        ...schedule, 
+                        manualAdjustments: { 
+                          ...currentAdjustments, 
+                          [selectedShift]: num 
+                        },
+                        manualStationAdditions: {
+                          ...currentStationAdditions,
+                          [selectedShift]: manualAdjType === 'custom' ? selectedCustomStations : []
+                        }
+                      });
+                      setShowManualAdjModal(false);
+                    }}
+                    className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                  >
+                    Confirmar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

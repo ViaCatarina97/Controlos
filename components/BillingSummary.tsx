@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
 import { getMonthlyOps, saveMonthlyOps } from '../services/firebaseService';
-import { Printer, Calendar, Plus, Trash2 } from 'lucide-react';
+import { Printer, Calendar, Plus, Trash2, FileSpreadsheet, Lock, Unlock, Check } from 'lucide-react';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
@@ -487,6 +487,63 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     );
   }, [monthlyData.invInicialOps, computedComprasTotalOps, monthlyData.invFinalOps]);
 
+  const handleExportMonthlySummaryToExcel = () => {
+    const formatValue = (val: number) => {
+      return (val || 0).toFixed(2).replace('.', ',');
+    };
+
+    const formatPercentVal = (val: number) => {
+      return (val || 0).toFixed(2).replace('.', ',') + '%';
+    };
+
+    const pctCustoComida = monthlyData.vendasMes > 0 ? (computedConsumoComida / monthlyData.vendasMes) * 100 : 0;
+    const pctCustoPapel = monthlyData.vendasMes > 0 ? (computedConsumoPapel / monthlyData.vendasMes) * 100 : 0;
+    const pctConsumoOps = monthlyData.vendasMes > 0 ? (computedConsumoOps / monthlyData.vendasMes) * 100 : 0;
+
+    const rows = [
+      ['RESUMO OPERAÇÕES / VENDAS / CONSUMOS', 'VALOR', '', 'INVENTÁRIOS INICIAIS E PERDAS', 'VALOR', '', 'INVENTÁRIO PAPEL / PROMO / CUSTOS', 'VALOR'],
+      ['Vendas Mês', formatValue(monthlyData.vendasMes), '', 'Inv. Inicial Comida', formatValue(monthlyData.invInicialComida), '', 'Inv. Inicial Papel', formatValue(monthlyData.invInicialPapel)],
+      ['Compras Comida', formatValue(computedComprasComida), '', 'Inv. Inicial OPS', formatValue(monthlyData.invInicialOps), '', 'Perdas Papel', formatValue(monthlyData.perdasPapel)],
+      ['Compras Papel', formatValue(computedComprasPapel), '', 'Perdas Comida', formatValue(monthlyData.perdasComida), '', 'Refeições Papel', formatValue(monthlyData.refeicoesPapel)],
+      ['Compras Total Ops', formatValue(computedComprasTotalOps), '', 'Refeições Comida', formatValue(monthlyData.refeicoesComida), '', 'Promo Papel', formatValue(monthlyData.promoPapel)],
+      ['Consumo Comida', formatValue(computedConsumoComida), '', 'Promo Comida', formatValue(monthlyData.promoComida), '', '% Custo Comida', formatPercentVal(pctCustoComida)],
+      ['Consumo Papel', formatValue(computedConsumoPapel), '', 'Inv. Final Comida', formatValue(monthlyData.invFinalComida), '', '% Custo Papel', formatPercentVal(pctCustoPapel)],
+      ['Consumo OPS', formatValue(computedConsumoOps), '', 'Inv. Final Papel', formatValue(monthlyData.invFinalPapel), '', '% Consumo OPS', formatPercentVal(pctConsumoOps)],
+      ['', '', '', 'Inv. Final OPS', formatValue(monthlyData.invFinalOps), '', 'Compras OPS MaiaPapper', formatValue(computedComprasOpsMaiaPapper)],
+      ['', '', '', 'Compras OPS Havi', formatValue(computedComprasOpsHavi), '', '', '']
+    ];
+
+    const csvContent = [
+      `Resumo Mensal de Operações - ${selectedMonth};;;;Restaurante ID: ${restaurantId};;;`,
+      '',
+      ...rows.map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(';'))
+    ].join('\r\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const filename = `Resumo_Mensal_${selectedMonth}.csv`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleToggleFinalize = async () => {
+    const nextFinalized = !monthlyData.isFinalized;
+    const updated = { ...monthlyData, isFinalized: nextFinalized };
+    
+    setMonthlyData(updated);
+    localStorage.setItem(`monthly_ops_data_${selectedMonth}`, JSON.stringify(updated));
+    try {
+      await saveMonthlyOps(restaurantId, updated);
+    } catch (err) {
+      console.error("Failed to save finalized monthly ops to cloud:", err);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar print:h-auto print:overflow-visible print:p-0">
       {/* Controls */}
@@ -598,9 +655,13 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
         <div className="border border-gray-200 rounded overflow-hidden">
             <div className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center">
                 <span className="font-bold text-sm uppercase tracking-widest">Outros Fornecedores</span>
-                <button onClick={handleAddOtherSupplier} className="bg-white/10 hover:bg-white/20 p-1 rounded transition-colors print:hidden">
-                    <Plus size={16} />
-                </button>
+                <div className="flex items-center gap-2 print:hidden">
+                    {!monthlyData.isFinalized && (
+                        <button onClick={handleAddOtherSupplier} className="bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="Adicionar fornecedor">
+                            <Plus size={16} />
+                        </button>
+                    )}
+                </div>
             </div>
             <table className="w-full text-[11px]">
                 <thead className="bg-gray-100 text-gray-500 font-bold border-b border-gray-200">
@@ -619,34 +680,75 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                     {monthlyData.otherSuppliers.map(entry => (
                         <tr key={entry.id} className="hover:bg-gray-50 group">
                             <td className="p-1 border-r border-gray-50">
-                                <select value={entry.supplier} onChange={e => handleUpdateOtherSupplier(entry.id, 'supplier', e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-gray-700">
+                                <select 
+                                    value={entry.supplier} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'supplier', e.target.value)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full bg-transparent border-none outline-none font-bold text-gray-700 disabled:opacity-75"
+                                >
                                     <option value="Air Liquide">Air Liquide</option>
                                     <option value="MaiaPapper">MaiaPapper</option>
                                 </select>
                             </td>
                             <td className="p-1 border-r border-gray-50">
-                                <input type="date" value={entry.date} onChange={e => handleUpdateOtherSupplier(entry.id, 'date', e.target.value)} className="w-full bg-transparent border-none outline-none" />
+                                <input 
+                                    type="date" 
+                                    value={entry.date} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'date', e.target.value)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full bg-transparent border-none outline-none disabled:opacity-75" 
+                                />
                             </td>
                             <td className="p-1 border-r border-gray-50">
-                                <input type="number" value={entry.quantity || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center bg-transparent border-none outline-none" placeholder="0" />
+                                <input 
+                                    type="number" 
+                                    value={entry.quantity || ''} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'quantity', parseFloat(e.target.value) || 0)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full text-center bg-transparent border-none outline-none disabled:opacity-75" 
+                                    placeholder="0" 
+                                />
                             </td>
                             <td className="p-1 border-r border-gray-50">
-                                <input type="number" value={entry.invoiceValue || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'invoiceValue', parseFloat(e.target.value) || 0)} className="w-full text-right bg-transparent border-none outline-none font-black" placeholder="0.00" />
+                                <input 
+                                    type="number" 
+                                    value={entry.invoiceValue || ''} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'invoiceValue', parseFloat(e.target.value) || 0)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full text-right bg-transparent border-none outline-none font-black disabled:opacity-75" 
+                                    placeholder="0.00" 
+                                />
                             </td>
                             <td className="p-1 border-r border-gray-50">
-                                <input type="number" value={entry.myStoreValue || ''} onChange={e => handleUpdateOtherSupplier(entry.id, 'myStoreValue', parseFloat(e.target.value) || 0)} className="w-full text-right bg-transparent border-none outline-none font-bold" placeholder="0.00" />
+                                <input 
+                                    type="number" 
+                                    value={entry.myStoreValue || ''} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'myStoreValue', parseFloat(e.target.value) || 0)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full text-right bg-transparent border-none outline-none font-bold disabled:opacity-75" 
+                                    placeholder="0.00" 
+                                />
                             </td>
                             <td className="p-1 border-r border-gray-50 text-right font-black tabular-nums">
                                 {formatNumber(entry.invoiceValue - entry.myStoreValue)}
                             </td>
                             <td className="p-1 border-r border-gray-50">
-                                <select value={entry.managerId} onChange={e => handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)} className="w-full bg-transparent border-none outline-none font-medium truncate">
+                                <select 
+                                    value={entry.managerId} 
+                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)} 
+                                    disabled={monthlyData.isFinalized}
+                                    className="w-full bg-transparent border-none outline-none font-medium truncate disabled:opacity-75"
+                                >
                                     <option value="">-</option>
                                     {gerentes.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                 </select>
                             </td>
                             <td className="p-1 text-center print:hidden">
-                                <button onClick={() => handleDeleteOtherSupplier(entry.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14}/></button>
+                                {!monthlyData.isFinalized && (
+                                    <button onClick={() => handleDeleteOtherSupplier(entry.id)} className="text-gray-300 hover:text-red-500">
+                                        <Trash2 size={14}/>
+                                    </button>
+                                )}
                             </td>
                         </tr>
                     ))}
@@ -660,15 +762,54 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
         {/* Resumo Mês section wrapped to avoid page break inside when printing */}
         <div className="print:break-inside-avoid">
           {/* Resumo Mês Bar */}
-          <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg font-bold text-sm uppercase tracking-widest">
-              Resumo Mês
+          <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg flex justify-between items-center print:bg-[#5a7d36] print:text-white">
+              <div className="flex items-center gap-3">
+                  <span className="font-bold text-sm uppercase tracking-widest">Resumo Mês</span>
+                  {monthlyData.isFinalized && (
+                      <span className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-400">
+                          <Check size={10} /> Submetido
+                      </span>
+                  )}
+              </div>
+              <div className="flex items-center gap-2 print:hidden">
+                  <button 
+                      onClick={handleExportMonthlySummaryToExcel} 
+                      title="Exportar para Excel"
+                      id="btn-export-excel-resumo-mes"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1 rounded flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-emerald-500/30"
+                  >
+                      <FileSpreadsheet size={14} />
+                      <span>Exportar Excel</span>
+                  </button>
+                  <button 
+                      onClick={handleToggleFinalize} 
+                      id="btn-submeter-resumo-mes"
+                      className={`text-xs font-bold px-3 py-1 rounded flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
+                          monthlyData.isFinalized 
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500/30' 
+                            : 'bg-white text-[#5a7d36] hover:bg-slate-100 border-white/30'
+                      }`}
+                  >
+                      {monthlyData.isFinalized ? (
+                          <>
+                              <Unlock size={14} />
+                              <span>Reabrir Edição</span>
+                          </>
+                      ) : (
+                          <>
+                              <Lock size={14} />
+                              <span>Gravar e Submeter</span>
+                          </>
+                      )}
+                  </button>
+              </div>
           </div>
 
           {/* Operational Dashboard Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
              {/* Coluna 1 */}
              <div className="space-y-4">
-                <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader />
+                <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader disabled={monthlyData.isFinalized} />
                 <div className="space-y-1">
                    <DataDisplayRow label="Compras Comida" value={formatEuro(computedComprasComida)} />
                    <DataDisplayRow label="Compras Papel" value={formatEuro(computedComprasPapel)} />
@@ -681,30 +822,30 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
                 </div>
              </div>
 
-             {/* Coluna 2 */}
-             <div className="space-y-4">
-                <div className="space-y-1">
-                  <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} />
-                  <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} />
-                  <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} />
-                  <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} />
-                  <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} />
-                </div>
-                <div className="space-y-1">
-                  <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} />
-                  <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} />
-                  <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} />
-                  <DataDisplayRow label="Compras OPS Havi" value={formatEuro(computedComprasOpsHavi)} />
-                </div>
-             </div>
+              {/* Coluna 2 */}
+              <div className="space-y-4">
+                 <div className="space-y-1">
+                   <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} disabled={monthlyData.isFinalized} />
+                 </div>
+                 <div className="space-y-1">
+                   <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} disabled={monthlyData.isFinalized} />
+                   <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} disabled={monthlyData.isFinalized} />
+                   <DataDisplayRow label="Compras OPS Havi" value={formatEuro(computedComprasOpsHavi)} />
+                 </div>
+              </div>
 
              {/* Coluna 3 */}
              <div className="space-y-4">
-                <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} />
+                <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} disabled={monthlyData.isFinalized} />
                 <div className="space-y-1">
-                  <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} />
-                  <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} />
-                  <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} />
+                  <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} disabled={monthlyData.isFinalized} />
+                  <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} disabled={monthlyData.isFinalized} />
+                  <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} disabled={monthlyData.isFinalized} />
                 </div>
                 <div className="space-y-1">
                    <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoComida / monthlyData.vendasMes) * 100) : '0,00%'} />
@@ -720,19 +861,20 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
   );
 };
 
-const DataInputRow: React.FC<{ label: string, value: number, onChange: (val: number) => void, isHeader?: boolean }> = ({ label, value, onChange, isHeader }) => {
+const DataInputRow: React.FC<{ label: string, value: number, onChange: (val: number) => void, isHeader?: boolean, disabled?: boolean }> = ({ label, value, onChange, isHeader, disabled }) => {
   return (
     <div className="flex gap-1.5 items-stretch h-7">
       <div className={`bg-[#b4d493] px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
         <span className={`text-[10px] font-bold tracking-tight text-gray-700 uppercase truncate`}>{label}</span>
       </div>
-      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end font-black text-xs text-gray-700 overflow-hidden ${isHeader ? 'bg-gray-50' : 'bg-white'}`}>
+      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end font-black text-xs text-gray-700 overflow-hidden ${disabled ? 'bg-slate-100 text-gray-400' : isHeader ? 'bg-gray-50' : 'bg-white'}`}>
         <input 
           type="number" 
           step="0.01" 
           value={value || ''} 
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="w-full h-full text-right px-3 bg-transparent border-none outline-none focus:ring-0 transition-colors"
+          disabled={disabled}
+          className="w-full h-full text-right px-3 bg-transparent border-none outline-none focus:ring-0 transition-colors disabled:cursor-not-allowed"
           placeholder="0.00"
         />
       </div>
