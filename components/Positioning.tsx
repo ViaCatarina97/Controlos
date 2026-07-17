@@ -30,11 +30,11 @@ const StationGroup: React.FC<StationGroupProps> = ({
 }) => {
   const sortedEmployeesForSelect = React.useMemo(() => {
     const nonManagers = employees
-      .filter(e => e.role !== 'GERENTE')
+      .filter(e => e.role !== 'GERENTE' && e.role !== 'GERENTE_RESTAURANTE')
       .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
       
     const managers = employees
-      .filter(e => e.role === 'GERENTE')
+      .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
       .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
       
     return [...nonManagers, ...managers];
@@ -894,7 +894,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     >
                       <option value="">Selecione o Gerente...</option>
                       {employees
-                        .filter(e => e.role === 'GERENTE')
+                        .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
                         .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
                         .map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>
@@ -911,7 +911,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     >
                       <option value="">Selecione o Gerente...</option>
                       {employees
-                        .filter(e => e.role === 'GERENTE')
+                        .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
                         .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
                         .map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>
@@ -1521,8 +1521,8 @@ export const Positioning: React.FC<PositioningProps> = ({
             </div>
           </div>
           <div className="grid grid-cols-7 gap-1 mb-2">
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Turno</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftLeaderName}</div></div>
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Apoio</span><div className="font-black text-[10px] text-slate-900 truncate uppercase tracking-tighter">{shiftSupportName}</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Turno</span><div className="font-black text-[10px] text-slate-900 uppercase tracking-tighter break-words leading-none mt-0.5">{shiftLeaderName}</div></div>
+              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Apoio</span><div className="font-black text-[10px] text-slate-900 uppercase tracking-tighter break-words leading-none mt-0.5">{shiftSupportName}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
               <div className="bg-blue-50 border border-blue-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-blue-500 block">Sugerido</span><div className="font-black text-[14px] text-blue-900 leading-none">{requirement.count}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Real</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
