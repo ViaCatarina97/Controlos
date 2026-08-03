@@ -17,15 +17,19 @@ const HAVI_NAME_TO_CODE: Record<string, string> = {
   'Secos Comida': 'C',
   'Secos Papel': 'D',
   'Manutenção & Limpeza': 'E',
+  'Manutenção Limpeza': 'E',
   'Marketing IPL': 'F',
   'Marketing Geral': 'G',
   'Produtos Frescos': 'H',
   'Manutenção & Limpeza Compras': 'I',
+  'Manutenção Limpeza Compras': 'I',
   'Condimentos': 'J',
   'Condimentos Cozinha': 'L',
   'Material Adm': 'M',
   'Manuais': 'N',
   'Ferramentas Utensilios': 'O',
+  'Ferramentas Utensílios': 'O',
+  'Ferramentas & Utensílios': 'O',
   'Marketing Geral Custo': 'P',
   'Fardas': 'R',
   'Distribuição de Marketing': 'S',
@@ -296,12 +300,19 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
   );
 
   const categoryDifferences = useMemo(() => {
-    const getCategoryFromHaviGroupCode = (code: string): string => {
-      if (['A','B','C','H','J','L','T'].includes(code)) return 'Comida';
-      if (['D','U'].includes(code)) return 'Papel';
-      if (['E','I','O'].includes(code)) return 'F. Operacionais';
+    const getCategoryFromGroup = (groupOrCode: string): string => {
+      if (!groupOrCode) return 'Outros';
+      const trimmed = groupOrCode.trim();
+      if (['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Happy Meal', 'Outros'].includes(trimmed)) {
+        return trimmed;
+      }
+      const code = HAVI_NAME_TO_CODE[trimmed] || trimmed;
+      if (['A', 'B', 'C', 'H', 'J', 'L', 'T'].includes(code)) return 'Comida';
+      if (['D', 'U'].includes(code)) return 'Papel';
+      if (['E', 'I', 'O'].includes(code)) return 'F. Operacionais';
       if (['M'].includes(code)) return 'Material Adm';
       if (['F'].includes(code)) return 'Happy Meal';
+      if (['G', 'N', 'P', 'R', 'S'].includes(code)) return 'Outros';
       return 'Outros';
     };
 
@@ -309,7 +320,7 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     const diffs: Record<string, number> = {};
 
     categories.forEach(cat => {
-      // 1. Calculate sum of delivery differences for this category
+      // 1. Calculate sum of delivery differences for this category across all days of the month
       let deliveryDiffSum = 0;
       filteredRecords.forEach(rec => {
         // Find MyStore amount for this category in the delivery
@@ -320,34 +331,24 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
         if (rec.isManualInsertion) {
           haviSubtotal = (rec.manualHaviValues || {})[cat] || 0;
         } else {
-          const haviMatchCodes = cat === 'Comida' ? ['A','B','C','H','J','L','T'] :
-                                 cat === 'Papel' ? ['D','U'] :
-                                 cat === 'F. Operacionais' ? ['E','I','O'] :
-                                 cat === 'Material Adm' ? ['M'] :
-                                 cat === 'Happy Meal' ? ['F'] :
-                                 cat === 'Outros' ? ['G','N','P','R','S'] : [];
-
           haviSubtotal = (rec.haviGroups || [])
-            .filter(g => haviMatchCodes.includes(g.group))
-            .reduce((s, g) => s + g.total, 0);
+            .filter(g => getCategoryFromGroup(g.group || g.description) === cat)
+            .reduce((s, g) => s + (g.total || 0), 0);
         }
 
         // Find price differences for this category in the delivery
         const priceDiffs = rec.priceDifferences || [];
         const groupPriceDiff = priceDiffs
-          .filter(i => i.category === cat)
-          .reduce((s, i) => s + (i.priceHavi - i.priceSms), 0);
+          .filter(i => (i.category ? i.category === cat : getCategoryFromGroup(i.haviGroup || '') === cat))
+          .reduce((s, i) => s + ((i.priceHavi || 0) - (i.priceSms || 0)), 0);
 
         // Find missing products for this category in the delivery
         const missingProducts = rec.missingProducts || [];
         const missingTotalForCat = missingProducts
-          .filter(m => {
-            const mappedCat = getCategoryFromHaviGroupCode(m.group);
-            return mappedCat === cat;
-          })
+          .filter(m => getCategoryFromGroup(m.group) === cat)
           .reduce((s, m) => s + (m.priceHavi || 0), 0);
 
-        // The delivery difference for this category is:
+        // The delivery difference for this category on this day is:
         const deliveryDiff = haviSubtotal - smsVal - groupPriceDiff - missingTotalForCat;
         deliveryDiffSum += deliveryDiff;
       });
@@ -356,12 +357,8 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
       let creditHaviSum = 0;
       let creditSmsSum = 0;
       filteredCredits.forEach(c => {
-        // Check if credit note matches this category
         const myStoreMatch = c.myStoreGroup === cat;
-        
-        const haviGroupName = c.haviGroup || 'Outros';
-        const haviCode = HAVI_NAME_TO_CODE[haviGroupName] || 'G';
-        const haviCat = getCategoryFromHaviGroupCode(haviCode);
+        const haviCat = getCategoryFromGroup(c.haviGroup || 'Outros');
         const haviMatch = haviCat === cat;
 
         if (myStoreMatch) {
