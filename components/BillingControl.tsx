@@ -17,6 +17,31 @@ interface BillingControlProps {
   onTabChange: (tab: string) => void;
 }
 
+const getCategoryFromGroupHelper = (groupOrCode: string): string => {
+  if (!groupOrCode) return 'Outros';
+  const trimmed = groupOrCode.trim();
+  if (['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Happy Meal', 'Outros'].includes(trimmed)) {
+    return trimmed;
+  }
+  const haviCodeMap: Record<string, string> = {
+    'Congelados': 'A', 'Refrigerados': 'B', 'Secos Comida': 'C', 'Secos Papel': 'D',
+    'Manutenção & Limpeza': 'E', 'Manutenção Limpeza': 'E', 'Marketing IPL': 'F',
+    'Marketing Geral': 'G', 'Produtos Frescos': 'H', 'Manutenção Limpeza Compras': 'I',
+    'Manutenção & Limpeza Compras': 'I', 'Condimentos': 'J', 'Condimentos Cozinha': 'L',
+    'Material Adm': 'M', 'Manuais': 'N', 'Ferramentas Utensilios': 'O',
+    'Ferramentas Utensílios': 'O', 'Ferramentas & Utensílios': 'O', 'Marketing Geral Custo': 'P',
+    'Fardas': 'R', 'Distribuição de Marketing': 'S', 'Bulk Alimentar': 'T', 'Bulk Papel': 'U'
+  };
+  const code = haviCodeMap[trimmed] || trimmed;
+  if (['A', 'B', 'C', 'H', 'J', 'L', 'T'].includes(code)) return 'Comida';
+  if (['D', 'U'].includes(code)) return 'Papel';
+  if (['E', 'I', 'O'].includes(code)) return 'F. Operacionais';
+  if (['M'].includes(code)) return 'Material Adm';
+  if (['F'].includes(code)) return 'Happy Meal';
+  if (['G', 'N', 'P', 'R', 'S'].includes(code)) return 'Outros';
+  return 'Outros';
+};
+
 const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
   if (!record || !record.smsValues || !record.haviGroups) return 0;
   
@@ -24,8 +49,8 @@ const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
   const sums: Record<string, number> = {};
   ['Comida', 'Papel', 'F. Operacionais', 'Material Adm', 'Outros', 'Happy Meal'].forEach(cat => {
     sums[cat] = priceDiffs
-      .filter(i => i.category === cat)
-      .reduce((s, i) => s + (i.priceHavi - i.priceSms), 0);
+      .filter(i => (i.category ? i.category === cat : getCategoryFromGroupHelper(i.haviGroup || '') === cat))
+      .reduce((s, i) => s + ((i.priceHavi || 0) - (i.priceSms || 0)), 0);
   });
 
   const categoryDifferences = record.smsValues.map(v => {
@@ -33,25 +58,20 @@ const calculateDeliveryFinalDifference = (record: DeliveryRecord): number => {
     if (record.isManualInsertion) {
       haviSubtotal = (record.manualHaviValues || {})[v.description] || 0;
     } else {
-      const haviMatchCodes = v.description === 'Comida' ? ['A','B','C','H','J','L','T'] :
-                             v.description === 'Papel' ? ['D','U'] :
-                             v.description === 'F. Operacionais' ? ['E','I','O'] :
-                             v.description === 'Material Adm' ? ['M'] :
-                             v.description === 'Happy Meal' ? ['F'] :
-                             v.description === 'Outros' ? ['G','N','P','R','S'] : [];
-
       haviSubtotal = (record.haviGroups || [])
-          .filter(g => haviMatchCodes.includes(g.group))
-          .reduce((s, g) => s + g.total, 0);
+        .filter(g => getCategoryFromGroupHelper(g.group || g.description) === v.description)
+        .reduce((s, g) => s + (g.total || 0), 0);
     }
 
     const groupPriceDiff = sums[v.description] || 0;
-    return haviSubtotal - (v.amount || 0) - groupPriceDiff;
+    const missingTotalForCat = (record.missingProducts || [])
+      .filter(m => getCategoryFromGroupHelper(m.group) === v.description)
+      .reduce((s, m) => s + (m.priceHavi || 0), 0);
+
+    return haviSubtotal - (v.amount || 0) - groupPriceDiff - missingTotalForCat;
   });
 
-  const baseDiff = categoryDifferences.reduce((s, d) => s + d, 0);
-  const missingTotal = (record.missingProducts || []).reduce((s, m) => s + (m.priceHavi || 0), 0);
-  return baseDiff - missingTotal;
+  return categoryDifferences.reduce((s, d) => s + d, 0);
 };
 
 const upgradeDeliveryRecord = (d: DeliveryRecord): DeliveryRecord => {

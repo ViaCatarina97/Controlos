@@ -280,6 +280,27 @@
         "approvedAt": { "type": "string" }
       },
       "required": ["id", "restaurantId", "managerId", "managerName", "department", "monthYear"]
+    },
+    "AgendaEvent": {
+      "title": "Digital Agenda Event",
+      "description": "Calendar event, birthday, meeting, audit or task with reminder configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["aniversario", "reuniao", "tarefa", "visita", "auditoria", "outro"] },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "isAllDay": { "type": "boolean" },
+        "description": { "type": "string" },
+        "managerId": { "type": "string" },
+        "managerName": { "type": "string" },
+        "reminderDuration": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "type", "date", "description"]
     }
   },
   "firestore": {
@@ -346,6 +367,10 @@
     "/restaurants/{restaurantId}/manager_checklists/{checklistId}": {
       "schema": "ManagerTaskChecklist",
       "description": "Sub-collection of monthly manager checklists and validations"
+    },
+    "/restaurants/{restaurantId}/agenda_events/{eventId}": {
+      "schema": "AgendaEvent",
+      "description": "Sub-collection of digital agenda calendar events and reminders"
     }
   }
 }

@@ -30,11 +30,11 @@ const StationGroup: React.FC<StationGroupProps> = ({
 }) => {
   const sortedEmployeesForSelect = React.useMemo(() => {
     const nonManagers = employees
-      .filter(e => e.role !== 'GERENTE' && e.role !== 'GERENTE_RESTAURANTE')
+      .filter(e => e.role !== 'GERENTE')
       .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
       
     const managers = employees
-      .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
+      .filter(e => e.role === 'GERENTE')
       .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
       
     return [...nonManagers, ...managers];
@@ -894,7 +894,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     >
                       <option value="">Selecione o Gerente...</option>
                       {employees
-                        .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
+                        .filter(e => e.role === 'GERENTE')
                         .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
                         .map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>
@@ -911,7 +911,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                     >
                       <option value="">Selecione o Gerente...</option>
                       {employees
-                        .filter(e => e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')
+                        .filter(e => e.role === 'GERENTE')
                         .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
                         .map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>

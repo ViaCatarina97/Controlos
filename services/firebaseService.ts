@@ -9,7 +9,7 @@ import {
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
   CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
-  ManagerTask, ManagerTaskChecklist
+  ManagerTask, ManagerTaskChecklist, AgendaEvent
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1365,5 +1365,132 @@ export async function saveManagerChecklists(restaurantId: string, checklists: Ma
     path
   );
 }
+
+// --- DIGITAL AGENDA & EVENTS ---
+export async function getAgendaEvents(restaurantId: string): Promise<AgendaEvent[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/agenda_events`;
+  return runFirestoreOp<AgendaEvent[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'agenda_events');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as AgendaEvent);
+      // Sort by date ascending then time
+      list.sort((a, b) => {
+        const dateCmp = a.date.localeCompare(b.date);
+        if (dateCmp !== 0) return dateCmp;
+        return (a.time || '').localeCompare(b.time || '');
+      });
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_agenda_events_${restaurantId}_synced`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+      if (!saved) return [];
+      try {
+        const list: AgendaEvent[] = JSON.parse(saved);
+        list.sort((a, b) => {
+          const dateCmp = a.date.localeCompare(b.date);
+          if (dateCmp !== 0) return dateCmp;
+          return (a.time || '').localeCompare(b.time || '');
+        });
+        return list;
+      } catch {
+        return [];
+      }
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveAgendaEvents(restaurantId: string, events: AgendaEvent[]): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/agenda_events`;
+  const saved = localStorage.getItem(`app_agenda_events_${restaurantId}_synced`);
+  const previousList: AgendaEvent[] = saved ? JSON.parse(saved) : [];
+
+  return runFirestoreWrite(
+    async () => {
+      const prevMap = new Map(previousList.map(item => [item.id, item]));
+      const nextMap = new Map(events.map(item => [item.id, item]));
+
+      for (const item of events) {
+        const prev = prevMap.get(item.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', item.id);
+          await setDoc(dRef, item);
+        }
+      }
+
+      for (const idToDelete of prevMap.keys()) {
+        if (!nextMap.has(idToDelete)) {
+          const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', idToDelete);
+          await deleteDoc(dRef);
+        }
+      }
+
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(events));
+      localStorage.setItem(`app_agenda_events_${restaurantId}_synced`, JSON.stringify(events));
+    },
+    () => {
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(events));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function saveAgendaEvent(restaurantId: string, event: AgendaEvent): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/agenda_events/${event.id}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', event.id);
+      await setDoc(dRef, event);
+
+      const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+      const list: AgendaEvent[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(e => e.id !== event.id), event];
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_agenda_events_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+      const list: AgendaEvent[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(e => e.id !== event.id), event];
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteAgendaEvent(restaurantId: string, eventId: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/agenda_events/${eventId}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', eventId);
+      await deleteDoc(dRef);
+
+      const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+      const list: AgendaEvent[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(e => e.id !== eventId);
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_agenda_events_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+      const list: AgendaEvent[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(e => e.id !== eventId);
+      localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
 
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings } from './components/Settings';
 import { GlobalSettings } from './components/GlobalSettings';
 import { Criteria } from './components/Criteria';
@@ -11,22 +11,26 @@ import { BillingControl } from './components/BillingControl';
 import { Positioning } from './components/Positioning';
 import { FinanceControl } from './components/FinanceControl';
 import { ManagerTasks } from './components/ManagerTasks';
-import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType } from './types';
+import { DigitalAgenda } from './components/DigitalAgenda';
+import { TodayReminderModal } from './components/TodayReminderModal';
+import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType, AgendaEvent } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
 import { 
   getRestaurants, saveRestaurant, getEmployees, saveEmployees, 
   getStaffingTable, saveStaffingTable, getHistory, saveHistory, 
   getSchedules, saveScheduleDoc, deleteScheduleDoc, ensureAuthenticated,
-  subscribeToQuotaChange, getQuotaExceeded
+  subscribeToQuotaChange, getQuotaExceeded,
+  getAgendaEvents, saveAgendaEvent, deleteAgendaEvent
 } from './services/firebaseService';
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
   CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw,
-  Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard, ClipboardCheck
+  Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard, ClipboardCheck,
+  CalendarDays, Bell
 } from 'lucide-react';
 
-type ModuleType = 'positioning' | 'finance' | 'billing' | 'manager_tasks';
+type ModuleType = 'positioning' | 'finance' | 'billing' | 'manager_tasks' | 'agenda';
 
 const ADMIN_PASSWORD = 'Imperial96';
 
@@ -80,6 +84,28 @@ const App: React.FC = () => {
   const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]); 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [savedSchedules, setSavedSchedules] = useState<DailySchedule[]>([]);
+  const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
+  const [showTodayReminderPopup, setShowTodayReminderPopup] = useState<boolean>(false);
+  const hasCheckedTodayReminderRef = useRef<string | null>(null);
+
+  const todayEvents = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(todayStr + 'T00:00:00');
+
+    return agendaEvents.filter(ev => {
+      if (ev.date === todayStr) return true;
+      const evDate = new Date(ev.date + 'T00:00:00');
+      const diffDays = Math.round((evDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        if (ev.reminderDuration === '1_dia' && diffDays <= 1) return true;
+        if (ev.reminderDuration === '2_dias' && diffDays <= 2) return true;
+        if (ev.reminderDuration === '3_dias' && diffDays <= 3) return true;
+        if (ev.reminderDuration === '1_semana' && diffDays <= 7) return true;
+        if (ev.reminderDuration === '2_semanas' && diffDays <= 14) return true;
+      }
+      return false;
+    });
+  }, [agendaEvents]);
   
   const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
   const [targetShift, setTargetShift] = useState<ShiftType | null>(null);
@@ -106,11 +132,12 @@ const App: React.FC = () => {
     
     const loadRestaurantData = async () => {
       try {
-        const [emp, staffing, hist, sched] = await Promise.all([
+        const [emp, staffing, hist, sched, agEvents] = await Promise.all([
           getEmployees(id),
           getStaffingTable(id),
           getHistory(id),
-          getSchedules(id)
+          getSchedules(id),
+          getAgendaEvents(id)
         ]);
 
         let finalEmp = emp;
@@ -131,12 +158,42 @@ const App: React.FC = () => {
           finalHist = MOCK_HISTORY;
         }
 
+        let finalAgEvents = agEvents;
+        if (agEvents.length === 0) {
+          const todayDateStr = new Date().toISOString().split('T')[0];
+          const defaultEvent: AgendaEvent = {
+            id: `evt_init_${Date.now()}`,
+            title: 'Reunião de Alinhamento Operacional',
+            type: 'reuniao',
+            date: todayDateStr,
+            time: '10:30',
+            isAllDay: false,
+            description: 'Revisão de objetivos diários, organização de postos no posicionamento e tarefas de turno.',
+            managerName: finalEmp.find(e => e.role === 'GERENTE')?.name || 'Gerente de Turno',
+            reminderDuration: 'no_dia',
+            isCompleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await saveAgendaEvent(id, defaultEvent);
+          finalAgEvents = [defaultEvent];
+        }
+
         setCurrentEmployees(finalEmp);
         setCurrentStaffingTable(finalStaffing);
         setHistoryEntries(finalHist);
         setSavedSchedules(sched || []);
+        setAgendaEvents(finalAgEvents);
         setIsLoaded(true);
         setLastSync(new Date().toLocaleTimeString());
+
+        // Check for today's reminders popup when opening restaurant
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const hasTodayAlert = finalAgEvents.some(ev => ev.date === todayDateStr);
+        if (hasTodayAlert && hasCheckedTodayReminderRef.current !== id) {
+          hasCheckedTodayReminderRef.current = id;
+          setShowTodayReminderPopup(true);
+        }
       } catch (err) {
         console.error("Cloud loading error, falling back locally:", err);
         const empSaved = localStorage.getItem(`app_employees_${id}`);
@@ -147,7 +204,16 @@ const App: React.FC = () => {
         setHistoryEntries(historySaved ? JSON.parse(historySaved) : MOCK_HISTORY);
         const schedSaved = localStorage.getItem(`app_schedules_${id}`);
         setSavedSchedules(schedSaved ? JSON.parse(schedSaved) : []);
+        const eventsSaved = localStorage.getItem(`app_agenda_events_${id}`);
+        const parsedEvents: AgendaEvent[] = eventsSaved ? JSON.parse(eventsSaved) : [];
+        setAgendaEvents(parsedEvents);
         setIsLoaded(true);
+
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        if (parsedEvents.some(ev => ev.date === todayDateStr) && hasCheckedTodayReminderRef.current !== id) {
+          hasCheckedTodayReminderRef.current = id;
+          setShowTodayReminderPopup(true);
+        }
       }
     };
     
@@ -228,6 +294,8 @@ const App: React.FC = () => {
     setActiveModule(null);
     setIsLoaded(false);
     setIsAdminAuthorized(false);
+    setShowTodayReminderPopup(false);
+    hasCheckedTodayReminderRef.current = null;
   };
 
   const handleModuleSelect = (module: ModuleType | null) => {
@@ -236,6 +304,43 @@ const App: React.FC = () => {
     else if (module === 'billing') setActiveTab('deliveries');
     else if (module === 'finance') setActiveTab('cofre');
     else if (module === 'manager_tasks') setActiveTab('checklist');
+    else if (module === 'agenda') setActiveTab('agenda_calendar');
+  };
+
+  const handleSaveAgendaEvent = async (event: AgendaEvent) => {
+    if (!authenticatedRestaurantId) return;
+    try {
+      setIsSyncing(true);
+      await saveAgendaEvent(authenticatedRestaurantId, event);
+      setAgendaEvents(prev => {
+        const idx = prev.findIndex(e => e.id === event.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = event;
+          return next;
+        }
+        return [...prev, event];
+      });
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (e) {
+      console.error("Error saving agenda event:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleDeleteAgendaEvent = async (eventId: string) => {
+    if (!authenticatedRestaurantId) return;
+    try {
+      setIsSyncing(true);
+      await deleteAgendaEvent(authenticatedRestaurantId, eventId);
+      setAgendaEvents(prev => prev.filter(e => e.id !== eventId));
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (e) {
+      console.error("Error deleting agenda event:", e);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSaveRestaurantSettings = (updated: AppSettings) => {
@@ -469,12 +574,25 @@ const App: React.FC = () => {
       );
     }
     return (
-      <ModuleSelector 
-        restaurant={activeRestaurant} 
-        onSelectModule={handleModuleSelect} 
-        onLogout={handleLogout} 
-        onSettingsClick={() => setIsGlobalSettingsOpen(true)}
-      />
+      <>
+        <ModuleSelector 
+          restaurant={activeRestaurant} 
+          onSelectModule={handleModuleSelect} 
+          onLogout={handleLogout} 
+          onSettingsClick={() => setIsGlobalSettingsOpen(true)}
+          todayEventsCount={todayEvents.length}
+          onOpenTodayReminders={() => setShowTodayReminderPopup(true)}
+        />
+        <TodayReminderModal 
+          isOpen={showTodayReminderPopup}
+          events={todayEvents}
+          onClose={() => setShowTodayReminderPopup(false)}
+          onOpenAgenda={() => {
+            setShowTodayReminderPopup(false);
+            handleModuleSelect('agenda');
+          }}
+        />
+      </>
     );
   }
 
@@ -640,6 +758,17 @@ const App: React.FC = () => {
               </button>
             </>
           )}
+
+          {activeModule === 'agenda' && (
+            <>
+              <button 
+                onClick={() => setActiveTab('agenda_calendar')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'agenda_calendar' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <CalendarDays size={20} /> {sidebarOpen && <span>Agenda Digital</span>}
+              </button>
+            </>
+          )}
         </nav>
         <div className="p-4 border-t border-slate-700">
              <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400 transition-colors"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
@@ -653,9 +782,20 @@ const App: React.FC = () => {
             {activeModule === 'billing' ? 'Controlo de Faturação' : 
              activeModule === 'finance' ? 'Controlo Financeiro' :
              activeModule === 'manager_tasks' ? 'Tarefas de Gerentes' :
+             activeModule === 'agenda' ? 'Agenda Digital' :
              'Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
+            {todayEvents.length > 0 && (
+              <button
+                onClick={() => setShowTodayReminderPopup(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-all border border-indigo-200"
+                title="Ver lembretes de hoje"
+              >
+                <Bell size={14} className="text-indigo-600 animate-pulse" />
+                <span>{todayEvents.length} {todayEvents.length === 1 ? 'Lembrete hoje' : 'Lembretes hoje'}</span>
+              </button>
+            )}
             <button
               onClick={pullCloudData}
               disabled={isSyncing}
@@ -815,8 +955,30 @@ const App: React.FC = () => {
               onTabChange={setActiveTab}
             />
           )}
+
+          {activeModule === 'agenda' && (
+            <DigitalAgenda 
+              restaurantId={activeRestaurant.restaurantId}
+              employees={currentEmployees}
+              settings={activeRestaurant}
+              events={agendaEvents}
+              onSaveEvent={handleSaveAgendaEvent}
+              onDeleteEvent={handleDeleteAgendaEvent}
+              isSyncing={isSyncing}
+            />
+          )}
         </div>
       </main>
+
+      <TodayReminderModal 
+        isOpen={showTodayReminderPopup}
+        events={todayEvents}
+        onClose={() => setShowTodayReminderPopup(false)}
+        onOpenAgenda={() => {
+          setShowTodayReminderPopup(false);
+          handleModuleSelect('agenda');
+        }}
+      />
     </div>
   );
 };

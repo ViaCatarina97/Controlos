@@ -94,6 +94,11 @@ service cloud.firestore {
         allow list: if isValidId(restaurantId);
         allow get, create, update, delete: if isValidId(restaurantId) && isValidId(checklistId);
       }
+
+      match /agenda_events/{eventId} {
+        allow list: if isValidId(restaurantId);
+        allow get, create, update, delete: if isValidId(restaurantId) && isValidId(eventId);
+      }
     }
   }
 }

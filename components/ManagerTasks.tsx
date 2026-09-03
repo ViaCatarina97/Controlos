@@ -62,8 +62,9 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
   const [printChecklist, setPrintChecklist] = useState<ManagerTaskChecklist | null>(null);
 
   // --- DERIVED DATA ---
+  // Considera apenas colaboradores com cargo 'GERENTE' definido nas definições
   const managers = useMemo(() => {
-    return employees.filter(e => (e.role?.toUpperCase() === 'GERENTE' || e.role?.toUpperCase() === 'GERENTE_RESTAURANTE') && e.isActive);
+    return employees.filter(e => e.role === 'GERENTE' && e.isActive);
   }, [employees]);
 
   const departments = ['Pessoas', 'Qualidade', 'Manutenção', 'Serviço', 'Financeiro', 'Diversos'];

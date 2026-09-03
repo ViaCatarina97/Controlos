@@ -396,4 +396,23 @@ export interface ManagerTaskChecklist {
   approvedAt?: string;      // ISO string
 }
 
+// --- DIGITAL AGENDA & EVENTS ---
+export type AgendaEventType = 'aniversario' | 'reuniao' | 'tarefa' | 'visita' | 'auditoria' | 'outro';
+
+export interface AgendaEvent {
+  id: string;
+  title: string;
+  type: AgendaEventType;
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm (optional, if empty or missing -> "Dia inteiro")
+  isAllDay?: boolean;
+  description: string;
+  managerId?: string; // Gerente (opcional)
+  managerName?: string; // Gerente name display
+  reminderDuration?: string; // e.g. "no_dia" | "1_dia" | "2_dias" | "3_dias" | "1_semana"
+  isCompleted?: boolean; // For tracking completed tasks or milestones
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 

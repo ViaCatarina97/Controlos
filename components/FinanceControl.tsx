@@ -3788,7 +3788,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const managerList = employees.filter(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE'));
+                    const managerList = employees.filter(e => e.isActive && e.role === 'GERENTE');
                     setNewCaixaSurpresa({
                       date: new Date().toISOString().substring(0, 10),
                       turn: 'Abertura',
@@ -3909,7 +3909,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         className="px-3 py-2 border rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-bold text-slate-800"
                       >
                         <option value="">-- Selecione Gerente --</option>
-                        {employees.filter(e => e.isActive && (e.role === 'GERENTE' || e.role === 'GERENTE_RESTAURANTE')).map(emp => (
+                        {employees.filter(e => e.isActive && e.role === 'GERENTE').map(emp => (
                           <option key={emp.id} value={emp.name}>{emp.name}</option>
                         ))}
                       </select>
