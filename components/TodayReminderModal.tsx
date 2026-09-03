@@ -3,7 +3,7 @@ import { AgendaEvent } from '../types';
 import { 
   Bell, Calendar, Clock, User, CheckCircle2, 
   ArrowRight, X, Cake, Users, CheckSquare, 
-  ClipboardCheck, Sparkles 
+  ClipboardCheck, Sparkles, Trash2 
 } from 'lucide-react';
 
 interface TodayReminderModalProps {
@@ -11,13 +11,15 @@ interface TodayReminderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenAgenda: () => void;
+  onDeleteEvent?: (eventId: string) => Promise<void>;
 }
 
 export const TodayReminderModal: React.FC<TodayReminderModalProps> = ({
   events,
   isOpen,
   onClose,
-  onOpenAgenda
+  onOpenAgenda,
+  onDeleteEvent
 }) => {
   if (!isOpen || events.length === 0) return null;
 
@@ -149,12 +151,30 @@ export const TodayReminderModal: React.FC<TodayReminderModalProps> = ({
                   </div>
                 </div>
 
-                {event.managerName && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs font-medium">
-                    <User size={13} className="text-blue-600" />
-                    <span>{event.managerName}</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {event.managerName && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs font-medium">
+                      <User size={13} className="text-blue-600" />
+                      <span>{event.managerName}</span>
+                    </div>
+                  )}
+
+                  {onDeleteEvent && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm('Tem a certeza que pretende eliminar este evento?')) {
+                          await onDeleteEvent(event.id);
+                        }
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar evento"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {event.description && (

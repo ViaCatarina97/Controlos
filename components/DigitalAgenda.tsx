@@ -73,6 +73,20 @@ const REMINDER_OPTIONS = [
   { value: '2_semanas', label: '2 semanas antes' }
 ];
 
+// Helper functions to safely handle dates without UTC timezone shift
+export const getLocalDateString = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const parseLocalDateString = (dateStr: string): Date => {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
 export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   restaurantId,
   employees,
@@ -83,7 +97,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   isSyncing = false
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString(new Date()));
   const [viewMode, setViewMode] = useState<ViewMode>('month');
 
   // Filters
@@ -133,7 +147,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   }, [events, searchQuery, typeFilter, managerFilter]);
 
   // Today string
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => getLocalDateString(new Date()), []);
 
   // Events for selected date
   const selectedDateEvents = useMemo(() => {
@@ -174,7 +188,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   const handleToday = () => {
     const now = new Date();
     setCurrentDate(now);
-    setSelectedDate(now.toISOString().split('T')[0]);
+    setSelectedDate(getLocalDateString(now));
   };
 
   // Open modal for new event
@@ -270,6 +284,10 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
     if (confirm('Tem a certeza que pretende eliminar este evento da agenda?')) {
       try {
         await onDeleteEvent(eventId);
+        if (isModalOpen && editingEvent?.id === eventId) {
+          setIsModalOpen(false);
+          setEditingEvent(null);
+        }
       } catch (err) {
         console.error("Erro ao eliminar evento:", err);
         alert('Erro ao eliminar evento.');
@@ -299,7 +317,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const dayNum = prevMonthLastDay - i;
       const d = new Date(year, month - 1, dayNum);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(d);
       days.push({
         date: dateStr,
         dayNumber: dayNum,
@@ -311,7 +329,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
     // Current month days
     for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
       const cur = new Date(year, month, d);
-      const dateStr = cur.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(cur);
       days.push({
         date: dateStr,
         dayNumber: d,
@@ -325,7 +343,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
     const remaining = totalSlots - days.length;
     for (let d = 1; d <= remaining; d++) {
       const nextD = new Date(year, month + 1, d);
-      const dateStr = nextD.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(nextD);
       days.push({
         date: dateStr,
         dayNumber: d,
@@ -341,14 +359,13 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   const weekDays = useMemo(() => {
     const curr = new Date(currentDate);
     const day = curr.getDay();
-    const diff = curr.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    const monday = new Date(curr.setDate(diff));
+    const diff = curr.getDate() - (day === 0 ? 6 : day - 1);
+    const monday = new Date(curr.getFullYear(), curr.getMonth(), diff);
 
     const week: Array<{ date: string; dateObj: Date; isToday: boolean }> = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const dateStr = getLocalDateString(d);
       week.push({
         date: dateStr,
         dateObj: d,
@@ -581,13 +598,26 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                               e.stopPropagation();
                               handleOpenEditModal(ev);
                             }}
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate flex items-center gap-1 transition-transform hover:scale-102 ${conf.badge} ${
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate flex items-center justify-between gap-1 transition-transform hover:scale-102 ${conf.badge} ${
                               ev.isCompleted ? 'line-through opacity-60' : ''
-                            }`}
+                            } group/pill`}
                             title={`${ev.time || 'Dia inteiro'} - ${ev.title}`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
-                            <span className="truncate">{ev.title}</span>
+                            <span className="flex items-center gap-1 truncate">
+                              <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
+                              <span className="truncate">{ev.title}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(ev.id);
+                              }}
+                              className="opacity-0 group-hover/pill:opacity-100 p-0.5 text-gray-400 hover:text-red-600 rounded transition-all shrink-0"
+                              title="Eliminar evento"
+                            >
+                              <Trash2 size={10} />
+                            </button>
                           </div>
                         );
                       })}
@@ -612,7 +642,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                     Dia Selecionado
                   </span>
                   <h3 className="text-base font-black text-gray-900 mt-1 capitalize">
-                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-PT', {
+                    {parseLocalDateString(selectedDate).toLocaleDateString('pt-PT', {
                       weekday: 'short',
                       day: 'numeric',
                       month: 'long'
@@ -807,13 +837,26 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                         <div
                           key={ev.id}
                           onClick={() => handleOpenEditModal(ev)}
-                          className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all hover:shadow-xs flex flex-col gap-1 ${conf.badge}`}
+                          className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all hover:shadow-xs flex flex-col gap-1 ${conf.badge} group/card relative`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-[9px] font-bold uppercase">{conf.label}</span>
-                            <span className="text-[10px] font-black text-gray-500">
-                              {ev.time && !ev.isAllDay ? ev.time : 'Dia inteiro'}
-                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-black text-gray-500">
+                                {ev.time && !ev.isAllDay ? ev.time : 'Dia inteiro'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(ev.id);
+                                }}
+                                className="opacity-0 group-hover/card:opacity-100 p-0.5 text-gray-400 hover:text-red-600 rounded transition-all"
+                                title="Eliminar evento"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
                           <h4 className="text-xs font-bold text-gray-900 line-clamp-1">{ev.title}</h4>
                           {ev.managerName && (
@@ -874,13 +917,13 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                       {/* Date Badge */}
                       <div className="text-center min-w-[64px] p-2 bg-gray-50 rounded-2xl border border-gray-200">
                         <span className="text-[10px] font-black text-gray-400 uppercase block">
-                          {new Date(ev.date + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'short' })}
+                          {parseLocalDateString(ev.date).toLocaleDateString('pt-PT', { weekday: 'short' })}
                         </span>
                         <span className="text-lg font-black text-gray-900 block leading-tight">
-                          {new Date(ev.date + 'T00:00:00').getDate()}
+                          {parseLocalDateString(ev.date).getDate()}
                         </span>
                         <span className="text-[10px] font-bold text-gray-500 uppercase block">
-                          {new Date(ev.date + 'T00:00:00').toLocaleDateString('pt-PT', { month: 'short' })}
+                          {parseLocalDateString(ev.date).toLocaleDateString('pt-PT', { month: 'short' })}
                         </span>
                       </div>
 
@@ -994,12 +1037,26 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-1">
+                {editingEvent && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(editingEvent.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors"
+                    title="Eliminar evento"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors"
+                  title="Fechar"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Form */}
@@ -1157,21 +1214,37 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
               </div>
 
               {/* Modal Buttons */}
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 text-xs font-bold uppercase tracking-wider transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
-                >
-                  <span>{formSubmitting ? 'A guardar...' : editingEvent ? 'Atualizar Evento' : 'Guardar Evento'}</span>
-                </button>
+              <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                {editingEvent ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(editingEvent.id)}
+                    className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+                    title="Eliminar este evento"
+                  >
+                    <Trash2 size={15} />
+                    <span>Eliminar Evento</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 text-xs font-bold uppercase tracking-wider transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formSubmitting}
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <span>{formSubmitting ? 'A guardar...' : editingEvent ? 'Atualizar Evento' : 'Guardar Evento'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

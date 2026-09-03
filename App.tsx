@@ -88,14 +88,27 @@ const App: React.FC = () => {
   const [showTodayReminderPopup, setShowTodayReminderPopup] = useState<boolean>(false);
   const hasCheckedTodayReminderRef = useRef<string | null>(null);
 
+  const getLocalDateString = (d: Date = new Date()): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDaysDiff = (dateStrA: string, dateStrB: string): number => {
+    const [yA, mA, dA] = dateStrA.split('-').map(Number);
+    const [yB, mB, dB] = dateStrB.split('-').map(Number);
+    const utcA = Date.UTC(yA, (mA || 1) - 1, dA || 1);
+    const utcB = Date.UTC(yB, (mB || 1) - 1, dB || 1);
+    return Math.round((utcA - utcB) / (1000 * 60 * 60 * 24));
+  };
+
   const todayEvents = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayDate = new Date(todayStr + 'T00:00:00');
+    const todayStr = getLocalDateString();
 
     return agendaEvents.filter(ev => {
       if (ev.date === todayStr) return true;
-      const evDate = new Date(ev.date + 'T00:00:00');
-      const diffDays = Math.round((evDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      const diffDays = getDaysDiff(ev.date, todayStr);
       if (diffDays > 0) {
         if (ev.reminderDuration === '1_dia' && diffDays <= 1) return true;
         if (ev.reminderDuration === '2_dias' && diffDays <= 2) return true;
@@ -107,7 +120,7 @@ const App: React.FC = () => {
     });
   }, [agendaEvents]);
   
-  const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
+  const [targetDate, setTargetDate] = useState(() => getLocalDateString());
   const [targetShift, setTargetShift] = useState<ShiftType | null>(null);
   const [targetSales, setTargetSales] = useState(0);
   const [hourlyData, setHourlyData] = useState<HourlyProjection[]>([]); 
@@ -160,7 +173,7 @@ const App: React.FC = () => {
 
         let finalAgEvents = agEvents;
         if (agEvents.length === 0) {
-          const todayDateStr = new Date().toISOString().split('T')[0];
+          const todayDateStr = getLocalDateString();
           const defaultEvent: AgendaEvent = {
             id: `evt_init_${Date.now()}`,
             title: 'Reunião de Alinhamento Operacional',
@@ -188,7 +201,7 @@ const App: React.FC = () => {
         setLastSync(new Date().toLocaleTimeString());
 
         // Check for today's reminders popup when opening restaurant
-        const todayDateStr = new Date().toISOString().split('T')[0];
+        const todayDateStr = getLocalDateString();
         const hasTodayAlert = finalAgEvents.some(ev => ev.date === todayDateStr);
         if (hasTodayAlert && hasCheckedTodayReminderRef.current !== id) {
           hasCheckedTodayReminderRef.current = id;
@@ -209,7 +222,7 @@ const App: React.FC = () => {
         setAgendaEvents(parsedEvents);
         setIsLoaded(true);
 
-        const todayDateStr = new Date().toISOString().split('T')[0];
+        const todayDateStr = getLocalDateString();
         if (parsedEvents.some(ev => ev.date === todayDateStr) && hasCheckedTodayReminderRef.current !== id) {
           hasCheckedTodayReminderRef.current = id;
           setShowTodayReminderPopup(true);
@@ -978,6 +991,7 @@ const App: React.FC = () => {
           setShowTodayReminderPopup(false);
           handleModuleSelect('agenda');
         }}
+        onDeleteEvent={handleDeleteAgendaEvent}
       />
     </div>
   );
