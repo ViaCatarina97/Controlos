@@ -49,7 +49,8 @@ function cleanGroupName(name: string): string {
 }
 
 async function generateContentViaFetch(modelName: string, params: any) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+  // @ts-ignore
+  const apiKey = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY : null) || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
   
   let contentsPayload: any = [];
@@ -153,20 +154,14 @@ app.post(["/api/process-invoice", "/process-invoice"], async (req, res) => {
 
     console.log(`[Invoice API] Processing invoice PDF. base64 size: ${fileBase64.length} bytes, mimeType: ${mimeType}`);
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    // @ts-ignore
+    const apiKey = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY : null) || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
     if (!apiKey) {
       console.error("[Invoice API] Error: API Key not configured");
       return res.status(401).json({ error: "AUTH_REQUIRED" });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
       Você é um assistente especializado em faturas HAVI Logistics Portugal.
@@ -281,20 +276,14 @@ app.post(["/api/process-delivery", "/process-delivery"], async (req, res) => {
 
     console.log(`[Delivery API] Processing delivery PDF. base64 size: ${fileBase64.length} bytes, mimeType: ${mimeType}`);
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    // @ts-ignore
+    const apiKey = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY : null) || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
     if (!apiKey) {
       console.error("[Delivery API] Error: API Key not configured");
       return res.status(401).json({ error: "AUTH_REQUIRED" });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
       Você é um assistente especializado em conferência de documentos de entrega McDonald's Portugal ("Entrega" ou "Entrega Não Planificada").
@@ -385,20 +374,14 @@ app.post(["/api/process-credit-note", "/process-credit-note"], async (req, res) 
 
     console.log(`[Credit Note API] Processing. base64 size: ${fileBase64.length} bytes, mimeType: ${mimeType}`);
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    // @ts-ignore
+    const apiKey = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY : null) || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
     if (!apiKey) {
       console.error("[Credit Note API] Error: API Key not configured");
       return res.status(401).json({ error: "AUTH_REQUIRED" });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
       Você é um assistente especializado em faturas e notas de crédito da HAVI Logistics Portugal para os restaurantes McDonald's Portugal.
