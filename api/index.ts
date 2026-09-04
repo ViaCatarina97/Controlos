@@ -50,7 +50,7 @@ function cleanGroupName(name: string): string {
 
 async function generateContentViaFetch(modelName: string, params: any) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
   
   let contentsPayload: any = [];
   if (typeof params.contents === 'string') {
@@ -92,11 +92,12 @@ async function generateContentViaFetch(modelName: string, params: any) {
     generationConfig
   };
 
-  console.log(`[Gemini Fetch Fallback] Sending REST request to ${modelName} with apiKey length ${apiKey.length}...`);
+  console.log(`[Gemini Fetch Fallback] Sending REST request to ${modelName} with apiKey length ${apiKey.length} using x-goog-api-key header...`);
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
       'User-Agent': 'aistudio-build'
     },
     body: JSON.stringify(payload)
