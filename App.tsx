@@ -20,7 +20,7 @@ import {
   getStaffingTable, saveStaffingTable, getHistory, saveHistory, 
   getSchedules, saveScheduleDoc, deleteScheduleDoc, ensureAuthenticated,
   subscribeToQuotaChange, getQuotaExceeded,
-  getAgendaEvents, saveAgendaEvent, deleteAgendaEvent
+  getAgendaEvents, saveAgendaEvent, deleteAgendaEvent, subscribeToAgendaEvents
 } from './services/firebaseService';
 import { 
   Building2, LayoutDashboard, Sliders, TrendingUp, History, 
@@ -173,23 +173,27 @@ const App: React.FC = () => {
 
         let finalAgEvents = agEvents;
         if (agEvents.length === 0) {
-          const todayDateStr = getLocalDateString();
-          const defaultEvent: AgendaEvent = {
-            id: `evt_init_${Date.now()}`,
-            title: 'Reunião de Alinhamento Operacional',
-            type: 'reuniao',
-            date: todayDateStr,
-            time: '10:30',
-            isAllDay: false,
-            description: 'Revisão de objetivos diários, organização de postos no posicionamento e tarefas de turno.',
-            managerName: finalEmp.find(e => e.role === 'GERENTE')?.name || 'Gerente de Turno',
-            reminderDuration: 'no_dia',
-            isCompleted: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          await saveAgendaEvent(id, defaultEvent);
-          finalAgEvents = [defaultEvent];
+          const isInitialized = localStorage.getItem(`app_agenda_initialized_${id}`);
+          if (!isInitialized) {
+            localStorage.setItem(`app_agenda_initialized_${id}`, 'true');
+            const todayDateStr = getLocalDateString();
+            const defaultEvent: AgendaEvent = {
+              id: `evt_init_${Date.now()}`,
+              title: 'Reunião de Alinhamento Operacional',
+              type: 'reuniao',
+              date: todayDateStr,
+              time: '10:30',
+              isAllDay: false,
+              description: 'Revisão de objetivos diários, organização de postos no posicionamento e tarefas de turno.',
+              managerName: finalEmp.find(e => e.role === 'GERENTE')?.name || 'Gerente de Turno',
+              reminderDuration: 'no_dia',
+              isCompleted: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            await saveAgendaEvent(id, defaultEvent);
+            finalAgEvents = [defaultEvent];
+          }
         }
 
         setCurrentEmployees(finalEmp);
@@ -232,6 +236,27 @@ const App: React.FC = () => {
     
     loadRestaurantData();
   }, [authenticatedRestaurantId]);
+
+  // Real-time synchronization for Agenda Events via Firestore onSnapshot
+  useEffect(() => {
+    if (!authenticatedRestaurantId || !isLoaded) return;
+    const id = authenticatedRestaurantId;
+
+    const unsubscribe = subscribeToAgendaEvents(
+      id,
+      (liveEvents) => {
+        setAgendaEvents(liveEvents);
+        setLastSync(new Date().toLocaleTimeString());
+      },
+      (err) => {
+        console.warn("Real-time agenda sync listener error, will rely on polling:", err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [authenticatedRestaurantId, isLoaded]);
 
   // Synchronize changes to cloud and local storage with debouncing (to avoid spamming Firestore and exceeding free tier quotas)
   useEffect(() => {
@@ -406,12 +431,13 @@ const App: React.FC = () => {
     const id = authenticatedRestaurantId;
     setIsSyncing(true);
     try {
-      const [restList, emp, staffing, hist, sched] = await Promise.all([
+      const [restList, emp, staffing, hist, sched, events] = await Promise.all([
         getRestaurants(),
         getEmployees(id),
         getStaffingTable(id),
         getHistory(id),
-        getSchedules(id)
+        getSchedules(id),
+        getAgendaEvents(id)
       ]);
 
       if (restList.length > 0) {
@@ -427,6 +453,9 @@ const App: React.FC = () => {
         setHistoryEntries(hist);
       }
       setSavedSchedules(sched || []);
+      if (events) {
+        setAgendaEvents(events);
+      }
       setLastSync(new Date().toLocaleTimeString());
     } catch (err) {
       console.error("Error pulling data from cloud:", err);
@@ -445,12 +474,13 @@ const App: React.FC = () => {
         const refreshInBackground = async () => {
           const id = authenticatedRestaurantId;
           try {
-            const [restList, emp, staffing, hist, sched] = await Promise.all([
+            const [restList, emp, staffing, hist, sched, events] = await Promise.all([
               getRestaurants(),
               getEmployees(id),
               getStaffingTable(id),
               getHistory(id),
-              getSchedules(id)
+              getSchedules(id),
+              getAgendaEvents(id)
             ]);
 
             if (restList.length > 0) {
@@ -481,6 +511,12 @@ const App: React.FC = () => {
               if (JSON.stringify(prev) === JSON.stringify(sched)) return prev;
               return sched || [];
             });
+            if (events) {
+              setAgendaEvents(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(events)) return prev;
+                return events;
+              });
+            }
             setLastSync(new Date().toLocaleTimeString());
           } catch (err) {
             console.warn("Background auto-refresh failed:", err);
@@ -514,6 +550,7 @@ const App: React.FC = () => {
         staffingTable: currentStaffingTable,
         history: historyEntries,
         schedules: savedSchedules,
+        agendaEvents: agendaEvents,
         exportTimestamp: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -541,6 +578,12 @@ const App: React.FC = () => {
             for (const s of data.schedules) {
               await saveScheduleDoc(id, s);
             }
+          }
+          if (data.agendaEvents && Array.isArray(data.agendaEvents)) {
+            for (const ev of data.agendaEvents) {
+              await saveAgendaEvent(id, ev);
+            }
+            setAgendaEvents(data.agendaEvents);
           }
           setAllRestaurants(prev => {
               const others = prev.filter(r => r.restaurantId !== data.restaurant.restaurantId);
@@ -978,6 +1021,8 @@ const App: React.FC = () => {
               onSaveEvent={handleSaveAgendaEvent}
               onDeleteEvent={handleDeleteAgendaEvent}
               isSyncing={isSyncing}
+              lastSync={lastSync}
+              onManualSync={pullCloudData}
             />
           )}
         </div>

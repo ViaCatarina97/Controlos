@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { 
   getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, 
-  query, getDocFromServer, writeBatch 
+  query, getDocFromServer, writeBatch, onSnapshot 
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
@@ -16,6 +16,29 @@ import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTO
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
+
+/**
+ * Strips undefined values recursively so Firestore setDoc does not throw
+ * 'Unsupported field value: undefined' errors.
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as unknown as T;
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -1374,7 +1397,27 @@ export async function getAgendaEvents(restaurantId: string): Promise<AgendaEvent
     async () => {
       const q = collection(db, 'restaurants', restaurantId, 'agenda_events');
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data() as AgendaEvent);
+      let list = snap.docs.map(d => d.data() as AgendaEvent);
+
+      // If remote collection is currently empty, check if we have local events that need to be uploaded to cloud
+      if (list.length === 0) {
+        const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
+        if (saved) {
+          try {
+            const localList: AgendaEvent[] = JSON.parse(saved);
+            if (localList.length > 0) {
+              for (const item of localList) {
+                const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', item.id);
+                await setDoc(dRef, sanitizeForFirestore(item));
+              }
+              list = localList;
+            }
+          } catch (e) {
+            console.warn("Could not sync local agenda events to cloud:", e);
+          }
+        }
+      }
+
       // Sort by date ascending then time
       list.sort((a, b) => {
         const dateCmp = a.date.localeCompare(b.date);
@@ -1420,7 +1463,7 @@ export async function saveAgendaEvents(restaurantId: string, events: AgendaEvent
         const prev = prevMap.get(item.id);
         if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
           const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', item.id);
-          await setDoc(dRef, item);
+          await setDoc(dRef, sanitizeForFirestore(item));
         }
       }
 
@@ -1445,10 +1488,11 @@ export async function saveAgendaEvents(restaurantId: string, events: AgendaEvent
 export async function saveAgendaEvent(restaurantId: string, event: AgendaEvent): Promise<void> {
   await ensureAuthenticated();
   const path = `restaurants/${restaurantId}/agenda_events/${event.id}`;
+  const cleanEvent = sanitizeForFirestore(event);
   return runFirestoreWrite(
     async () => {
       const dRef = doc(db, 'restaurants', restaurantId, 'agenda_events', event.id);
-      await setDoc(dRef, event);
+      await setDoc(dRef, cleanEvent);
 
       const saved = localStorage.getItem(`app_agenda_events_${restaurantId}`);
       const list: AgendaEvent[] = saved ? JSON.parse(saved) : [];
@@ -1490,6 +1534,43 @@ export async function deleteAgendaEvent(restaurantId: string, eventId: string): 
     OperationType.DELETE,
     path
   );
+}
+
+/**
+ * Real-time synchronization listener for Agenda Events.
+ * Triggers instant updates whenever any user adds, updates, or deletes an event.
+ */
+export function subscribeToAgendaEvents(
+  restaurantId: string,
+  onUpdate: (events: AgendaEvent[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  const path = `restaurants/${restaurantId}/agenda_events`;
+  try {
+    const q = collection(db, 'restaurants', restaurantId, 'agenda_events');
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map(d => d.data() as AgendaEvent);
+        list.sort((a, b) => {
+          const dateCmp = a.date.localeCompare(b.date);
+          if (dateCmp !== 0) return dateCmp;
+          return (a.time || '').localeCompare(b.time || '');
+        });
+        localStorage.setItem(`app_agenda_events_${restaurantId}`, JSON.stringify(list));
+        localStorage.setItem(`app_agenda_events_${restaurantId}_synced`, JSON.stringify(list));
+        onUpdate(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, path);
+        if (onError) onError(error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.error("Error subscribing to agenda events:", err);
+    return () => {};
+  }
 }
 
 

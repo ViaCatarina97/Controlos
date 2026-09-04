@@ -47,6 +47,75 @@ function cleanGroupName(name: string): string {
   return name.replace(/^[\d\s.\-_/\\]+/, '').trim();
 }
 
+async function generateContentViaFetch(modelName: string, params: any) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  
+  let contentsPayload: any = [];
+  if (typeof params.contents === 'string') {
+    contentsPayload = [{ parts: [{ text: params.contents }] }];
+  } else if (Array.isArray(params.contents)) {
+    const parts = params.contents.map((part: any) => {
+      if (typeof part === 'string') return { text: part };
+      return part;
+    });
+    contentsPayload = [{ parts }];
+  } else if (params.contents && typeof params.contents === 'object') {
+    if (Array.isArray(params.contents.parts)) {
+      contentsPayload = [{ parts: params.contents.parts }];
+    } else {
+      contentsPayload = [params.contents];
+    }
+  }
+
+  const generationConfig: any = {};
+  if (params.config) {
+    if (params.config.responseMimeType) {
+      generationConfig.responseMimeType = params.config.responseMimeType;
+    }
+    if (params.config.responseSchema) {
+      generationConfig.responseSchema = params.config.responseSchema;
+    }
+    if (params.config.temperature !== undefined) {
+      generationConfig.temperature = params.config.temperature;
+    }
+    if (params.config.systemInstruction) {
+      generationConfig.systemInstruction = {
+        parts: [{ text: params.config.systemInstruction }]
+      };
+    }
+  }
+
+  const payload = {
+    contents: contentsPayload,
+    generationConfig
+  };
+
+  console.log(`[Gemini Fetch Fallback] Sending REST request to ${modelName} with apiKey length ${apiKey.length}...`);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'aistudio-build'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Gemini Fetch Fallback] Error response from ${modelName}:`, errorText);
+    throw new Error(`REST API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  const textVal = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return {
+    text: textVal,
+    candidates: data.candidates,
+    rawResponse: data
+  };
+}
+
 /**
  * Handles calling Gemini with exponential backoff retry on transient/capacity errors,
  * and falls back across robust model alternatives: gemini-3.5-flash, gemini-flash-latest, and gemini-3.1-flash-lite.
@@ -54,6 +123,23 @@ function cleanGroupName(name: string): string {
 async function generateContentWithFallbackAndRetry(ai: any, params: any) {
   const modelsToTry = [params.model, 'gemini-flash-latest', 'gemini-3.1-flash-lite'].filter(Boolean);
   let lastError: any = null;
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+  const isAqKey = apiKey.startsWith("AQ.");
+
+  if (isAqKey) {
+    console.log(`[Gemini API] New 'AQ.' API key format detected. Bypassing SDK to use direct fetch REST protocol.`);
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await generateContentViaFetch(modelName, params);
+        return response; // Success!
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Gemini API] Direct fetch with model ${modelName} failed:`, err?.message || String(err));
+      }
+    }
+    throw lastError || new Error("Failed to process with direct fetch");
+  }
 
   for (const modelName of modelsToTry) {
     let attempt = 0;
@@ -73,6 +159,22 @@ async function generateContentWithFallbackAndRetry(ai: any, params: any) {
         lastError = err;
         const errMsg = err?.message || String(err);
         console.warn(`[Gemini API] Attempt ${attempt} with model ${modelName} failed. Error:`, errMsg);
+
+        const isAuthError = 
+          errMsg.includes("UNAUTHENTICATED") || 
+          errMsg.includes("401") || 
+          errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+          errMsg.includes("invalid authentication credentials");
+
+        if (isAuthError) {
+          console.log(`[Gemini API] Authentication error detected. Falling back to direct fetch REST protocol...`);
+          try {
+            const response = await generateContentViaFetch(modelName, params);
+            return response; // Success via fallback!
+          } catch (fetchErr: any) {
+            console.error(`[Gemini API] Direct fetch fallback failed too:`, fetchErr?.message || String(fetchErr));
+          }
+        }
 
         const isRetryable = 
           errMsg.includes("503") || 

@@ -4,7 +4,8 @@ import {
   Calendar as CalendarIcon, Clock, Plus, ChevronLeft, ChevronRight, 
   Search, Filter, Cake, Users, CheckSquare, ClipboardCheck, 
   Trash2, Edit, CheckCircle2, Circle, AlertCircle, X, 
-  User, Sparkles, Bell, CalendarDays, ListFilter, Eye
+  User, Sparkles, Bell, CalendarDays, ListFilter, Eye,
+  CloudCheck, RefreshCw, Loader2
 } from 'lucide-react';
 
 interface DigitalAgendaProps {
@@ -15,6 +16,8 @@ interface DigitalAgendaProps {
   onSaveEvent: (event: AgendaEvent) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
   isSyncing?: boolean;
+  lastSync?: string;
+  onManualSync?: () => Promise<void>;
 }
 
 type ViewMode = 'month' | 'week' | 'list';
@@ -94,7 +97,9 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
   events,
   onSaveEvent,
   onDeleteEvent,
-  isSyncing = false
+  isSyncing = false,
+  lastSync,
+  onManualSync
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString(new Date()));
@@ -247,10 +252,10 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
         time: formIsAllDay ? '' : formTime,
         isAllDay: formIsAllDay,
         description: formDescription.trim(),
-        managerId: formManagerId || undefined,
-        managerName: selectedManager ? selectedManager.name : undefined,
-        reminderDuration: formReminderDuration,
-        isCompleted: editingEvent ? editingEvent.isCompleted : false,
+        managerId: formManagerId || '',
+        managerName: selectedManager ? selectedManager.name : (formManagerId || ''),
+        reminderDuration: formReminderDuration || 'no_dia',
+        isCompleted: editingEvent ? !!editingEvent.isCompleted : false,
         createdAt: editingEvent?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -397,8 +402,26 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
           </div>
         </div>
 
-        {/* View Toggle & Add Button */}
+        {/* View Toggle, Sync Badge & Add Button */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* Cloud Sync Status */}
+          {onManualSync && (
+            <button
+              onClick={() => onManualSync()}
+              disabled={isSyncing}
+              title={lastSync ? `Última sincronização: ${lastSync}. Clique para atualizar agora.` : 'Sincronizar com a Nuvem'}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all disabled:opacity-60 shadow-2xs cursor-pointer active:scale-95"
+            >
+              {isSyncing ? (
+                <Loader2 size={13} className="animate-spin text-emerald-600" />
+              ) : (
+                <CloudCheck size={13} className="text-emerald-600" />
+              )}
+              <span>{isSyncing ? 'A sincronizar...' : 'Nuvem Sincronizada'}</span>
+              <RefreshCw size={11} className={`text-emerald-500 ml-0.5 ${isSyncing ? 'animate-spin' : 'hover:rotate-180 transition-transform'}`} />
+            </button>
+          )}
+
           <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200 text-xs font-bold">
             <button
               onClick={() => setViewMode('month')}
