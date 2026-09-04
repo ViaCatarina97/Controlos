@@ -128,7 +128,7 @@ async function generateContentWithFallbackAndRetry(ai: any, params: any) {
   const modelsToTry = [params.model, 'gemini-flash-latest', 'gemini-3.1-flash-lite'].filter(Boolean);
   let lastError: any = null;
 
-  console.log(`[Vercel Serverless Gemini] Bypassing Google SDK to use direct fetch REST protocol. This ensures clean API key usage and prevents ACCESS_TOKEN_TYPE_UNSUPPORTED errors.`);
+  console.log(`[Vercel Serverless Gemini] Dispatching request via direct REST protocol to ensure clean API key handling.`);
   for (const modelName of modelsToTry) {
     try {
       const response = await generateContentViaFetch(modelName, params);
