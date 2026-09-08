@@ -1,10 +1,10 @@
 import React from 'react';
 import { AppSettings } from '../types';
-import { Users, TrendingUp, FileText, ArrowRight, Building2, LogOut, ClipboardCheck, Settings, CalendarDays, Bell } from 'lucide-react';
+import { Users, TrendingUp, FileText, ArrowRight, Building2, LogOut, ClipboardCheck, Settings, CalendarDays, Bell, Sparkles } from 'lucide-react';
 
 interface ModuleSelectorProps {
   restaurant: AppSettings;
-  onSelectModule: (module: 'positioning' | 'finance' | 'billing' | 'manager_tasks' | 'agenda') => void;
+  onSelectModule: (module: 'positioning' | 'finance' | 'billing' | 'manager_tasks' | 'agenda' | 'cleaning_plan') => void;
   onLogout: () => void;
   onSettingsClick: () => void;
   todayEventsCount?: number;
@@ -165,7 +165,7 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
             </div>
           </button>
 
-          {/* Module 5: Agenda digital (NEW!) */}
+          {/* Module 5: Agenda digital */}
           <button 
             onClick={() => onSelectModule('agenda')}
             className="group relative bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 text-left p-6 flex flex-col h-80"
@@ -190,6 +190,32 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2 text-indigo-600 font-bold mt-4 group-hover:translate-x-2 transition-transform">
+                <span>Aceder</span>
+                <ArrowRight size={20} />
+              </div>
+            </div>
+          </button>
+
+          {/* Module 6: Plano de Limpeza */}
+          <button 
+            onClick={() => onSelectModule('cleaning_plan')}
+            className="group relative bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 text-left p-6 flex flex-col h-80"
+          >
+            <div className="absolute top-0 left-0 w-2 h-full bg-teal-500 group-hover:w-full transition-all duration-500 opacity-5 group-hover:opacity-100"></div>
+            
+            <div className="relative z-10 flex-1 flex flex-col justify-between">
+              <div>
+                <div className="w-14 h-14 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center mb-6 group-hover:bg-white group-hover:scale-110 transition-all duration-300">
+                  <Sparkles size={32} />
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-xl font-bold text-gray-800 group-hover:text-teal-700 font-black">Plano de Limpeza</h3>
+                </div>
+                <p className="text-xs text-gray-500 group-hover:text-gray-700">
+                  Mapa semanal por turnos, mapa do zelador, justificações de tarefas e validação de gerência.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-teal-600 font-bold mt-4 group-hover:translate-x-2 transition-transform">
                 <span>Aceder</span>
                 <ArrowRight size={20} />
               </div>

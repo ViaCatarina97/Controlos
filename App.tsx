@@ -13,6 +13,7 @@ import { FinanceControl } from './components/FinanceControl';
 import { ManagerTasks } from './components/ManagerTasks';
 import { DigitalAgenda } from './components/DigitalAgenda';
 import { TodayReminderModal } from './components/TodayReminderModal';
+import { CleaningPlanModule } from './components/cleaning/CleaningPlanModule';
 import { AppSettings, Employee, StaffingTableEntry, DailySchedule, HourlyProjection, HistoryEntry, ShiftType, AgendaEvent } from './types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, STATIONS, INITIAL_RESTAURANTS, MOCK_HISTORY } from './constants';
 import { 
@@ -27,10 +28,10 @@ import {
   Settings as SettingsIcon, LogOut, Menu, ArrowLeft, FileText, 
   CloudCheck, Lock, ShieldAlert, KeyRound, Loader2, RefreshCw,
   Truck, FileMinus, ClipboardList, Calculator, Landmark, CreditCard, ClipboardCheck,
-  CalendarDays, Bell
+  CalendarDays, Bell, Sparkles
 } from 'lucide-react';
 
-type ModuleType = 'positioning' | 'finance' | 'billing' | 'manager_tasks' | 'agenda';
+type ModuleType = 'positioning' | 'finance' | 'billing' | 'manager_tasks' | 'agenda' | 'cleaning_plan';
 
 const ADMIN_PASSWORD = 'Imperial96';
 
@@ -343,6 +344,7 @@ const App: React.FC = () => {
     else if (module === 'finance') setActiveTab('cofre');
     else if (module === 'manager_tasks') setActiveTab('checklist');
     else if (module === 'agenda') setActiveTab('agenda_calendar');
+    else if (module === 'cleaning_plan') setActiveTab('cleaning_plan');
   };
 
   const handleSaveAgendaEvent = async (event: AgendaEvent) => {
@@ -825,6 +827,17 @@ const App: React.FC = () => {
               </button>
             </>
           )}
+
+          {activeModule === 'cleaning_plan' && (
+            <>
+              <button 
+                onClick={() => setActiveTab('cleaning_plan')} 
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${activeTab === 'cleaning_plan' ? 'bg-teal-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Sparkles size={20} /> {sidebarOpen && <span>Plano de Limpeza</span>}
+              </button>
+            </>
+          )}
         </nav>
         <div className="p-4 border-t border-slate-700">
              <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2 text-slate-400 hover:text-red-400 transition-colors"><LogOut size={20} />{sidebarOpen && <span>Sair</span>}</button>
@@ -839,6 +852,7 @@ const App: React.FC = () => {
              activeModule === 'finance' ? 'Controlo Financeiro' :
              activeModule === 'manager_tasks' ? 'Tarefas de Gerentes' :
              activeModule === 'agenda' ? 'Agenda Digital' :
+             activeModule === 'cleaning_plan' ? 'Plano de Limpeza' :
              'Posicionamento'}
           </h2>
           <div className="flex items-center gap-3">
@@ -1023,6 +1037,13 @@ const App: React.FC = () => {
               isSyncing={isSyncing}
               lastSync={lastSync}
               onManualSync={pullCloudData}
+            />
+          )}
+
+          {activeModule === 'cleaning_plan' && (
+            <CleaningPlanModule 
+              restaurantId={activeRestaurant.restaurantId}
+              employees={currentEmployees}
             />
           )}
         </div>

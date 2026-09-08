@@ -415,4 +415,103 @@ export interface AgendaEvent {
   updatedAt?: string;
 }
 
+// --- PLANO DE LIMPEZA (MAPA SEMANAL & ZELADOR) ---
+
+export type CleaningDayOfWeek = 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo';
+export type CleaningShift = 'abertura' | 'intermedio' | 'fecho';
+
+export interface CleaningTaskItem {
+  id: string;
+  tarefa: string;
+  area: string;
+  day: CleaningDayOfWeek;
+  shift?: CleaningShift; // used for weekly tasks (abertura, intermedio, fecho)
+}
+
+export interface CleaningTaskStatus {
+  taskId?: string;
+  completed: boolean;
+  completedBy?: string; // Gerente de turno ou staff
+  completedAt?: string; // ISO ou hora
+  justification?: string; // Justificação caso a tarefa não seja realizada
+  notes?: string;
+  photos?: string[]; // Fotografias de evidência obrigatórias (mínimo 1)
+}
+
+export interface ZeladorTaskStatus {
+  completed: boolean;
+  funcionario?: string; // Nome do funcionário responsável (ex: Gilberto Soutelo)
+  comentario?: string; // Comentário ou justificação
+  completedAt?: string;
+  photos?: string[]; // Fotografias de evidência obrigatórias (mínimo 1)
+}
+
+export interface CleaningPlanWeek {
+  id: string; // e.g. "plan_2026-08-17" (Monday date)
+  restaurantId: string;
+  weekStartDate: string; // YYYY-MM-DD (Segunda-feira)
+  weekEndDate: string; // YYYY-MM-DD (Domingo)
+  weekNumber: number;
+  year: number;
+  status: 'aberta' | 'validada' | 'encerrada';
+  validatedBy?: string;
+  validatedByRole?: string;
+  validatedAt?: string;
+  validationNotes?: string;
+
+  // Gerente de turno em cada turno de cada dia:
+  // shiftManagers[day][shift] = managerName
+  shiftManagers: {
+    [day in CleaningDayOfWeek]?: {
+      abertura?: string;
+      intermedio?: string;
+      fecho?: string;
+    };
+  };
+
+  // Estado de realização de cada tarefa semanal
+  taskStatuses: {
+    [taskId: string]: CleaningTaskStatus;
+  };
+
+  // Estado de realização de cada tarefa do zelador
+  zeladorStatuses: {
+    [zeladorTaskId: string]: ZeladorTaskStatus;
+  };
+
+  // Tarefas personalizadas específicas desta semana (se houver adições/remoções)
+  customWeeklyTasks?: CleaningTaskItem[];
+  customZeladorTasks?: CleaningTaskItem[];
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CleaningTemplateConfig {
+  id: string;
+  restaurantId: string;
+  weeklyTasks: CleaningTaskItem[];
+  zeladorTasks: CleaningTaskItem[];
+  areas: string[];
+  updatedAt: string;
+}
+
+export interface ExtraordinaryCleaningTask {
+  id: string;
+  restaurantId: string;
+  data: string; // YYYY-MM-DD
+  area: string;
+  tarefa: string;
+  assignedManager?: string; // Opcional
+  completed: boolean;
+  completedBy?: string;
+  completedAt?: string;
+  photos: string[]; // Fotos de evidência (mínimo 1 quando concluída)
+  notes?: string;
+  scheduledAt?: string;
+  scheduledBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 

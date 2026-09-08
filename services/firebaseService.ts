@@ -9,7 +9,8 @@ import {
   AppSettings, Employee, StaffingTableEntry, HistoryEntry, 
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
   CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
-  ManagerTask, ManagerTaskChecklist, AgendaEvent
+  ManagerTask, ManagerTaskChecklist, AgendaEvent, CleaningPlanWeek, CleaningTemplateConfig,
+  ExtraordinaryCleaningTask
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1572,6 +1573,243 @@ export function subscribeToAgendaEvents(
     return () => {};
   }
 }
+
+// ==========================================
+// PLANO DE LIMPEZA (WEEKLY & JANITOR CLEANING)
+// ==========================================
+
+export async function getCleaningPlans(restaurantId: string): Promise<CleaningPlanWeek[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cleaning_plans`;
+  return runFirestoreOp<CleaningPlanWeek[]>(
+    async () => {
+      const q = collection(db, 'restaurants', restaurantId, 'cleaning_plans');
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => d.data() as CleaningPlanWeek);
+      list.sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate)); // newest first
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveCleaningPlan(restaurantId: string, plan: CleaningPlanWeek): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cleaning_plans/${plan.id}`;
+  const cleanPlan = sanitizeForFirestore(plan);
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_plans', plan.id);
+      await setDoc(dRef, cleanPlan);
+
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(p => p.id !== plan.id), plan];
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(p => p.id !== plan.id), plan];
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteCleaningPlan(restaurantId: string, planId: string): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cleaning_plans/${planId}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_plans', planId);
+      await deleteDoc(dRef);
+
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(p => p.id !== planId);
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(p => p.id !== planId);
+      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+export function subscribeToCleaningPlans(
+  restaurantId: string,
+  onUpdate: (plans: CleaningPlanWeek[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  const path = `restaurants/${restaurantId}/cleaning_plans`;
+  try {
+    const q = collection(db, 'restaurants', restaurantId, 'cleaning_plans');
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map(d => d.data() as CleaningPlanWeek);
+        list.sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate));
+        localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
+        localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
+        onUpdate(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, path);
+        if (onError) onError(error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.error("Error subscribing to cleaning plans:", err);
+    return () => {};
+  }
+}
+
+export async function getCleaningTemplate(restaurantId: string): Promise<CleaningTemplateConfig | null> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cleaning_templates/default`;
+  return runFirestoreOp<CleaningTemplateConfig | null>(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_templates', 'default');
+      const snap = await getDoc(dRef);
+      if (snap.exists()) {
+        const data = snap.data() as CleaningTemplateConfig;
+        localStorage.setItem(`app_cleaning_template_${restaurantId}`, JSON.stringify(data));
+        return data;
+      }
+      const local = localStorage.getItem(`app_cleaning_template_${restaurantId}`);
+      return local ? JSON.parse(local) : null;
+    },
+    () => {
+      const local = localStorage.getItem(`app_cleaning_template_${restaurantId}`);
+      return local ? JSON.parse(local) : null;
+    },
+    OperationType.GET,
+    path
+  );
+}
+
+export async function saveCleaningTemplate(restaurantId: string, template: CleaningTemplateConfig): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/cleaning_templates/default`;
+  const cleanTemplate = sanitizeForFirestore(template);
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_templates', 'default');
+      await setDoc(dRef, cleanTemplate);
+      localStorage.setItem(`app_cleaning_template_${restaurantId}`, JSON.stringify(template));
+      localStorage.setItem(`app_cleaning_template_${restaurantId}_synced`, JSON.stringify(template));
+    },
+    () => {
+      localStorage.setItem(`app_cleaning_template_${restaurantId}`, JSON.stringify(template));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export function subscribeToExtraordinaryCleanings(
+  restaurantId: string,
+  onUpdate: (tasks: ExtraordinaryCleaningTask[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  const path = `restaurants/${restaurantId}/extraordinary_cleanings`;
+  try {
+    const q = collection(db, 'restaurants', restaurantId, 'extraordinary_cleanings');
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map(d => d.data() as ExtraordinaryCleaningTask);
+        list.sort((a, b) => (b.data || '').localeCompare(a.data || '') || b.createdAt.localeCompare(a.createdAt));
+        localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(list));
+        localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(list));
+        onUpdate(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, path);
+        if (onError) onError(error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.error("Error subscribing to extraordinary cleanings:", err);
+    return () => {};
+  }
+}
+
+export async function saveExtraordinaryCleaning(
+  restaurantId: string,
+  task: ExtraordinaryCleaningTask
+): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/extraordinary_cleanings/${task.id}`;
+  const cleanTask = sanitizeForFirestore(task);
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'extraordinary_cleanings', task.id);
+      await setDoc(dRef, cleanTask);
+
+      const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+      const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(t => t.id !== task.id), task];
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+      const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+      const updated = [...list.filter(t => t.id !== task.id), task];
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function deleteExtraordinaryCleaning(
+  restaurantId: string,
+  taskId: string
+): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/extraordinary_cleanings/${taskId}`;
+  return runFirestoreWrite(
+    async () => {
+      const dRef = doc(db, 'restaurants', restaurantId, 'extraordinary_cleanings', taskId);
+      await deleteDoc(dRef);
+
+      const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+      const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(t => t.id !== taskId);
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(updated));
+    },
+    () => {
+      const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+      const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+      const updated = list.filter(t => t.id !== taskId);
+      localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
+    },
+    OperationType.DELETE,
+    path
+  );
+}
+
+
 
 
 

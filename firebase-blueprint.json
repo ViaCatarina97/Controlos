@@ -301,6 +301,46 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "title", "type", "date", "description"]
+    },
+    "CleaningPlanWeek": {
+      "title": "Weekly Cleaning Plan",
+      "description": "Weekly cleaning checklists for shifts and janitor tasks, validations and manager assignments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "weekStartDate": { "type": "string" },
+        "weekEndDate": { "type": "string" },
+        "weekNumber": { "type": "number" },
+        "year": { "type": "number" },
+        "status": { "type": "string", "enum": ["aberta", "validada", "encerrada"] },
+        "validatedBy": { "type": "string" },
+        "validatedByRole": { "type": "string" },
+        "validatedAt": { "type": "string" },
+        "validationNotes": { "type": "string" },
+        "shiftManagers": { "type": "object" },
+        "taskStatuses": { "type": "object" },
+        "zeladorStatuses": { "type": "object" },
+        "customWeeklyTasks": { "type": "array" },
+        "customZeladorTasks": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "weekStartDate", "weekEndDate", "status"]
+    },
+    "CleaningTemplate": {
+      "title": "Cleaning Tasks Template",
+      "description": "Master template for weekly and janitor cleaning tasks configuration and areas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "weeklyTasks": { "type": "array" },
+        "zeladorTasks": { "type": "array" },
+        "areas": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId"]
     }
   },
   "firestore": {
@@ -371,6 +411,14 @@
     "/restaurants/{restaurantId}/agenda_events/{eventId}": {
       "schema": "AgendaEvent",
       "description": "Sub-collection of digital agenda calendar events and reminders"
+    },
+    "/restaurants/{restaurantId}/cleaning_plans/{planId}": {
+      "schema": "CleaningPlanWeek",
+      "description": "Sub-collection of weekly cleaning plans, checklists, validations and history"
+    },
+    "/restaurants/{restaurantId}/cleaning_templates/{templateId}": {
+      "schema": "CleaningTemplate",
+      "description": "Sub-collection of master cleaning task configurations and custom areas"
     }
   }
 }
