@@ -11,7 +11,8 @@ import {
 } from '../../types';
 import { 
   DEFAULT_WEEKLY_CLEANING_TASKS, DEFAULT_ZELADOR_CLEANING_TASKS, 
-  DEFAULT_CLEANING_AREAS, getMondayOfWeek, getWeekRange, getDatesForWeek, CLEANING_DAYS 
+  DEFAULT_CLEANING_AREAS, getMondayOfWeek, getWeekRange, getDatesForWeek, CLEANING_DAYS,
+  CLEANING_SHIFTS 
 } from './cleaningDefaults';
 import { WeeklyCleaningMap } from './WeeklyCleaningMap';
 import { ZeladorCleaningMap } from './ZeladorCleaningMap';
@@ -132,7 +133,22 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
   // Find or create current week plan
   const currentWeekPlan: CleaningPlanWeek = useMemo(() => {
     const found = plans.find(p => p.weekStartDate === selectedMonday);
-    if (found) return found;
+    if (found) {
+      return {
+        ...found,
+        shiftManagers: found.shiftManagers || {
+          segunda: {},
+          terca: {},
+          quarta: {},
+          quinta: {},
+          sexta: {},
+          sabado: {},
+          domingo: {}
+        },
+        taskStatuses: found.taskStatuses || {},
+        zeladorStatuses: found.zeladorStatuses || {}
+      };
+    }
 
     // Create fresh plan for selectedMonday
     const range = getWeekRange(selectedMonday);
@@ -885,31 +901,40 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
       {/* 4. Evidence Camera Modal (Mandatory min 1 photo for marking done) */}
       <EvidenceCameraModal
         isOpen={Boolean(evidenceModalData)}
-        task={evidenceModalData?.task || null}
-        day={evidenceModalData?.day}
-        shift={evidenceModalData?.shift}
+        taskTitle={evidenceModalData?.task?.tarefa || ''}
+        taskArea={evidenceModalData?.task?.area || ''}
+        dayLabel={
+          evidenceModalData?.day
+            ? CLEANING_DAYS.find(d => d.key === evidenceModalData.day)?.label || evidenceModalData.day
+            : undefined
+        }
+        shiftLabel={
+          evidenceModalData?.shift
+            ? CLEANING_SHIFTS.find(s => s.key === evidenceModalData.shift)?.label || evidenceModalData.shift
+            : (evidenceModalData?.isZelador ? 'Zelador Semanal' : undefined)
+        }
         currentStatus={
           evidenceModalData?.isZelador
-            ? evidenceModalData.task
-              ? {
-                  taskId: evidenceModalData.task.id,
-                  completed: currentWeekPlan.zeladorStatuses[evidenceModalData.task.id]?.completed || false,
-                  completedBy: currentWeekPlan.zeladorStatuses[evidenceModalData.task.id]?.funcionario,
-                  completedAt: currentWeekPlan.zeladorStatuses[evidenceModalData.task.id]?.completedAt,
-                  photos: currentWeekPlan.zeladorStatuses[evidenceModalData.task.id]?.photos || [],
-                  notes: currentWeekPlan.zeladorStatuses[evidenceModalData.task.id]?.comentario
-                }
-              : undefined
-            : evidenceModalData?.task
-            ? currentWeekPlan.taskStatuses[evidenceModalData.task.id]
-            : undefined
+            ? (evidenceModalData.task
+                ? {
+                    taskId: evidenceModalData.task.id,
+                    completed: currentWeekPlan.zeladorStatuses?.[evidenceModalData.task.id]?.completed || false,
+                    completedBy: currentWeekPlan.zeladorStatuses?.[evidenceModalData.task.id]?.funcionario,
+                    completedAt: currentWeekPlan.zeladorStatuses?.[evidenceModalData.task.id]?.completedAt,
+                    photos: currentWeekPlan.zeladorStatuses?.[evidenceModalData.task.id]?.photos || [],
+                    notes: currentWeekPlan.zeladorStatuses?.[evidenceModalData.task.id]?.comentario
+                  }
+                : undefined)
+            : (evidenceModalData?.task
+                ? currentWeekPlan.taskStatuses?.[evidenceModalData.task.id]
+                : undefined)
         }
-        assignedShiftManager={
+        assignedManager={
           evidenceModalData?.day && evidenceModalData?.shift
-            ? currentWeekPlan.shiftManagers[evidenceModalData.day]?.[evidenceModalData.shift]
+            ? currentWeekPlan.shiftManagers?.[evidenceModalData.day]?.[evidenceModalData.shift]
             : undefined
         }
-        employees={employees}
+        eligibleManagers={eligibleManagers.length > 0 ? eligibleManagers : employees}
         readOnly={isValidated}
         onClose={() => setEvidenceModalData(null)}
         onSaveEvidence={handleSaveEvidence}

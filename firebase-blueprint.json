@@ -341,6 +341,26 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "restaurantId"]
+    },
+    "ExtraordinaryCleaningTask": {
+      "title": "Extraordinary Cleaning Task",
+      "description": "Ad-hoc or extraordinary cleaning task scheduled with area, assigned manager and photo validation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "data": { "type": "string" },
+        "area": { "type": "string" },
+        "tarefa": { "type": "string" },
+        "assignedManagerId": { "type": "string" },
+        "assignedManagerName": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string" },
+        "completedBy": { "type": "string" },
+        "photoEvidence": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "data", "area", "tarefa", "completed", "createdAt"]
     }
   },
   "firestore": {
@@ -406,19 +426,11 @@
     },
     "/restaurants/{restaurantId}/manager_checklists/{checklistId}": {
       "schema": "ManagerTaskChecklist",
-      "description": "Sub-collection of monthly manager checklists and validations"
+      "description": "Sub-collection of monthly manager checklists, weekly cleaning plans, cleaning templates, and extraordinary cleaning tasks"
     },
     "/restaurants/{restaurantId}/agenda_events/{eventId}": {
       "schema": "AgendaEvent",
       "description": "Sub-collection of digital agenda calendar events and reminders"
-    },
-    "/restaurants/{restaurantId}/cleaning_plans/{planId}": {
-      "schema": "CleaningPlanWeek",
-      "description": "Sub-collection of weekly cleaning plans, checklists, validations and history"
-    },
-    "/restaurants/{restaurantId}/cleaning_templates/{templateId}": {
-      "schema": "CleaningTemplate",
-      "description": "Sub-collection of master cleaning task configurations and custom areas"
     }
   }
 }

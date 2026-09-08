@@ -8,17 +8,23 @@ import { Employee, CleaningTaskStatus, ZeladorTaskStatus } from '../../types';
 
 interface EvidenceCameraModalProps {
   isOpen: boolean;
-  taskTitle: string;
-  taskArea: string;
+  taskTitle?: string;
+  taskArea?: string;
   dayLabel?: string;
   shiftLabel?: string;
   assignedManager?: string;
-  eligibleManagers: Employee[];
+  eligibleManagers?: Employee[];
   currentStatus?: CleaningTaskStatus | ZeladorTaskStatus;
   readOnly?: boolean;
   onClose: () => void;
   onSaveEvidence: (data: { completedBy: string; photos: string[]; notes?: string }) => void;
   onUnmarkTask?: () => void;
+  // Flexible compatibility props
+  task?: any;
+  day?: any;
+  shift?: any;
+  assignedShiftManager?: string;
+  employees?: Employee[];
 }
 
 export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
@@ -28,13 +34,28 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
   dayLabel,
   shiftLabel,
   assignedManager,
-  eligibleManagers,
+  eligibleManagers = [],
   currentStatus,
   readOnly = false,
   onClose,
   onSaveEvidence,
-  onUnmarkTask
+  onUnmarkTask,
+  task,
+  day,
+  shift,
+  assignedShiftManager,
+  employees = []
 }) => {
+  // Resolve effective props to guarantee zero crash
+  const effectiveTitle = taskTitle || task?.tarefa || 'Tarefa de Limpeza';
+  const effectiveArea = taskArea || task?.area || 'Geral';
+  const effectiveDayLabel = dayLabel || day || '';
+  const effectiveShiftLabel = shiftLabel || shift || '';
+  const effectiveManagers = (eligibleManagers && eligibleManagers.length > 0)
+    ? eligibleManagers
+    : (employees && employees.length > 0 ? employees : []);
+  const effectiveAssignedManager = assignedManager || assignedShiftManager || '';
+
   // Photos array (base64 data URLs)
   const [photos, setPhotos] = useState<string[]>([]);
   const [selectedManager, setSelectedManager] = useState<string>('');
@@ -75,7 +96,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Acesso à câmara não suportado neste navegador. Utilize o botão de carregar foto.');
+        throw new Error('Acesso à câmara em direto não disponível neste navegador. Utilize o botão de carregar/tirar foto do dispositivo.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -90,7 +111,11 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("Video play error:", playErr);
+        }
       }
       setIsCameraActive(true);
       setIsStartingCamera(false);
@@ -100,11 +125,23 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
       setIsCameraActive(false);
       setCameraError(
         err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
-          ? 'Permissão de câmara recusada. Por favor autorize a câmara ou use o botão de carregar foto abaixo.'
-          : 'Não foi possível ligar a câmara em direto. Utilize o botão de carregar/tirar foto do dispositivo.'
+          ? 'Permissão de câmara recusada ou bloqueada. Por favor autorize o acesso à câmara no navegador ou use o botão de tirar/carregar foto do telemóvel.'
+          : 'Não foi possível ligar a câmara em direto. Utilize o botão de tirar/carregar foto do dispositivo.'
       );
     }
   }, [stopCameraStream]);
+
+  // Ensure video element plays when camera becomes active
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(err => {
+        console.warn("Autoplay was prevented:", err);
+      });
+    }
+  }, [isCameraActive]);
 
   // When modal opens, populate current status and determine manager
   useEffect(() => {
@@ -120,15 +157,15 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
       const existingDoneBy = currentStatus && 'completedBy' in currentStatus ? currentStatus.completedBy : (currentStatus && 'funcionario' in currentStatus ? currentStatus.funcionario : '');
       if (existingDoneBy) {
         setSelectedManager(existingDoneBy);
-      } else if (assignedManager) {
-        setSelectedManager(assignedManager);
-      } else if (eligibleManagers.length > 0) {
-        setSelectedManager(eligibleManagers[0].name);
+      } else if (effectiveAssignedManager) {
+        setSelectedManager(effectiveAssignedManager);
+      } else if (effectiveManagers.length > 0) {
+        setSelectedManager(effectiveManagers[0].name);
       } else {
         setSelectedManager('');
       }
 
-      // If not read-only and no photos yet, attempt starting camera
+      // If not read-only, attempt starting camera
       if (!readOnly) {
         startCamera(activeFacingMode);
       }
@@ -140,7 +177,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
     return () => {
       stopCameraStream();
     };
-  }, [isOpen, currentStatus, assignedManager, eligibleManagers, readOnly]);
+  }, [isOpen, currentStatus, effectiveAssignedManager, effectiveManagers, readOnly]);
 
   // Compress image to JPEG base64 (max dimension 1024px, 0.75 quality)
   const compressImage = (source: CanvasImageSource, originalWidth: number, originalHeight: number): string => {
@@ -228,7 +265,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
       return; // Mandatory 1 photo minimum
     }
 
-    const finalManager = selectedManager.trim() || (eligibleManagers[0]?.name || 'Gerente de Turno');
+    const finalManager = selectedManager.trim() || (effectiveManagers[0]?.name || 'Gerente de Turno');
     onSaveEvidence({
       completedBy: finalManager,
       photos,
@@ -257,14 +294,14 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   Evidência Obrigatória
                 </span>
-                {dayLabel && (
+                {effectiveDayLabel && (
                   <span className="text-xs text-slate-400 font-medium">
-                    {dayLabel} {shiftLabel ? `• ${shiftLabel}` : ''}
+                    {effectiveDayLabel} {effectiveShiftLabel ? `• ${effectiveShiftLabel}` : ''}
                   </span>
                 )}
               </div>
               <h2 className="text-base sm:text-lg font-black tracking-tight text-white line-clamp-1">
-                {taskTitle}
+                {effectiveTitle}
               </h2>
             </div>
           </div>
@@ -285,7 +322,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
           <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={16} className="text-teal-600" />
-              <span className="text-xs font-bold text-teal-900">Área: {taskArea}</span>
+              <span className="text-xs font-bold text-teal-900">Área: {effectiveArea}</span>
             </div>
             {isCompleted && (
               <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -313,16 +350,16 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
                   className="w-full p-2.5 bg-gray-50 hover:bg-white border border-gray-300 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl text-sm font-semibold text-gray-800 outline-hidden transition-colors"
                 >
                   <option value="">-- Selecione o Gerente --</option>
-                  {eligibleManagers.map(emp => (
+                  {effectiveManagers.map(emp => (
                     <option key={emp.id} value={emp.name}>
                       {emp.name} ({emp.role === 'GERENTE_RESTAURANTE' ? 'Gerente de Restaurante' : 'Gerente'})
                     </option>
                   ))}
-                  {selectedManager && !eligibleManagers.some(e => e.name === selectedManager) && (
+                  {selectedManager && !effectiveManagers.some(e => e.name === selectedManager) && (
                     <option value={selectedManager}>{selectedManager}</option>
                   )}
                 </select>
-                {eligibleManagers.length === 0 && (
+                {effectiveManagers.length === 0 && (
                   <p className="text-[11px] text-amber-600 flex items-center gap-1 mt-1">
                     <AlertTriangle size={12} />
                     <span>Nenhum colaborador com cargo de Gerente ativo nas Definições. Adicione colaboradores nas Definições de Equipa.</span>
@@ -345,7 +382,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
                     <button
                       type="button"
                       onClick={handleSwitchCamera}
-                      className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold flex items-center gap-1 transition-colors"
+                      className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                       title="Alternar entre câmara traseira e frontal"
                     >
                       <RefreshCw size={12} />
@@ -355,7 +392,7 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold flex items-center gap-1 border border-teal-200 transition-colors"
+                    className="text-xs px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold flex items-center gap-1 border border-teal-200 transition-colors cursor-pointer"
                   >
                     <Upload size={12} />
                     <span>Carregar do Dispositivo</span>
@@ -374,21 +411,21 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
 
               {/* Viewfinder area */}
               <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video sm:aspect-16/9 flex items-center justify-center border-2 border-slate-800 shadow-inner">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isCameraActive ? 'block' : 'hidden'}`}
+                />
                 {isCameraActive ? (
                   <>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
                     {/* Capture button overlay */}
                     <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center pointer-events-auto">
                       <button
                         type="button"
                         onClick={handleCapturePhoto}
-                        className="group flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-bold text-sm rounded-full shadow-lg transition-all border-2 border-white/80"
+                        className="group flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-bold text-sm rounded-full shadow-lg transition-all border-2 border-white/80 cursor-pointer"
                       >
                         <div className="w-3 h-3 rounded-full bg-white group-hover:scale-125 transition-transform" />
                         <span>Tirar Foto de Evidência</span>
@@ -411,22 +448,23 @@ export const EvidenceCameraModal: React.FC<EvidenceCameraModalProps> = ({
                           : cameraError || 'Câmara em direto não iniciada'}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Pode ligar a câmara ou tirar/carregar diretamente ficheiros com a câmara do telemóvel ou tablet.
+                        Pode ativar a câmara em direto ou tirar foto instantaneamente com a câmara do telemóvel/tablet.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                       <button
                         type="button"
                         onClick={() => startCamera(activeFacingMode)}
-                        className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+                        disabled={isStartingCamera}
+                        className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
                         <Camera size={14} />
-                        <span>Ativar Câmara em Direto</span>
+                        <span>{isStartingCamera ? 'A Ligar Câmara...' : 'Ativar Câmara em Direto'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
                         <Upload size={14} />
                         <span>Tirar / Selecionar Foto</span>

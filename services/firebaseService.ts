@@ -1339,7 +1339,9 @@ export async function getManagerChecklists(restaurantId: string): Promise<Manage
     async () => {
       const q = collection(db, 'restaurants', restaurantId, 'manager_checklists');
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data() as ManagerTaskChecklist);
+      const list = snap.docs
+        .map(d => d.data())
+        .filter((d: any) => d.id?.startsWith('checklist_') || (d.managerId && d.monthYear && !d.id?.startsWith('clean') && !d.id?.startsWith('extra_'))) as ManagerTaskChecklist[];
       localStorage.setItem(`app_manager_checklists_${restaurantId}`, JSON.stringify(list));
       localStorage.setItem(`app_manager_checklists_${restaurantId}_synced`, JSON.stringify(list));
       return list;
@@ -1580,16 +1582,28 @@ export function subscribeToAgendaEvents(
 
 export async function getCleaningPlans(restaurantId: string): Promise<CleaningPlanWeek[]> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/cleaning_plans`;
+  const path = `restaurants/${restaurantId}/manager_checklists`;
   return runFirestoreOp<CleaningPlanWeek[]>(
     async () => {
-      const q = collection(db, 'restaurants', restaurantId, 'cleaning_plans');
+      const q = collection(db, 'restaurants', restaurantId, 'manager_checklists');
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data() as CleaningPlanWeek);
+      const list = snap.docs
+        .map(d => {
+          const data = d.data() as any;
+          return {
+            ...data,
+            id: data.id?.replace(/^cleanplan_/, '') || d.id.replace(/^cleanplan_/, '')
+          } as CleaningPlanWeek;
+        })
+        .filter((d: any) => d.weekStartDate && !d.monthYear && !d.tarefa);
       list.sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate)); // newest first
-      localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
-      localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
-      return list;
+      if (list.length > 0) {
+        localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
+        localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
+        return list;
+      }
+      const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+      return saved ? JSON.parse(saved) : [];
     },
     () => {
       const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
@@ -1602,23 +1616,25 @@ export async function getCleaningPlans(restaurantId: string): Promise<CleaningPl
 
 export async function saveCleaningPlan(restaurantId: string, plan: CleaningPlanWeek): Promise<void> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/cleaning_plans/${plan.id}`;
-  const cleanPlan = sanitizeForFirestore(plan);
+  const docId = plan.id.startsWith('cleanplan_') ? plan.id : `cleanplan_${plan.id}`;
+  const planToSave = { ...plan, id: docId };
+  const path = `restaurants/${restaurantId}/manager_checklists/${docId}`;
+  const cleanPlan = sanitizeForFirestore(planToSave);
   return runFirestoreWrite(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_plans', plan.id);
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', docId);
       await setDoc(dRef, cleanPlan);
 
       const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
       const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
-      const updated = [...list.filter(p => p.id !== plan.id), plan];
+      const updated = [...list.filter(p => p.id !== plan.id && p.id !== docId), plan];
       localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
       localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(updated));
     },
     () => {
       const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
       const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
-      const updated = [...list.filter(p => p.id !== plan.id), plan];
+      const updated = [...list.filter(p => p.id !== plan.id && p.id !== docId), plan];
       localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
     },
     OperationType.WRITE,
@@ -1628,22 +1644,23 @@ export async function saveCleaningPlan(restaurantId: string, plan: CleaningPlanW
 
 export async function deleteCleaningPlan(restaurantId: string, planId: string): Promise<void> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/cleaning_plans/${planId}`;
+  const docId = planId.startsWith('cleanplan_') ? planId : `cleanplan_${planId}`;
+  const path = `restaurants/${restaurantId}/manager_checklists/${docId}`;
   return runFirestoreWrite(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_plans', planId);
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', docId);
       await deleteDoc(dRef);
 
       const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
       const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
-      const updated = list.filter(p => p.id !== planId);
+      const updated = list.filter(p => p.id !== planId && p.id !== docId);
       localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
       localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(updated));
     },
     () => {
       const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
       const list: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
-      const updated = list.filter(p => p.id !== planId);
+      const updated = list.filter(p => p.id !== planId && p.id !== docId);
       localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(updated));
     },
     OperationType.DELETE,
@@ -1656,21 +1673,38 @@ export function subscribeToCleaningPlans(
   onUpdate: (plans: CleaningPlanWeek[]) => void,
   onError?: (err: any) => void
 ): () => void {
-  const path = `restaurants/${restaurantId}/cleaning_plans`;
+  const path = `restaurants/${restaurantId}/manager_checklists`;
   try {
-    const q = collection(db, 'restaurants', restaurantId, 'cleaning_plans');
+    const q = collection(db, 'restaurants', restaurantId, 'manager_checklists');
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map(d => d.data() as CleaningPlanWeek);
+        const list = snapshot.docs
+          .map(d => {
+            const data = d.data() as any;
+            return {
+              ...data,
+              id: data.id?.replace(/^cleanplan_/, '') || d.id.replace(/^cleanplan_/, '')
+            } as CleaningPlanWeek;
+          })
+          .filter((d: any) => d.weekStartDate && !d.monthYear && !d.tarefa);
         list.sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate));
-        localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
-        localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
-        onUpdate(list);
+        if (list.length > 0) {
+          localStorage.setItem(`app_cleaning_plans_${restaurantId}`, JSON.stringify(list));
+          localStorage.setItem(`app_cleaning_plans_${restaurantId}_synced`, JSON.stringify(list));
+          onUpdate(list);
+        } else {
+          const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+          const localList: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+          onUpdate(localList);
+        }
       },
       (error) => {
         handleFirestoreError(error, OperationType.GET, path);
         if (onError) onError(error);
+        const saved = localStorage.getItem(`app_cleaning_plans_${restaurantId}`);
+        const localList: CleaningPlanWeek[] = saved ? JSON.parse(saved) : [];
+        onUpdate(localList);
       }
     );
     return unsubscribe;
@@ -1682,10 +1716,10 @@ export function subscribeToCleaningPlans(
 
 export async function getCleaningTemplate(restaurantId: string): Promise<CleaningTemplateConfig | null> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/cleaning_templates/default`;
+  const path = `restaurants/${restaurantId}/manager_checklists/cleaning_template_default`;
   return runFirestoreOp<CleaningTemplateConfig | null>(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_templates', 'default');
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', 'cleaning_template_default');
       const snap = await getDoc(dRef);
       if (snap.exists()) {
         const data = snap.data() as CleaningTemplateConfig;
@@ -1706,11 +1740,11 @@ export async function getCleaningTemplate(restaurantId: string): Promise<Cleanin
 
 export async function saveCleaningTemplate(restaurantId: string, template: CleaningTemplateConfig): Promise<void> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/cleaning_templates/default`;
-  const cleanTemplate = sanitizeForFirestore(template);
+  const path = `restaurants/${restaurantId}/manager_checklists/cleaning_template_default`;
+  const cleanTemplate = sanitizeForFirestore({ ...template, id: 'cleaning_template_default' });
   return runFirestoreWrite(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'cleaning_templates', 'default');
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', 'cleaning_template_default');
       await setDoc(dRef, cleanTemplate);
       localStorage.setItem(`app_cleaning_template_${restaurantId}`, JSON.stringify(template));
       localStorage.setItem(`app_cleaning_template_${restaurantId}_synced`, JSON.stringify(template));
@@ -1728,21 +1762,38 @@ export function subscribeToExtraordinaryCleanings(
   onUpdate: (tasks: ExtraordinaryCleaningTask[]) => void,
   onError?: (err: any) => void
 ): () => void {
-  const path = `restaurants/${restaurantId}/extraordinary_cleanings`;
+  const path = `restaurants/${restaurantId}/manager_checklists`;
   try {
-    const q = collection(db, 'restaurants', restaurantId, 'extraordinary_cleanings');
+    const q = collection(db, 'restaurants', restaurantId, 'manager_checklists');
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map(d => d.data() as ExtraordinaryCleaningTask);
+        const list = snapshot.docs
+          .map(d => {
+            const data = d.data() as any;
+            return {
+              ...data,
+              id: data.id?.replace(/^extra_clean_/, '') || d.id.replace(/^extra_clean_/, '')
+            } as ExtraordinaryCleaningTask;
+          })
+          .filter((d: any) => d.tarefa && d.area && !d.weekStartDate);
         list.sort((a, b) => (b.data || '').localeCompare(a.data || '') || b.createdAt.localeCompare(a.createdAt));
-        localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(list));
-        localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(list));
-        onUpdate(list);
+        if (list.length > 0) {
+          localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(list));
+          localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(list));
+          onUpdate(list);
+        } else {
+          const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+          const localList: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+          onUpdate(localList);
+        }
       },
       (error) => {
         handleFirestoreError(error, OperationType.GET, path);
         if (onError) onError(error);
+        const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
+        const localList: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
+        onUpdate(localList);
       }
     );
     return unsubscribe;
@@ -1757,23 +1808,25 @@ export async function saveExtraordinaryCleaning(
   task: ExtraordinaryCleaningTask
 ): Promise<void> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/extraordinary_cleanings/${task.id}`;
-  const cleanTask = sanitizeForFirestore(task);
+  const docId = task.id.startsWith('extra_clean_') ? task.id : `extra_clean_${task.id}`;
+  const taskToSave = { ...task, id: docId };
+  const path = `restaurants/${restaurantId}/manager_checklists/${docId}`;
+  const cleanTask = sanitizeForFirestore(taskToSave);
   return runFirestoreWrite(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'extraordinary_cleanings', task.id);
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', docId);
       await setDoc(dRef, cleanTask);
 
       const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
       const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
-      const updated = [...list.filter(t => t.id !== task.id), task];
+      const updated = [...list.filter(t => t.id !== task.id && t.id !== docId), task];
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(updated));
     },
     () => {
       const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
       const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
-      const updated = [...list.filter(t => t.id !== task.id), task];
+      const updated = [...list.filter(t => t.id !== task.id && t.id !== docId), task];
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
     },
     OperationType.WRITE,
@@ -1786,22 +1839,23 @@ export async function deleteExtraordinaryCleaning(
   taskId: string
 ): Promise<void> {
   await ensureAuthenticated();
-  const path = `restaurants/${restaurantId}/extraordinary_cleanings/${taskId}`;
+  const docId = taskId.startsWith('extra_clean_') ? taskId : `extra_clean_${taskId}`;
+  const path = `restaurants/${restaurantId}/manager_checklists/${docId}`;
   return runFirestoreWrite(
     async () => {
-      const dRef = doc(db, 'restaurants', restaurantId, 'extraordinary_cleanings', taskId);
+      const dRef = doc(db, 'restaurants', restaurantId, 'manager_checklists', docId);
       await deleteDoc(dRef);
 
       const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
       const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
-      const updated = list.filter(t => t.id !== taskId);
+      const updated = list.filter(t => t.id !== taskId && t.id !== docId);
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}_synced`, JSON.stringify(updated));
     },
     () => {
       const saved = localStorage.getItem(`app_extraordinary_cleanings_${restaurantId}`);
       const list: ExtraordinaryCleaningTask[] = saved ? JSON.parse(saved) : [];
-      const updated = list.filter(t => t.id !== taskId);
+      const updated = list.filter(t => t.id !== taskId && t.id !== docId);
       localStorage.setItem(`app_extraordinary_cleanings_${restaurantId}`, JSON.stringify(updated));
     },
     OperationType.DELETE,
