@@ -303,3 +303,137 @@ export function getMondayOfWeek(dateInput: Date | string = new Date()): string {
 
 export const DEFAULT_WEEKLY_CLEANING_TASKS = DEFAULT_WEEKLY_TASKS;
 export const DEFAULT_ZELADOR_CLEANING_TASKS = DEFAULT_ZELADOR_TASKS;
+
+export interface AreaMetadata {
+  area: string;
+  category: 'Produção' | 'Atendimento' | 'Apoio' | 'Armazenamento' | 'Clientes';
+  color: string;
+  badgeBg: string;
+  borderColor: string;
+  textColor: string;
+  lightBg: string;
+  defaultSubAreas: string[];
+}
+
+export const DEFAULT_AREA_CONFIGS: Record<string, AreaMetadata> = {
+  'Cozinha': {
+    area: 'Cozinha',
+    category: 'Produção',
+    color: 'amber',
+    badgeBg: 'bg-amber-500',
+    borderColor: 'border-amber-400',
+    textColor: 'text-amber-800',
+    lightBg: 'bg-amber-50',
+    defaultSubAreas: ['Grelhas', 'Fritadeiras', 'Mesas de montagem', 'Carrinho de filtragem', 'Arca 10:1', 'Ralos de gordura']
+  },
+  'Balcão': {
+    area: 'Balcão',
+    category: 'Atendimento',
+    color: 'blue',
+    badgeBg: 'bg-blue-500',
+    borderColor: 'border-blue-400',
+    textColor: 'text-blue-800',
+    lightBg: 'bg-blue-50',
+    defaultSubAreas: ['Monitores POS', 'Pass-thru', 'Estação de batatas', 'Dispensadores de palhinhas', 'Caixas de registo']
+  },
+  'Bebidas': {
+    area: 'Bebidas',
+    category: 'Atendimento',
+    color: 'cyan',
+    badgeBg: 'bg-cyan-500',
+    borderColor: 'border-cyan-400',
+    textColor: 'text-cyan-800',
+    lightBg: 'bg-cyan-50',
+    defaultSubAreas: ['Torre de bebidas', 'Máquina de gelados', 'Frigomilk', 'Dispensadores de coberturas', 'Máquina de café']
+  },
+  'Sala': {
+    area: 'Sala',
+    category: 'Clientes',
+    color: 'emerald',
+    badgeBg: 'bg-emerald-500',
+    borderColor: 'border-emerald-400',
+    textColor: 'text-emerald-800',
+    lightBg: 'bg-emerald-50',
+    defaultSubAreas: ['Mesas e cadeiras', 'Madeiras e painéis', 'Papeleiras de reciclagem', 'Quiosques digitais', 'Vidros e montras']
+  },
+  'Sala Pausa': {
+    area: 'Sala Pausa',
+    category: 'Apoio',
+    color: 'purple',
+    badgeBg: 'bg-purple-500',
+    borderColor: 'border-purple-400',
+    textColor: 'text-purple-800',
+    lightBg: 'bg-purple-50',
+    defaultSubAreas: ['Mesas e sofás', 'Micro-ondas e bancada', 'Cacifos', 'Quadro de informação']
+  },
+  "WC's": {
+    area: "WC's",
+    category: 'Clientes',
+    color: 'rose',
+    badgeBg: 'bg-rose-500',
+    borderColor: 'border-rose-400',
+    textColor: 'text-rose-800',
+    lightBg: 'bg-rose-50',
+    defaultSubAreas: ['Sanitários', 'Lavatórios e espelhos', 'Dispensadores e saboneteiras', 'Pavimento e rodapés']
+  },
+  'Copa': {
+    area: 'Copa',
+    category: 'Apoio',
+    color: 'teal',
+    badgeBg: 'bg-teal-500',
+    borderColor: 'border-teal-400',
+    textColor: 'text-teal-800',
+    lightBg: 'bg-teal-50',
+    defaultSubAreas: ['Máquina de lavar loiça', 'Zona MOP', 'Pias de lavagem', 'Prateleiras de tabuleiros']
+  },
+  'Corredor': {
+    area: 'Corredor',
+    category: 'Apoio',
+    color: 'slate',
+    badgeBg: 'bg-slate-500',
+    borderColor: 'border-slate-400',
+    textColor: 'text-slate-800',
+    lightBg: 'bg-slate-50',
+    defaultSubAreas: ['Paredes e rodapés', 'Portas de emergência', 'Iluminação']
+  },
+  'Aquário': {
+    area: 'Aquário',
+    category: 'Apoio',
+    color: 'indigo',
+    badgeBg: 'bg-indigo-500',
+    borderColor: 'border-indigo-400',
+    textColor: 'text-indigo-800',
+    lightBg: 'bg-indigo-50',
+    defaultSubAreas: ['Vidros do escritório', 'Bancadas de supervisão', 'Cofre e armários']
+  },
+  'Arca Positiva': {
+    area: 'Arca Positiva',
+    category: 'Armazenamento',
+    color: 'sky',
+    badgeBg: 'bg-sky-500',
+    borderColor: 'border-sky-400',
+    textColor: 'text-sky-800',
+    lightBg: 'bg-sky-50',
+    defaultSubAreas: ['Prateleiras de laticínios/vegetais', 'Chão e grelhas de ventilação', 'Porta e borrachas térmicas']
+  },
+  'Arca Negativa': {
+    area: 'Arca Negativa',
+    category: 'Armazenamento',
+    color: 'violet',
+    badgeBg: 'bg-violet-500',
+    borderColor: 'border-violet-400',
+    textColor: 'text-violet-800',
+    lightBg: 'bg-violet-50',
+    defaultSubAreas: ['Cortina térmica', 'Armários e estantes congeladas', 'Porta e borrachas', 'Chão antiderrapante']
+  },
+  'Stock': {
+    area: 'Stock',
+    category: 'Armazenamento',
+    color: 'amber',
+    badgeBg: 'bg-amber-600',
+    borderColor: 'border-amber-500',
+    textColor: 'text-amber-900',
+    lightBg: 'bg-amber-100',
+    defaultSubAreas: ['Estantes de secos', 'Armazém de papel e embalagens', 'Paletes e carrinhos']
+  }
+};

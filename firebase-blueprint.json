@@ -323,6 +323,7 @@
         "zeladorStatuses": { "type": "object" },
         "customWeeklyTasks": { "type": "array" },
         "customZeladorTasks": { "type": "array" },
+        "areaResponsibles": { "type": "object" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
@@ -338,6 +339,7 @@
         "weeklyTasks": { "type": "array" },
         "zeladorTasks": { "type": "array" },
         "areas": { "type": "array" },
+        "areaResponsibles": { "type": "object" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "restaurantId"]

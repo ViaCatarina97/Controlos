@@ -483,8 +483,24 @@ export interface CleaningPlanWeek {
   customWeeklyTasks?: CleaningTaskItem[];
   customZeladorTasks?: CleaningTaskItem[];
 
+  // Responsáveis por cada área operacional (definidos pelo utilizador / editáveis)
+  areaResponsibles?: {
+    [area: string]: AreaResponsibleConfig;
+  };
+
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AreaResponsibleConfig {
+  area: string;
+  managerName: string; // Gerente responsável (pode gerir 1 ou mais áreas)
+  managerRole?: string; // Cargo do gerente
+  notes?: string; // Notas de supervisão ou diretrizes operacionais
+  color?: string; // Cor do nó no fluxograma
+  subAreas?: string[]; // Sub-zonas ou equipamentos críticos sob supervisão
+  priority?: 'alta' | 'media' | 'baixa';
+  updatedAt?: string;
 }
 
 export interface CleaningTemplateConfig {
@@ -493,6 +509,9 @@ export interface CleaningTemplateConfig {
   weeklyTasks: CleaningTaskItem[];
   zeladorTasks: CleaningTaskItem[];
   areas: string[];
+  areaResponsibles?: {
+    [area: string]: AreaResponsibleConfig;
+  };
   updatedAt: string;
 }
 

@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Sparkles, Calendar, ChevronLeft, ChevronRight, CheckCircle2, 
   ShieldCheck, Settings2, BarChart3, ListFilter, Search, 
-  User, Layers, History, Printer, AlertTriangle, RefreshCw, Plus
+  User, Layers, History, Printer, AlertTriangle, RefreshCw, Plus,
+  GitFork
 } from 'lucide-react';
 import { 
   CleaningPlanWeek, CleaningTaskItem, CleaningTemplateConfig, 
   Employee, CleaningDayOfWeek, CleaningShift, CleaningTaskStatus, ZeladorTaskStatus,
-  ExtraordinaryCleaningTask
+  ExtraordinaryCleaningTask, AreaResponsibleConfig
 } from '../../types';
 import { 
   DEFAULT_WEEKLY_CLEANING_TASKS, DEFAULT_ZELADOR_CLEANING_TASKS, 
@@ -19,6 +20,7 @@ import { ZeladorCleaningMap } from './ZeladorCleaningMap';
 import { CleaningDashboard } from './CleaningDashboard';
 import { CleaningHistory } from './CleaningHistory';
 import { ExtraordinaryCleaningTab } from './ExtraordinaryCleaningTab';
+import { AreaResponsiblesFlowchart } from './AreaResponsiblesFlowchart';
 import { JustificationModal } from './JustificationModal';
 import { ValidateWeekModal } from './ValidateWeekModal';
 import { CleaningManagementModal } from './CleaningManagementModal';
@@ -39,7 +41,7 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
   employees
 }) => {
   // Navigation tabs - Dashboard is the primary view as requested
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'weekly' | 'extraordinary' | 'zelador' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'organograma' | 'weekly' | 'extraordinary' | 'zelador' | 'history'>('dashboard');
 
   // Currently viewed week (Monday date string YYYY-MM-DD)
   const currentMondayStr = useMemo(() => {
@@ -446,6 +448,47 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
     }
   };
 
+  // Area Responsibles handler - saves both to the active week plan and to the template
+  const handleSaveAreaResponsibles = async (updatedResponsibles: { [area: string]: AreaResponsibleConfig }) => {
+    const updatedPlan: CleaningPlanWeek = {
+      ...currentWeekPlan,
+      areaResponsibles: updatedResponsibles,
+      updatedAt: new Date().toISOString()
+    };
+    updatePlan(updatedPlan);
+
+    // Persist to template as default configuration for all weeks
+    if (template) {
+      const updatedTemplate: CleaningTemplateConfig = {
+        ...template,
+        areaResponsibles: updatedResponsibles,
+        updatedAt: new Date().toISOString()
+      };
+      setTemplate(updatedTemplate);
+      try {
+        await saveCleaningTemplate(restaurantId, updatedTemplate);
+      } catch (err) {
+        console.error("Error saving template area responsibles:", err);
+      }
+    } else {
+      const newTemplate: CleaningTemplateConfig = {
+        id: 'default',
+        restaurantId,
+        weeklyTasks,
+        zeladorTasks,
+        areas,
+        areaResponsibles: updatedResponsibles,
+        updatedAt: new Date().toISOString()
+      };
+      setTemplate(newTemplate);
+      try {
+        await saveCleaningTemplate(restaurantId, newTemplate);
+      } catch (err) {
+        console.error("Error saving new cleaning template with responsibles:", err);
+      }
+    }
+  };
+
   const pendingExtraordinaryCount = useMemo(() => {
     return extraordinaryTasks.filter(t => !t.completed).length;
   }, [extraordinaryTasks]);
@@ -620,11 +663,11 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
       </div>
 
       {/* Main Navigation Tabs */}
-      <div className="flex items-center border-b border-gray-200 bg-white rounded-2xl p-1.5 shadow-2xs">
+      <div className="flex items-center border-b border-gray-200 bg-white rounded-2xl p-1.5 shadow-2xs overflow-x-auto">
         {/* Tab 1: Dashboard & Desempenho (Principal) */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-max py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
             activeTab === 'dashboard'
               ? 'bg-teal-700 text-white shadow-xs'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -634,10 +677,23 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
           <span>Dashboard & Desempenho</span>
         </button>
 
-        {/* Tab 2: Mapa Limpezas Semanal */}
+        {/* Tab 2: Fluxograma / Responsáveis de Área (NOVO) */}
+        <button
+          onClick={() => setActiveTab('organograma')}
+          className={`flex-1 min-w-max py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'organograma'
+              ? 'bg-teal-700 text-white shadow-xs'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+          }`}
+        >
+          <GitFork size={16} />
+          <span>Fluxograma / Responsáveis</span>
+        </button>
+
+        {/* Tab 3: Mapa Limpezas Semanal */}
         <button
           onClick={() => setActiveTab('weekly')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-max py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
             activeTab === 'weekly'
               ? 'bg-teal-700 text-white shadow-xs'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -823,7 +879,7 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
         />
       )}
 
-      {/* Tab 3: Dashboard & Desempenho */}
+      {/* Tab: Dashboard & Desempenho */}
       {activeTab === 'dashboard' && (
         <CleaningDashboard
           currentWeek={currentWeekPlan}
@@ -832,6 +888,22 @@ export const CleaningPlanModule: React.FC<CleaningPlanModuleProps> = ({
           zeladorTasks={zeladorTasks}
           areas={areas}
           employees={employees}
+          template={template}
+          onNavigateToFlowchart={() => setActiveTab('organograma')}
+        />
+      )}
+
+      {/* Tab: Fluxograma / Responsáveis de Área (NOVO & EDITÁVEL) */}
+      {activeTab === 'organograma' && (
+        <AreaResponsiblesFlowchart
+          currentWeek={currentWeekPlan}
+          template={template}
+          weeklyTasks={weeklyTasks}
+          areas={areas}
+          employees={employees}
+          readOnly={isValidated}
+          restaurantId={restaurantId}
+          onSaveResponsibles={handleSaveAreaResponsibles}
         />
       )}
 
