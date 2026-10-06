@@ -118,7 +118,16 @@ const StationGroup: React.FC<StationGroupProps> = ({
                 <div className="space-y-1.5 mb-3">
                    {assignedIds.map(empId => {
                       const emp = employees.find(e => e.id === empId);
-                      if(!emp) return null;
+                      if(!emp) return (
+                          <div key={empId} className="flex justify-between items-center bg-rose-50 border border-rose-200 rounded-lg pl-2 pr-1.5 py-1.5" title="Colaborador inativo ou removido — não conta para o total">
+                              <span className="text-[10px] font-bold text-rose-700 truncate leading-none flex items-center gap-1"><AlertTriangle size={10} /> Colaborador inativo</span>
+                              {!isLocked && (
+                                  <button onClick={() => onRemove(station.id, empId)} className="text-rose-400 hover:text-rose-700 hover:bg-rose-100 p-1 rounded-md transition-all active:scale-90">
+                                      <X size={12} />
+                                  </button>
+                              )}
+                          </div>
+                      );
                       return (
                           <div key={empId} className="flex justify-between items-center bg-slate-50 hover:bg-slate-105 border border-slate-200/60 rounded-lg pl-2 pr-1.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-colors animate-fade-in">
                               <div className="flex items-center gap-1.5 overflow-hidden">
@@ -413,7 +422,11 @@ export const Positioning: React.FC<PositioningProps> = ({
   const [selectedCustomStations, setSelectedCustomStations] = useState<string[]>([]);
   
   const availableShifts = settings.activeShifts;
-  const today = new Date().toISOString().split('T')[0];
+  // Data local (não UTC) para evitar que o dia "expire" à hora errada
+  const today = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
   const isExpired = date < today;
   const isShiftLocked = useMemo(() => {
     return isExpired || (schedule.lockedShifts || []).includes(selectedShift);
@@ -460,14 +473,27 @@ export const Positioning: React.FC<PositioningProps> = ({
       return { totalSales: scheduleSales, hour: manualPeakHour };
   }, [manualPeakHour, shiftPeakData, schedule.projectedSales, selectedShift]);
 
+  /**
+   * Encontra o índice da linha da tabela de staffing aplicável às vendas indicadas.
+   * 1) Correspondência exata no intervalo [min, max];
+   * 2) Caso contrário (ex.: vendas decimais que caem entre 99 e 100, ou acima do último
+   *    intervalo), usa a última linha cujo mínimo é <= vendas.
+   */
+  const findStaffingRowIndex = (sorted: StaffingTableEntry[], sales: number): number => {
+    if (sorted.length === 0) return -1;
+    const exact = sorted.findIndex(row => sales >= row.minSales && sales <= row.maxSales);
+    if (exact !== -1) return exact;
+    let idx = -1;
+    sorted.forEach((row, i) => { if (sales >= row.minSales) idx = i; });
+    return idx;
+  };
+
   const getRequiredStaff = (sales: number): { count: number; label: string } => {
     if (!staffingTable || staffingTable.length === 0) return { count: 0, label: 'N/A' };
     const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
-    const match = sorted.find(row => sales >= row.minSales && sales <= row.maxSales);
-    if (match) return { count: match.staffCount, label: match.stationLabel };
-    const lastRow = sorted[sorted.length - 1];
-    if (sales > lastRow.maxSales) return { count: lastRow.staffCount, label: lastRow.stationLabel };
-    return { count: 0, label: '0' };
+    const idx = findStaffingRowIndex(sorted, sales);
+    if (idx === -1) return { count: 0, label: '0' };
+    return { count: sorted[idx].staffCount, label: sorted[idx].stationLabel };
   };
 
   const manualAdj = useMemo(() => {
@@ -489,17 +515,50 @@ export const Positioning: React.FC<PositioningProps> = ({
      
      // CORREÇÃO: O gerente NÃO conta para a soma "Real" dos posicionados em postos.
      // Se a tabela diz 15, queremos ver 15 pessoas em postos reais.
+     // Apenas colaboradores existentes e ativos contam (ignora IDs órfãos de colaboradores removidos/inativos)
+     const validIds = new Set(employees.map(e => e.id));
      Object.values(shiftData).forEach((ids) => {
         if (Array.isArray(ids)) {
           ids.forEach((id: string) => {
-            if (id && typeof id === 'string' && id.trim() !== "") {
+            if (id && typeof id === 'string' && id.trim() !== "" && validIds.has(id.trim())) {
               uniqueIds.add(id.trim());
             }
           });
         }
      });
      return uniqueIds.size;
-  }, [schedule, selectedShift]);
+  }, [schedule, selectedShift, employees]);
+
+  // IDs posicionados neste turno que já não correspondem a colaboradores ativos
+  const orphanAssignmentsCount = useMemo(() => {
+    const validIds = new Set(employees.map(e => e.id));
+    const shiftData: StationAssignment = schedule.shifts[selectedShift] || {};
+    const traineeData: StationAssignment = schedule.trainees?.[selectedShift] || {};
+    let count = 0;
+    [shiftData, traineeData].forEach(group => {
+      Object.values(group).forEach(ids => {
+        if (Array.isArray(ids)) ids.forEach(id => { if (id && !validIds.has(id)) count++; });
+      });
+    });
+    return count;
+  }, [schedule.shifts, schedule.trainees, selectedShift, employees]);
+
+  const handleCleanOrphanAssignments = () => {
+    if (isShiftLocked) return;
+    const validIds = new Set(employees.map(e => e.id));
+    const clean = (group: StationAssignment): StationAssignment => {
+      const out: StationAssignment = {};
+      Object.entries(group).forEach(([stationId, ids]) => {
+        out[stationId] = (ids || []).filter(id => validIds.has(id));
+      });
+      return out;
+    };
+    setSchedule({
+      ...schedule,
+      shifts: { ...schedule.shifts, [selectedShift]: clean(schedule.shifts[selectedShift] || {}) },
+      trainees: { ...schedule.trainees, [selectedShift]: clean(schedule.trainees?.[selectedShift] || {}) },
+    });
+  };
 
   const gap = requirement.count - currentAssignedCount;
 
@@ -544,15 +603,7 @@ export const Positioning: React.FC<PositioningProps> = ({
     
     // 1. Descobrir em que intervalo de vendas se encaixa a previsão de vendas atual
     const sales = activeSalesData.totalSales;
-    const matchIdx = sortedStaffingTable.findIndex(row => sales >= row.minSales && sales <= row.maxSales);
-    
-    let finalMatchIdx = matchIdx;
-    if (finalMatchIdx === -1 && sortedStaffingTable.length > 0) {
-      const lastRow = sortedStaffingTable[sortedStaffingTable.length - 1];
-      if (sales > lastRow.maxSales) {
-        finalMatchIdx = sortedStaffingTable.length - 1;
-      }
-    }
+    let finalMatchIdx = findStaffingRowIndex(sortedStaffingTable, sales);
 
     // Determine if we have custom station additions
     const customStations = schedule.manualStationAdditions?.[selectedShift] || [];
@@ -646,6 +697,12 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const handleManagerChange = (field: 'leader' | 'support', empId: string) => {
       if (isShiftLocked) return;
+      const current = schedule.shiftManagers?.[selectedShift] || {};
+      const other = field === 'leader' ? current.support : current.leader;
+      if (empId && other && empId === other) {
+        alert('O Gerente de Turno e o Gerente de Apoio não podem ser a mesma pessoa.');
+        return;
+      }
       setSchedule({ 
         ...schedule, 
         shiftManagers: { 
@@ -724,17 +781,35 @@ export const Positioning: React.FC<PositioningProps> = ({
 
   const handlePrint = () => window.print();
 
+  /**
+   * Valida e submete (tranca) o turno selecionado.
+   * Regras: data não passada, gerente de turno definido, sem posicionados órfãos,
+   * confirmação quando há diferença face ao previsto.
+   */
   const handleSaveAndLock = () => { 
-    if (!isExpired) {
-        const currentLocked = schedule.lockedShifts || [];
-        if (!currentLocked.includes(selectedShift)) {
-            const updatedSchedule = { 
-                ...schedule, 
-                lockedShifts: [...currentLocked, selectedShift] 
-            };
-            onSaveSchedule(updatedSchedule);
-        }
-    } 
+    if (isExpired) {
+      alert("Não é possível submeter posicionamentos de datas passadas.");
+      return;
+    }
+    const currentLocked = schedule.lockedShifts || [];
+    if (currentLocked.includes(selectedShift)) {
+      alert("Este turno já se encontra trancado!");
+      return;
+    }
+    if (!schedule.shiftManagers?.[selectedShift]?.leader) {
+      alert("Selecione o Gerente de Turno antes de submeter o posicionamento.");
+      return;
+    }
+    if (orphanAssignmentsCount > 0) {
+      alert("Existem colaboradores inativos/removidos posicionados neste turno. Limpe-os antes de submeter.");
+      return;
+    }
+    if (currentAssignedCount === 0 && !confirm("Ainda não há colaboradores posicionados neste turno. Submeter mesmo assim?")) return;
+    if (gap > 0 && !confirm(`Faltam ${gap} colaborador(es) face ao previsto (${requirement.count}). Submeter e trancar mesmo assim?`)) return;
+    if (gap < 0 && !confirm(`Estão posicionados ${Math.abs(gap)} colaborador(es) acima do previsto (${requirement.count}). Submeter e trancar mesmo assim?`)) return;
+
+    onSaveSchedule({ ...schedule, lockedShifts: [...currentLocked, selectedShift] });
+    alert(`Posicionamento do turno ${getShiftLabel(selectedShift)} submetido e trancado com sucesso!`);
   };
 
   const handleUnlock = () => { 
@@ -922,7 +997,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Console de Botões */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 flex-wrap">
              <button 
                onClick={() => {
                  onSaveSchedule(schedule);
@@ -933,23 +1008,28 @@ export const Positioning: React.FC<PositioningProps> = ({
                Gravar Rascunho
              </button>
              <button 
-               onClick={() => {
-                 const currentLocked = schedule.lockedShifts || [];
-                 if (!currentLocked.includes(selectedShift)) {
-                   const updatedSchedule = { 
-                     ...schedule, 
-                     lockedShifts: [...currentLocked, selectedShift] 
-                   };
-                   onSaveSchedule(updatedSchedule);
-                   alert(`Posicionamento do turno submetido e trancado com sucesso!`);
-                 } else {
-                   alert("Este turno já se encontra trancado!");
-                 }
-               }} 
-               className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all shadow-sm"
+               onClick={handleSaveAndLock}
+               disabled={isShiftLocked}
+               title={isExpired ? 'Datas passadas são apenas de consulta' : isShiftLocked ? 'Turno já trancado' : 'Validar e trancar o turno'}
+               className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
              >
                Submeter Posicionamento
              </button>
+             {isExpired && (
+               <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 flex items-center gap-1.5">
+                 <Lock size={12} /> Data passada — só consulta
+               </span>
+             )}
+             {orphanAssignmentsCount > 0 && (
+               <button
+                 onClick={handleCleanOrphanAssignments}
+                 disabled={isShiftLocked}
+                 className="text-xs font-black text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 flex items-center gap-1.5 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                 title="Remover colaboradores inativos/removidos deste turno"
+               >
+                 <AlertTriangle size={12} /> {orphanAssignmentsCount} posicionado(s) inativo(s) — limpar
+               </button>
+             )}
              <div className="flex-1"></div>
              
              <div className="flex items-center gap-3">
@@ -1114,17 +1194,17 @@ export const Positioning: React.FC<PositioningProps> = ({
                         <div className={`rounded-2xl p-5 border flex flex-col items-center justify-center text-center shadow-sm ${
                           gap > 0 
                             ? 'bg-rose-50/50 border-rose-200' 
-                            : 'bg-emerald-50/50 border-emerald-200'
+                            : gap < 0 ? 'bg-amber-50/50 border-amber-200' : 'bg-emerald-50/50 border-emerald-200'
                         }`}>
-                          <span className={`text-[10px] font-black uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-500' : 'text-emerald-550'}`}>Diferença</span>
-                          <div className={`p-2.5 rounded-xl mb-2 bg-white ${gap > 0 ? 'text-rose-650' : 'text-emerald-650'}`}>
-                            {gap > 0 ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
+                          <span className={`text-[10px] font-black uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-500' : gap < 0 ? 'text-amber-600' : 'text-emerald-550'}`}>Diferença</span>
+                          <div className={`p-2.5 rounded-xl mb-2 bg-white ${gap > 0 ? 'text-rose-650' : gap < 0 ? 'text-amber-600' : 'text-emerald-650'}`}>
+                            {gap === 0 ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
                           </div>
-                          <span className={`text-3xl font-black leading-none ${gap > 0 ? 'text-rose-600' : 'text-emerald-650'}`}>
-                            {gap > 0 ? `-${gap}` : 'OK'}
+                          <span className={`text-3xl font-black leading-none ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-650'}`}>
+                            {gap > 0 ? `-${gap}` : gap < 0 ? `+${Math.abs(gap)}` : 'OK'}
                           </span>
-                          <span className={`text-[9px] font-bold mt-1.5 uppercase ${gap > 0 ? 'text-rose-450' : 'text-emerald-550'}`}>
-                            {gap > 0 ? 'Faltam' : 'Tudo Pronto'}
+                          <span className={`text-[9px] font-bold mt-1.5 uppercase ${gap > 0 ? 'text-rose-450' : gap < 0 ? 'text-amber-600' : 'text-emerald-550'}`}>
+                            {gap > 0 ? 'Faltam' : gap < 0 ? 'Em excesso' : 'Tudo Pronto'}
                           </span>
                         </div>
                     </div>
