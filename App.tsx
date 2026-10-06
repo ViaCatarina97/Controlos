@@ -428,6 +428,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteSchedule = async (date: string) => {
+    if (!confirm(`Eliminar o posicionamento completo do dia ${date}? Esta ação não pode ser anulada.`)) return;
+    // Evita que um auto-save pendente volte a gravar o documento eliminado
+    if (scheduleToSave?.date === date) setScheduleToSave(null);
+    setSavedSchedules(prev => prev.filter(s => s.date !== date));
+    if (authenticatedRestaurantId) {
+      try {
+        setIsSyncing(true);
+        await deleteScheduleDoc(authenticatedRestaurantId, date);
+        setLastSync(new Date().toLocaleTimeString());
+      } catch (err) {
+        console.error("Failed to delete schedule from cloud:", err);
+        alert("Não foi possível eliminar o posicionamento na nuvem. Tente novamente.");
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
   const pullCloudData = async () => {
     if (!authenticatedRestaurantId) return;
     const id = authenticatedRestaurantId;
@@ -983,7 +1002,7 @@ const App: React.FC = () => {
                   selectedShift={selectedShift}
                 />
               )}
-              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={(d) => setSavedSchedules(prev => prev.filter(s => s.date !== d))} employees={currentEmployees} />}
+              {activeTab === 'schedule_history' && <ScheduleHistory schedules={savedSchedules} onLoadSchedule={(d, s) => { setTargetDate(d); if(s) setTargetShift(s); setActiveTab('positioning'); }} onDeleteSchedule={handleDeleteSchedule} employees={currentEmployees} />}
             </>
           )}
 

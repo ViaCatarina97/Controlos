@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry } from '../types';
 import { Sliders, Save, Plus, Trash2, RotateCcw, AlertCircle } from 'lucide-react';
 
@@ -18,7 +18,30 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
 
   const hasChanges = JSON.stringify(localTable) !== JSON.stringify([...staffingTable].sort((a, b) => a.minSales - b.minSales));
 
+  // Validação da tabela: intervalos coerentes, sem sobreposições, staff e designação válidos
+  const validationErrors = useMemo(() => {
+    const errors: string[] = [];
+    const sorted = [...localTable].sort((a, b) => a.minSales - b.minSales);
+    sorted.forEach((row, i) => {
+      const label = row.stationLabel?.trim() || `Linha ${i + 1}`;
+      if (row.minSales < 0 || row.maxSales < 0) errors.push(`${label}: as vendas não podem ser negativas.`);
+      if (row.minSales > row.maxSales) errors.push(`${label}: o mínimo (${row.minSales}€) é superior ao máximo (${row.maxSales}€).`);
+      if (!Number.isInteger(row.staffCount) || row.staffCount < 1) errors.push(`${label}: o nº de colaboradores deve ser pelo menos 1.`);
+      if (!row.stationLabel || !row.stationLabel.trim()) errors.push(`Linha ${i + 1}: a designação do posto está vazia.`);
+      if (i > 0) {
+        const prev = sorted[i - 1];
+        if (row.minSales <= prev.maxSales) errors.push(`${label}: o intervalo sobrepõe-se a "${prev.stationLabel}" (${prev.minSales}€–${prev.maxSales}€).`);
+        if (row.staffCount < prev.staffCount) errors.push(`${label}: tem menos colaboradores (${row.staffCount}) do que o escalão anterior (${prev.staffCount}).`);
+      }
+    });
+    return errors;
+  }, [localTable]);
+
   const handleSave = () => {
+    if (validationErrors.length > 0) {
+      alert('Corrija os seguintes problemas antes de gravar:\n\n• ' + validationErrors.join('\n• '));
+      return;
+    }
     // Sort table by minSales to maintain structured progression
     const sorted = [...localTable].sort((a, b) => a.minSales - b.minSales);
     setStaffingTable(sorted);
@@ -113,6 +136,19 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
           </div>
         </div>
       </div>
+
+      {/* Validation Warnings */}
+      {validationErrors.length > 0 && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-900 text-xs">
+          <div className="flex items-center gap-2 font-black uppercase tracking-wider mb-2">
+            <AlertCircle size={16} className="text-amber-600" /> Tabela com inconsistências ({validationErrors.length})
+          </div>
+          <ul className="list-disc pl-5 space-y-0.5 font-semibold">
+            {validationErrors.slice(0, 6).map((err, i) => <li key={i}>{err}</li>)}
+            {validationErrors.length > 6 && <li>… e mais {validationErrors.length - 6}.</li>}
+          </ul>
+        </div>
+      )}
 
       {/* Main Table Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
