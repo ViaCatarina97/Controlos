@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
+import { FloorPlan } from './positioning/FloorPlan';
 import { 
   Users, User, AlertCircle, X, 
   Flame, Sun, Store, MoonStar, 
@@ -9,289 +10,7 @@ import {
   Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise
 } from 'lucide-react';
 
-// --- Helper Components ---
-
-interface StationGroupProps {
-  title: string;
-  stations: StationConfig[];
-  schedule: DailySchedule;
-  selectedShift: ShiftType;
-  employees: Employee[];
-  onAssign: (stationId: string, employeeId: string) => void;
-  onRemove: (stationId: string, employeeId: string) => void;
-  onAssignTrainee: (stationId: string, employeeId: string) => void;
-  onRemoveTrainee: (stationId: string, employeeId: string) => void;
-  color: string;
-  isLocked?: boolean;
-}
-
-const StationGroup: React.FC<StationGroupProps> = ({
-  title, stations, schedule, selectedShift, employees, onAssign, onRemove, onAssignTrainee, onRemoveTrainee, color, isLocked
-}) => {
-  const sortedEmployeesForSelect = React.useMemo(() => {
-    const nonManagers = employees
-      .filter(e => e.role !== 'GERENTE')
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
-      
-    const managers = employees
-      .filter(e => e.role === 'GERENTE')
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }));
-      
-    return [...nonManagers, ...managers];
-  }, [employees]);
-
-  const colorMap: Record<string, string> = {
-    red: 'border-red-200/65 bg-red-50/15 shadow-[0_4px_20px_rgba(239,68,68,0.02)]',
-    blue: 'border-blue-200/65 bg-blue-50/15 shadow-[0_4px_20px_rgba(59,130,246,0.02)]',
-    yellow: 'border-amber-200/65 bg-amber-50/15 shadow-[0_4px_20px_rgba(245,158,11,0.02)]',
-    purple: 'border-purple-200/65 bg-purple-50/15 shadow-[0_4px_20px_rgba(16,185,129,0.02)]',
-    green: 'border-emerald-200/65 bg-emerald-50/15 shadow-[0_4px_20px_rgba(16,185,129,0.02)]',
-    slate: 'border-slate-200/65 bg-slate-50/15 shadow-[0_4px_20px_rgba(100,116,139,0.02)]',
-  };
-  const titleColorMap: Record<string, string> = {
-    red: 'text-red-900 bg-red-100/40',
-    blue: 'text-blue-900 bg-blue-100/40',
-    yellow: 'text-amber-900 bg-amber-100/40',
-    purple: 'text-purple-900 bg-purple-100/40',
-    green: 'text-emerald-900 bg-emerald-100/40',
-    slate: 'text-slate-900 bg-slate-100/40',
-  };
-  const badgeColorMap: Record<string, string> = {
-    red: 'bg-red-500/10 text-red-700 border-red-200/40',
-    blue: 'bg-blue-500/10 text-blue-700 border-blue-200/40',
-    yellow: 'bg-amber-500/10 text-amber-700 border-amber-200/40',
-    purple: 'bg-purple-500/10 text-purple-700 border-purple-200/40',
-    green: 'bg-emerald-500/10 text-emerald-700 border-emerald-200/40',
-    slate: 'bg-slate-500/10 text-slate-700 border-slate-200/40',
-  };
-
-  const containerClass = colorMap[color] || 'border-gray-200 bg-white';
-  const titleClass = titleColorMap[color] || 'text-gray-800';
-
-  return (
-    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${containerClass}`}>
-      <div className={`px-4 py-3.5 border-b border-black/[0.04] font-black text-[11px] uppercase tracking-wider flex justify-between items-center ${titleClass}`}>
-        <span>{title}</span>
-        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${badgeColorMap[color] || 'bg-white/50 border-gray-100'}`}>
-          {stations.length}
-        </span>
-      </div>
-      <div className="flex flex-col gap-3 p-3 bg-slate-50/10">
-        {stations.map(station => {
-          const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
-          const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
-          
-          return (
-            <div key={station.id} className="bg-white rounded-xl border border-black/[0.03] p-3.5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-2.5">
-                <div>
-                   <div className="font-extrabold text-[#111827] text-sm tracking-tight">{station.label}</div>
-                   {station.designation && (
-                     <div className="text-[9px] font-bold text-gray-400 bg-gray-50 border border-gray-100/80 px-1.5 py-0.5 rounded leading-none mt-1 inline-block">
-                       {station.designation.toUpperCase()}
-                     </div>
-                   )}
-                </div>
-                {(() => {
-                  const currentSize = assignedIds.length;
-                  const maxSlots = station.defaultSlots;
-                  const isFull = currentSize >= maxSlots;
-                  const isEmpty = currentSize === 0;
-                  
-                  let badgeColors = "text-gray-500 bg-gray-50 border-gray-200/60";
-                  if (isFull) {
-                    badgeColors = "text-emerald-700 bg-emerald-50 border-emerald-100";
-                  } else if (!isEmpty) {
-                    badgeColors = "text-blue-700 bg-blue-50 border-blue-100";
-                  }
-                  
-                  return (
-                    <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border transition-colors ${badgeColors}`}>
-                      <Users size={10} className="shrink-0" />
-                      <span>{currentSize}/{maxSlots}</span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {(assignedIds.length > 0 || assignedTraineeIds.length > 0) && (
-                <div className="space-y-1.5 mb-3">
-                   {assignedIds.map(empId => {
-                      const emp = employees.find(e => e.id === empId);
-                      if(!emp) return (
-                          <div key={empId} className="flex justify-between items-center bg-rose-50 border border-rose-200 rounded-lg pl-2 pr-1.5 py-1.5" title="Colaborador inativo ou removido — não conta para o total">
-                              <span className="text-[10px] font-bold text-rose-700 truncate leading-none flex items-center gap-1"><AlertTriangle size={10} /> Colaborador inativo</span>
-                              {!isLocked && (
-                                  <button onClick={() => onRemove(station.id, empId)} className="text-rose-400 hover:text-rose-700 hover:bg-rose-100 p-1 rounded-md transition-all active:scale-90">
-                                      <X size={12} />
-                                  </button>
-                              )}
-                          </div>
-                      );
-                      return (
-                          <div key={empId} className="flex justify-between items-center bg-slate-50 hover:bg-slate-105 border border-slate-200/60 rounded-lg pl-2 pr-1.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-colors animate-fade-in">
-                              <div className="flex items-center gap-1.5 overflow-hidden">
-                                  <div className="w-5 h-5 rounded-full bg-blue-600/10 text-blue-700 flex items-center justify-center font-extrabold text-[10px] uppercase shrink-0">
-                                    {emp.name.charAt(0)}
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-800 truncate leading-none">{emp.name}</span>
-                                  <span className="text-[8px] font-extrabold text-slate-400 border border-slate-200 bg-white px-1 rounded uppercase tracking-wide shrink-0 scale-90">{emp.role}</span>
-                              </div>
-                              {!isLocked && (
-                                  <button onClick={() => onRemove(station.id, empId)} className="text-gray-400 hover:text-red-550 hover:bg-red-50 p-1 rounded-md transition-all active:scale-90">
-                                      <X size={12} />
-                                  </button>
-                              )}
-                          </div>
-                      );
-                   })}
-                   
-                   {assignedTraineeIds.map(empId => {
-                      const emp = employees.find(e => e.id === empId);
-                      if(!emp) return null;
-                      return (
-                          <div key={empId} className="flex justify-between items-center bg-amber-50 hover:bg-amber-102 border border-amber-200 rounded-lg pl-2 pr-1.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-colors animate-fade-in">
-                              <div className="flex items-center gap-1.5 overflow-hidden">
-                                  <div className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-700 flex items-center justify-center font-black shrink-0">
-                                    <GraduationCap size={11} />
-                                  </div>
-                                  <div className="flex flex-col overflow-hidden">
-                                    <span className="text-xs font-black text-amber-900 truncate leading-none">{emp.name}</span>
-                                    <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mt-0.5">Formação</span>
-                                  </div>
-                              </div>
-                              {!isLocked && (
-                                  <button onClick={() => onRemoveTrainee(station.id, empId)} className="text-amber-400 hover:text-red-550 hover:bg-red-50 p-1 rounded-md transition-all active:scale-90">
-                                      <X size={12} />
-                                  </button>
-                              )}
-                          </div>
-                      );
-                   })}
-                </div>
-              )}
-
-              {!isLocked && (
-                  <div className="flex gap-1.5">
-                     {assignedIds.length < station.defaultSlots && (
-                        <select 
-                            className="flex-1 text-[11px] font-bold border border-gray-200 rounded-lg p-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:border-gray-300 transition-all duration-150 text-gray-700 cursor-pointer shadow-sm"
-                            value=""
-                            onChange={(e) => {
-                                if(e.target.value) onAssign(station.id, e.target.value);
-                             }}
-                        >
-                            <option value="">Nome</option>
-                            {sortedEmployeesForSelect
-                                .filter(e => !assignedIds.includes(e.id)) 
-                                .map(e => (
-                                <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                        </select>
-                     )}
-
-                     <select 
-                        className="w-10 text-[11px] font-bold border border-amber-200 text-amber-700 rounded-lg p-2 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition-all duration-150 cursor-pointer shadow-sm text-center"
-                        value=""
-                        onChange={(e) => {
-                             if(e.target.value) onAssignTrainee(station.id, e.target.value);
-                        }}
-                     >
-                        <option value="">🎓</option>
-                        {sortedEmployeesForSelect
-                            .filter(e => !assignedTraineeIds.includes(e.id))
-                            .map(e => (
-                            <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                        ))}
-                     </select>
-                  </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-interface VisualPrintZoneProps {
-  title: string;
-  stations: StationConfig[];
-  schedule: DailySchedule;
-  selectedShift: ShiftType;
-  employees: Employee[];
-  color: string;
-  totalStationsCount: number;
-}
-
-const VisualPrintZone: React.FC<VisualPrintZoneProps> = ({
-  title, stations, schedule, selectedShift, employees, color, totalStationsCount
-}) => {
-    const isVeryCrowded = totalStationsCount > 24;
-    const cardHeight = isVeryCrowded ? 'min-h-[44px]' : 'min-h-[62px]';
-    const nameBaseSize = isVeryCrowded ? 'text-[11px]' : 'text-[14px]';
-    const stationTitleSize = isVeryCrowded ? 'text-[6.5px]' : 'text-[8px]';
-
-    const borderColorMap: Record<string, string> = {
-        red: 'border-red-500', blue: 'border-blue-500', yellow: 'border-yellow-500',
-        purple: 'border-purple-500', green: 'border-green-500', slate: 'border-slate-500',
-    };
-
-    const titleColorMap: Record<string, string> = {
-        red: 'text-red-700', blue: 'text-blue-700', yellow: 'text-yellow-600',
-        purple: 'text-purple-700', green: 'text-green-700', slate: 'text-slate-700',
-    };
-
-    const borderClass = borderColorMap[color] || 'border-slate-200';
-    const textClass = titleColorMap[color] || 'text-slate-800';
-
-    return (
-        <div className={`break-inside-avoid ${isVeryCrowded ? 'mb-1' : 'mb-2'} border-2 ${borderClass} rounded-lg overflow-hidden bg-white flex flex-col p-0.5 shadow-sm`}>
-            <div className="px-1 py-0.5 flex items-center gap-2 mb-0.5 border-b border-slate-100">
-                <span className={`font-black text-[9px] uppercase tracking-tighter leading-tight ${textClass}`}>{title.toUpperCase()}</span>
-            </div>
-            
-            <div className={`grid gap-0.5 ${stations.length > 3 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {stations.map(station => {
-                    const assignedIds = schedule.shifts[selectedShift]?.[station.id] || [];
-                    const assignedTraineeIds = schedule.trainees?.[selectedShift]?.[station.id] || [];
-                    
-                    return (
-                        <div key={station.id} className={`bg-white border border-slate-100 rounded-md overflow-hidden flex flex-col ${cardHeight} shadow-sm`}>
-                             <div className={`bg-slate-950 px-1 flex justify-between items-center h-4 shrink-0`}>
-                                <span className={`font-black ${stationTitleSize} text-white uppercase truncate tracking-tight`}>
-                                    {`${station.label}${station.designation ? ` - ${station.designation}` : ''}`.toUpperCase()}
-                                </span>
-                                <span className="bg-yellow-400 text-slate-900 font-black text-[7px] px-1 rounded-sm leading-none py-0.5">
-                                    {station.defaultSlots}
-                                </span>
-                             </div>
-                             
-                             <div className="flex-1 p-0.5 flex flex-col justify-center items-center text-center">
-                                 {assignedIds.map(id => {
-                                     const emp = employees.find(e => e.id === id);
-                                     if (!emp) return null;
-                                     const parts = emp.name.split(' ');
-                                     const fullName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
-                                     return (
-                                        <div key={id} className={`${nameBaseSize} font-black text-slate-950 uppercase tracking-tighter leading-tight`}>
-                                            {fullName}
-                                        </div>
-                                     );
-                                 })}
-                                 {assignedTraineeIds.map(id => (
-                                     <div key={id} className="text-[13px] font-black text-yellow-600 flex flex-col items-center border-t border-yellow-50 mt-1 pt-0.5 w-full">
-                                         <span className="truncate uppercase tracking-tighter leading-none">🎓 {employees.find(e => e.id === id)?.name.split(' ')[0]}</span>
-                                     </div>
-                                 ))}
-                             </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
+// --- Helpers ---
 
 const matchSingle = (rowLabel: string, targetStr: string): boolean => {
   if (!targetStr) return false;
@@ -855,17 +574,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   }, [activeStations, showAllStations, recommendedStationIds, schedule.shifts, schedule.trainees, selectedShift]);
 
-  const stationsByArea = useMemo(() => {
-    const groups: Record<string, StationConfig[]> = {};
-    filteredStations.forEach(s => {
-        const areaKey = s.area;
-        if (!groups[areaKey]) groups[areaKey] = [];
-        groups[areaKey].push(s);
-    });
-    // Ordem: Bebidas, Cozinha, Balcão, Batatas, Sala
-    const order = ['beverage', 'kitchen', 'counter', 'fries', 'lobby', 'delivery', 'drive', 'mccafe'];
-    return Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b)).reduce((acc, key) => { acc[key] = groups[key]; return acc; }, {} as Record<string, StationConfig[]>);
-  }, [filteredStations]);
 
   const totalVisibleStations = filteredStations.length;
   const shiftLeaderName = useMemo(() => {
@@ -884,22 +592,6 @@ export const Positioning: React.FC<PositioningProps> = ({
       return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
   }, [schedule.shiftManagers, selectedShift, employees]);
 
-  const shiftManagerName = useMemo(() => {
-      const leaderId = schedule.shiftManagers?.[selectedShift]?.leader;
-      const emp = employees.find(e => e.id === leaderId);
-      if (!emp) return '-';
-      const parts = emp.name.split(' ');
-      const leaderName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
-      
-      const supportId = schedule.shiftManagers?.[selectedShift]?.support;
-      const supportEmp = supportId ? employees.find(e => e.id === supportId) : null;
-      if (supportEmp) {
-        const sParts = supportEmp.name.split(' ');
-        const supportName = sParts.length > 1 ? `${sParts[0]} ${sParts[sParts.length - 1]}` : sParts[0];
-        return `${leaderName} / ${supportName}`;
-      }
-      return leaderName;
-  }, [schedule.shiftManagers, selectedShift, employees]);
 
   const currentObjectives = useMemo(() => (schedule.shiftObjectives || {})[selectedShift] || {}, [schedule.shiftObjectives, selectedShift]);
 
@@ -915,20 +607,6 @@ export const Positioning: React.FC<PositioningProps> = ({
       mccafe: 'McCafé' 
     };
     return labels[area] || area;
-  };
-
-  const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = { 
-      kitchen: 'red', 
-      beverage: 'purple', 
-      fries: 'yellow', 
-      lobby: 'yellow', 
-      counter: 'blue', 
-      delivery: 'green', 
-      drive: 'blue', 
-      mccafe: 'yellow' 
-    };
-    return colors[area] || 'slate';
   };
 
   return (
@@ -1271,25 +949,20 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
         </div>
 
-        {/* Primary Station Board Row of Columns */}
-        <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-20">
-          {Object.entries(stationsByArea).map(([area, stations]) => (
-            <div key={area} className="flex flex-col gap-4">
-              <StationGroup 
-                title={getAreaLabel(area)} 
-                stations={stations} 
-                schedule={schedule} 
-                selectedShift={selectedShift} 
-                employees={employees} 
-                onAssign={handleAssign} 
-                onRemove={handleRemove} 
-                onAssignTrainee={handleAssignTrainee} 
-                onRemoveTrainee={handleRemoveTrainee} 
-                color={getAreaColor(area)} 
-                isLocked={isShiftLocked} 
-              />
-            </div>
-          ))}
+        {/* Planta do restaurante */}
+        <div className="flex-1 overflow-auto pb-20">
+          <FloorPlan
+            mode="screen"
+            stations={filteredStations}
+            schedule={schedule}
+            selectedShift={selectedShift}
+            employees={employees}
+            isLocked={isShiftLocked}
+            onAssign={handleAssign}
+            onRemove={handleRemove}
+            onAssignTrainee={handleAssignTrainee}
+            onRemoveTrainee={handleRemoveTrainee}
+          />
         </div>
       </div>
 
@@ -1592,27 +1265,66 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
       )}
 
-      <div className="hidden print:block print-container bg-white z-[9999] p-1 text-slate-900 overflow-hidden min-h-screen print-landscape">
-          <div className="flex justify-between items-end mb-1 border-b border-slate-900 pb-0.5">
-            <h1 className="text-[18px] font-black uppercase tracking-tight text-slate-950 leading-none">{settings.restaurantName.toUpperCase()}</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-[9px] font-bold text-slate-600 uppercase">{new Date(date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
-              <div className="bg-slate-950 text-white px-3 py-1 rounded-sm text-[13px] font-black uppercase tracking-wider leading-none">{getShiftLabel(selectedShift).toUpperCase()}</div>
+      <div className="hidden print:block print-container bg-white text-slate-900 print-landscape" style={{ padding: '4mm' }}>
+          {/* Cabeçalho */}
+          <div className="flex items-stretch gap-2 mb-2">
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-white" style={{ backgroundColor: '#DA291C' }}>
+              <div>
+                <div className="text-[7px] font-black uppercase tracking-widest opacity-80 leading-none">Posicionamento</div>
+                <h1 className="text-[17px] font-black uppercase tracking-tight leading-none mt-0.5">{settings.restaurantName}</h1>
+              </div>
+            </div>
+            <div className="flex flex-col justify-center px-3 py-1 rounded-lg border-2 border-slate-800">
+              <div className="text-[7px] font-black uppercase tracking-widest text-slate-500 leading-none">Data</div>
+              <div className="text-[11px] font-black uppercase text-slate-900 leading-tight mt-0.5">{new Date(date + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            </div>
+            <div className="flex items-center px-4 rounded-lg font-black text-[15px] uppercase tracking-wider" style={{ backgroundColor: '#FFC72C', color: '#1e293b' }}>
+              {getShiftLabel(selectedShift)}
+            </div>
+            <div className="flex-1 grid grid-cols-5 gap-1.5">
+              {[
+                { l: 'Gerente de Turno', v: shiftLeaderName },
+                { l: 'Gerente de Apoio', v: shiftSupportName },
+                { l: 'Vendas previstas', v: `${activeSalesData.totalSales} €` },
+                { l: 'Previstos', v: String(requirement.count) },
+                { l: 'Posicionados', v: String(currentAssignedCount) },
+              ].map(item => (
+                <div key={item.l} className="border border-slate-300 rounded-md px-2 py-1 flex flex-col justify-center">
+                  <span className="text-[6.5px] font-black uppercase tracking-wider text-slate-500 leading-none">{item.l}</span>
+                  <span className="text-[11px] font-black uppercase text-slate-900 leading-tight mt-0.5 truncate">{item.v}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-1 mb-2">
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Turno</span><div className="font-black text-[10px] text-slate-900 uppercase tracking-tighter break-words leading-none mt-0.5">{shiftLeaderName}</div></div>
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Gerente de Apoio</span><div className="font-black text-[10px] text-slate-900 uppercase tracking-tighter break-words leading-none mt-0.5">{shiftSupportName}</div></div>
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Previsão</span><div className="font-black text-[14px] text-slate-900 leading-none">{activeSalesData.totalSales} €</div></div>
-              <div className="bg-blue-50 border border-blue-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-blue-500 block">Sugerido</span><div className="font-black text-[14px] text-blue-900 leading-none">{requirement.count}</div></div>
-              <div className="bg-slate-50 border border-slate-200 p-1 rounded min-h-[32px]"><span className="text-[6.5px] font-black uppercase text-slate-400 block">Real</span><div className="font-black text-[14px] text-slate-900 leading-none">{currentAssignedCount}</div></div>
-              <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-blue-600 block">Obj. Turno</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.turnObjective || '-'}</div></div>
-              <div className="bg-white border border-slate-100 p-1 rounded overflow-hidden min-h-[32px]"><span className="text-[6px] font-black uppercase text-orange-600 block">Obj. Produção</span><div className="text-[8.5px] font-bold text-slate-800 leading-tight truncate">{currentObjectives.productionObjective || '-'}</div></div>
+
+          {/* Objetivos */}
+          {(currentObjectives.turnObjective || currentObjectives.productionObjective) && (
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
+              <div className="border-l-4 pl-2 py-0.5" style={{ borderColor: '#DA291C' }}>
+                <span className="text-[6.5px] font-black uppercase tracking-wider text-slate-500 block leading-none">Objetivo de Turno</span>
+                <span className="text-[9px] font-bold text-slate-800 leading-tight">{currentObjectives.turnObjective || '—'}</span>
+              </div>
+              <div className="border-l-4 pl-2 py-0.5" style={{ borderColor: '#FFC72C' }}>
+                <span className="text-[6.5px] font-black uppercase tracking-wider text-slate-500 block leading-none">Objetivo de Produção</span>
+                <span className="text-[9px] font-bold text-slate-800 leading-tight">{currentObjectives.productionObjective || '—'}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Planta */}
+          <FloorPlan
+            mode="print"
+            stations={filteredStations}
+            schedule={schedule}
+            selectedShift={selectedShift}
+            employees={employees}
+            isLocked
+          />
+
+          <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-200 text-[6.5px] font-bold text-slate-400 uppercase tracking-widest">
+            <span>{settings.restaurantName} · Posicionamento {getShiftLabel(selectedShift)} · {date}</span>
+            <span>Impresso em {new Date().toLocaleString('pt-PT')}</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 items-start overflow-hidden">
-              {Object.entries(stationsByArea).map(([area, stations]) => (<VisualPrintZone key={area} title={getAreaLabel(area)} stations={stations} schedule={schedule} selectedShift={selectedShift} employees={employees} color={getAreaColor(area)} totalStationsCount={totalVisibleStations} />))}
-          </div>
-          <div className="fixed bottom-1 left-2 w-full flex justify-between text-[6px] font-bold text-slate-200 uppercase tracking-widest bg-white"><span>TeamPos &bull; MCD OPS SYSTEM</span></div>
       </div>
     </>
   );
