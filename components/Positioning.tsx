@@ -3,11 +3,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { StaffingTableEntry, AppSettings, DailySchedule, Employee, HourlyProjection, ShiftType, StationAssignment, StationConfig } from '../types';
 import { AVAILABLE_SHIFTS, STATIONS } from '../constants';
 import { FloorPlan } from './positioning/FloorPlan';
+import { PtDateNavigator } from './ui/PtDateNavigator';
+import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts';
 import { 
   Users, User, AlertCircle, X, 
   Flame, Sun, Store, MoonStar, 
   CupSoda, TrendingUp,
-  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise
+  Calculator, CheckCircle2, AlertTriangle, Calendar, UserCircle, Briefcase, Printer, Save, Lock, Unlock, Edit, Target, GraduationCap, Trash2, Sunrise, ChevronDown
 } from 'lucide-react';
 
 // --- Helpers ---
@@ -158,6 +160,8 @@ export const Positioning: React.FC<PositioningProps> = ({
       if (onShiftChangeComplete) onShiftChangeComplete();
     }
   }, [initialShift, availableShifts, onShiftChangeComplete]);
+
+  const [objectivesExpanded, setObjectivesExpanded] = useState(false);
 
   useEffect(() => {
     if (!availableShifts.includes(selectedShift) && availableShifts.length > 0) setSelectedShift(availableShifts[0]);
@@ -619,363 +623,505 @@ export const Positioning: React.FC<PositioningProps> = ({
           }
         }
       `}} />
-      <div className="flex flex-col h-full space-y-4 animate-fade-in print:hidden">
-        {/* Header Bar: Date & Shift Manager selection */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-5">
-            <div className="flex items-center gap-3.5 w-full md:w-auto">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0 shadow-sm"><Calendar size={20} /></div>
-                <div className="flex-1">
-                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Data de Trabalho</p>
-                  <input 
-                    type="date" 
-                    value={date} 
-                    onChange={(e) => setDate(e.target.value)} 
-                    className="text-base font-black text-gray-800 bg-transparent border-b-2 border-gray-150 focus:border-blue-500 outline-none pb-0.5 hover:border-gray-300 transition-colors w-full cursor-pointer" 
-                  />
-                </div>
-            </div>
-            
-            <div className="flex items-center gap-3.5 w-full md:w-auto">
-                <div className="p-3 bg-purple-50 text-purple-600 rounded-xl shrink-0 shadow-sm"><UserCircle size={20} /></div>
-                <div className="flex-1 w-full md:w-auto">
-                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Turno</p>
-                    <select 
-                      value={schedule.shiftManagers?.[selectedShift]?.leader || ''} 
-                      onChange={(e) => handleManagerChange('leader', e.target.value)} 
-                      disabled={isShiftLocked} 
-                      className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
-                    >
-                      <option value="">Selecione o Gerente...</option>
-                      {employees
-                        .filter(e => e.role === 'GERENTE')
-                        .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
-                        .map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.name}</option>
-                      ))}
-                    </select>
-                </div>
-                <div className="flex-1 w-full md:w-auto">
-                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Gerente de Apoio</p>
-                    <select 
-                      value={schedule.shiftManagers?.[selectedShift]?.support || ''} 
-                      onChange={(e) => handleManagerChange('support', e.target.value)} 
-                      disabled={isShiftLocked} 
-                      className={`w-full md:w-64 mt-1 p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-purple-500/15 focus:border-purple-500 focus:outline-none transition-all cursor-pointer ${isShiftLocked ? 'opacity-70 cursor-not-allowed bg-gray-100' : ''}`}
-                    >
-                      <option value="">Selecione o Gerente...</option>
-                      {employees
-                        .filter(e => e.role === 'GERENTE')
-                        .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
-                        .map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.name}</option>
-                      ))}
-                    </select>
-                </div>
-            </div>
-        </div>
+      <div className="flex flex-col h-full space-y-3.5 animate-fade-in print:hidden">
+        {/* Unified Compact Command Bar: Date + Shift Segment + Actions + Managers */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/85 overflow-hidden">
+          {/* Top Row: Date Navigator, Shift Switcher & Actions */}
+          <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <PtDateNavigator value={date} onChange={setDate} />
 
-        {/* Console de Botões */}
-        <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center gap-2.5 flex-wrap">
-             <button 
-               onClick={() => {
-                 onSaveSchedule(schedule);
-                 alert("Rascunho do posicionamento guardado com sucesso no histórico!");
-               }} 
-               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-             >
-               Guardar Rascunho
-             </button>
-             <button 
-               onClick={handleSaveAndLock}
-               disabled={isShiftLocked}
-               title={isExpired ? 'Datas passadas são apenas de consulta' : isShiftLocked ? 'Turno já submetido e validado' : 'Validar e trancar o turno'}
-               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                 isShiftLocked
-                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
-                   : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
-               }`}
-             >
-               {isShiftLocked ? (
-                 <><CheckCircle2 size={14} className="text-emerald-600" /> Posicionamento Submetido</>
-               ) : (
-                 <>Submeter Posicionamento</>
-               )}
-             </button>
-             {isExpired && (
-               <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 flex items-center gap-1.5">
-                 <Lock size={12} /> Data passada — consulta
-               </span>
-             )}
-             {orphanAssignmentsCount > 0 && (
-               <button
-                 onClick={handleCleanOrphanAssignments}
-                 disabled={isShiftLocked}
-                 className="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-200 flex items-center gap-1.5 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                 title="Remover colaboradores inativos/removidos deste turno"
-               >
-                 <AlertTriangle size={12} /> {orphanAssignmentsCount} posicionado(s) inativo(s) — limpar
-               </button>
-             )}
-             <div className="flex-1"></div>
-             
-             <div className="flex items-center gap-2.5">
-                {manualAdj !== 0 && (
-                  <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200">
-                    Ajuste Ativo: {manualAdj > 0 ? `+${manualAdj}` : manualAdj}
-                  </span>
-                )}
-                <button 
-                   onClick={() => {
-                      setManualAdjPasswordInput('');
-                      setManualAdjCountInput(manualAdj !== 0 ? String(manualAdj) : '');
-                      setManualAdjError('');
-                      setManualAdjStep(1);
-                      const currentCustoms = schedule.manualStationAdditions?.[selectedShift] || [];
-                      setSelectedCustomStations(currentCustoms);
-                      setManualAdjType(currentCustoms.length > 0 ? 'custom' : 'staffing');
-                      setShowManualAdjModal(true);
-                   }}
-                   className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              {/* Compact Shift Segmented Pill Switcher */}
+              <div className="bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 inline-flex items-center gap-1">
+                {availableShifts.map(shift => {
+                  const isActive = selectedShift === shift;
+                  const locked = (schedule.lockedShifts || []).includes(shift);
+                  return (
+                    <button
+                      key={shift}
+                      type="button"
+                      onClick={() => setSelectedShift(shift)}
+                      className={`px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        isActive
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                      }`}
+                    >
+                      <span className="shrink-0 opacity-90">{getShiftIcon(shift)}</span>
+                      <span>{getShiftLabel(shift)}</span>
+                      {locked && (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isActive ? 'bg-emerald-400' : 'bg-emerald-500'
+                          }`}
+                          title="Turno validado"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {isExpired && (
+                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200 inline-flex items-center gap-1.5">
+                  <Lock size={11} /> Consulta (data passada)
+                </span>
+              )}
+              {orphanAssignmentsCount > 0 && (
+                <button
+                  onClick={handleCleanOrphanAssignments}
+                  disabled={isShiftLocked}
+                  className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 inline-flex items-center gap-1.5 hover:bg-rose-100 disabled:opacity-60 cursor-pointer"
+                  title="Remover colaboradores inativos deste turno"
                 >
-                   Ajuste Manual
+                  <AlertTriangle size={11} /> {orphanAssignmentsCount} inativo(s) · limpar
                 </button>
-             </div>
-        </div>
+              )}
+            </div>
 
-        {/* Shift selector container: Modern Segment Controller pill bar */}
-        <div className="bg-slate-100/55 p-1.5 rounded-2xl border border-gray-200/50 flex gap-1.5 overflow-x-auto shadow-sm">
-          {availableShifts.map(shift => {
-            const isActive = selectedShift === shift;
-            return (
-              <button 
-                key={shift} 
-                onClick={() => setSelectedShift(shift)} 
-                className={`flex-1 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2.5 font-bold text-xs uppercase tracking-wider transition-all duration-150 whitespace-nowrap cursor-pointer active:scale-98 ${
-                  isActive 
-                    ? 'bg-white text-blue-700 shadow-md border border-blue-100' 
-                    : 'bg-transparent text-slate-550 hover:bg-white/40 hover:text-slate-700'
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              {manualAdj !== 0 && (
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                  Ajuste: {manualAdj > 0 ? `+${manualAdj}` : manualAdj}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveSchedule(schedule);
+                  alert('Rascunho do posicionamento guardado com sucesso no histórico!');
+                }}
+                className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Guardar rascunho
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAndLock}
+                disabled={isShiftLocked}
+                title={
+                  isExpired
+                    ? 'Datas passadas são apenas de consulta'
+                    : isShiftLocked
+                    ? 'Turno já submetido e validado'
+                    : 'Validar e submeter o posicionamento do turno'
+                }
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                  isShiftLocked
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white shadow-2xs'
                 }`}
               >
-                <div className="relative">
-                  {getShiftIcon(shift)}
-                  {(schedule.lockedShifts || []).includes(shift) && (
-                     <div className="absolute -top-2.5 -right-2.5 bg-emerald-500 text-white rounded-full p-0.5 border border-white shadow-sm flex items-center justify-center">
-                        <Lock size={8} className="stroke-[2.5]" />
-                     </div>
-                   )}
-                </div>
-                <span>{getShiftLabel(shift)}</span>
+                {isShiftLocked ? (
+                  <>
+                    <CheckCircle2 size={13.5} className="text-emerald-600" /> Submetido
+                  </>
+                ) : (
+                  <>Submeter turno</>
+                )}
               </button>
-            );
-          })}
-        </div>
-
-        {/* Sales Forecast & Metrics Bento Grid */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                <div className="lg:col-span-5 lg:border-r border-gray-100 lg:pr-6 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-blue-600" /> Previsão de Vendas</h3>
-                      
-                      <div className="mb-5 bg-blue-50/20 p-4 rounded-2xl border border-blue-100/50">
-                        <label className="block text-[10px] font-black uppercase text-blue-500 tracking-wider mb-2">
-                          Vendas Programadas (€)
-                        </label>
-                        <input 
-                          type="number"
-                          disabled={isShiftLocked}
-                          placeholder="Definir vendas manualmente..."
-                          value={schedule.projectedSales?.[selectedShift] || ''}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0;
-                            const peakHr = selectedShift === 'FECHO' || selectedShift === 'MADRUGADA' ? '19' : '12';
-                            const peakLabel = peakHr + 'h-' + (parseInt(peakHr) + 1) + 'h';
-                            const existingProj = schedule.hourlyProjections?.[selectedShift] || [];
-                            const updatedProj = existingProj.length > 1
-                              ? existingProj
-                              : [{
-                                  hour: existingProj[0]?.hour || peakLabel,
-                                  totalSales: val,
-                                  totalGC: Math.round(val / 6),
-                                  channelGC: existingProj[0]?.channelGC || { counter: 0, sok: 0, drive: 0, delivery: 0 }
-                                }];
-                            setSchedule({
-                              ...schedule,
-                              projectedSales: {
-                                ...(schedule.projectedSales || {}),
-                                [selectedShift]: val
-                              },
-                              hourlyProjections: {
-                                ...(schedule.hourlyProjections || {}),
-                                [selectedShift]: updatedProj
-                              }
-                            });
-                          }}
-                          className="bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl font-black text-sm text-slate-800 w-full outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 transition-all placeholder:text-gray-400/80"
-                        />
-                      </div>
-
-                      {shiftPeakData.length > 0 ? (
-                        <div className="space-y-2.5">
-                          {shiftPeakData.map((data, idx) => { 
-                            const isActive = manualPeakHour === data.hour; 
-                            return (
-                              <button 
-                                key={idx} 
-                                onClick={() => {
-                                  setManualPeakHour(data.hour);
-                                  setSchedule({
-                                    ...schedule,
-                                    projectedSales: {
-                                      ...(schedule.projectedSales || {}),
-                                      [selectedShift]: data.totalSales
-                                    }
-                                  });
-                                }} 
-                                className={`w-full flex justify-between items-center p-3.5 rounded-xl border-2 transition-all cursor-pointer relative overflow-hidden active:scale-99 ${
-                                  isActive 
-                                    ? 'bg-blue-50/50 border-blue-500 shadow-sm' 
-                                    : 'bg-white border-gray-100 hover:border-blue-200/60 hover:bg-gray-50/30'
-                                }`}
-                              >
-                                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isActive ? 'border-blue-500 bg-blue-505' : 'border-gray-200 bg-white'}`}>
-                                    {isActive && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                                  </div>
-                                  <span className={`font-black text-sm tracking-tight ${isActive ? 'text-blue-900' : 'text-gray-600'}`}>{data.hour}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[10px] text-gray-400 block font-black uppercase tracking-wide">Previsão</span>
-                                  <span className={`font-black text-sm ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{data.totalSales} €</span>
-                                </div>
-                              </button>
-                            ); 
-                          })}
-                        </div>
-                      ) : (
-                        <div className="p-5 text-center bg-amber-50/50 text-amber-800 rounded-xl border border-amber-100 text-xs font-bold flex items-center gap-2 justify-center"><AlertCircle size={16} /> Sem dados de previsão.</div>
-                      )}
-                    </div>
-                </div>
-                <div className="lg:col-span-7 lg:pl-6 flex items-center">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 w-full">
-                        {/* Necessários */}
-                        <div className="bg-blue-50/40 rounded-2xl p-4 border border-blue-100 flex flex-col items-center justify-center text-center">
-                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">Previstos</span>
-                          <div className="p-2 bg-blue-100/70 rounded-xl mb-2 text-blue-600">
-                            <Calculator size={18} />
-                          </div>
-                          <span className="text-3xl font-extrabold text-blue-950 leading-none tabular-nums">{requirement.count}</span>
-                          <span className="text-[10px] font-medium text-slate-500 mt-1.5">Critério Loja</span>
-                        </div>
-                        
-                        {/* Posicionados */}
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 flex flex-col items-center justify-center text-center">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Posicionados</span>
-                          <div className="p-2 bg-white border border-slate-200/60 rounded-xl mb-2 text-slate-700">
-                            <Users size={18} />
-                          </div>
-                          <span className="text-3xl font-extrabold text-slate-900 leading-none tabular-nums">{currentAssignedCount}</span>
-                          <span className="text-[10px] font-medium text-slate-500 mt-1.5">Em Posto</span>
-                        </div>
-                        
-                        {/* Diferença */}
-                        <div className={`rounded-2xl p-4 border flex flex-col items-center justify-center text-center ${
-                          gap > 0 
-                            ? 'bg-rose-50/60 border-rose-200' 
-                            : gap < 0 ? 'bg-amber-50/60 border-amber-200' : 'bg-emerald-50/60 border-emerald-200'
-                        }`}>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Diferença</span>
-                          <div className={`p-2 rounded-xl mb-2 bg-white border border-black/5 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                            {gap === 0 ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-                          </div>
-                          <span className={`text-3xl font-extrabold leading-none tabular-nums ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                            {gap > 0 ? `-${gap}` : gap < 0 ? `+${Math.abs(gap)}` : 'OK'}
-                          </span>
-                          <span className={`text-[10px] font-semibold mt-1.5 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-                            {gap > 0 ? 'Faltam' : gap < 0 ? 'Excesso' : 'Alinhado'}
-                          </span>
-                        </div>
-
-                        {/* SPLH / Produtividade */}
-                        {(() => {
-                          const plannedSales = schedule.projectedSales?.[selectedShift] || activeSalesData.totalSales || 0;
-                          const splh = currentAssignedCount > 0 ? plannedSales / currentAssignedCount : 0;
-                          return (
-                            <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-200/80 flex flex-col items-center justify-center text-center">
-                              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2">Produtividade</span>
-                              <div className="p-2 bg-white border border-amber-200/60 rounded-xl mb-2 text-amber-600">
-                                <TrendingUp size={18} />
-                              </div>
-                              <span className="text-2xl font-extrabold text-slate-900 leading-none tabular-nums">
-                                {splh > 0 ? `${Math.round(splh)} €` : '—'}
-                              </span>
-                              <span className="text-[10px] font-semibold text-amber-800 mt-1.5">SPLH (€/colab·h)</span>
-                            </div>
-                          );
-                        })()}
-                    </div>
-                </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setManualAdjPasswordInput('');
+                  setManualAdjCountInput(manualAdj !== 0 ? String(manualAdj) : '');
+                  setManualAdjError('');
+                  setManualAdjStep(1);
+                  const currentCustoms = schedule.manualStationAdditions?.[selectedShift] || [];
+                  setSelectedCustomStations(currentCustoms);
+                  setManualAdjType(currentCustoms.length > 0 ? 'custom' : 'staffing');
+                  setShowManualAdjModal(true);
+                }}
+                className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/90 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Ajuste manual
+              </button>
             </div>
+          </div>
+
+          {/* Second Row: Managers + Forecast Input + 4 Live Staffing KPIs */}
+          <div className="px-4 py-3 grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-center bg-slate-50/40">
+            {/* Managers + Planned Sales */}
+            <div className="xl:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                  Gerente de turno
+                </label>
+                <select
+                  value={schedule.shiftManagers?.[selectedShift]?.leader || ''}
+                  onChange={e => handleManagerChange('leader', e.target.value)}
+                  disabled={isShiftLocked}
+                  className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:border-slate-900 outline-none transition-all cursor-pointer ${
+                    isShiftLocked ? 'opacity-70 cursor-not-allowed bg-slate-50' : ''
+                  }`}
+                >
+                  <option value="">Selecionar gerente...</option>
+                  {employees
+                    .filter(e => e.role === 'GERENTE')
+                    .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                  Gerente de apoio
+                </label>
+                <select
+                  value={schedule.shiftManagers?.[selectedShift]?.support || ''}
+                  onChange={e => handleManagerChange('support', e.target.value)}
+                  disabled={isShiftLocked}
+                  className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:border-slate-900 outline-none transition-all cursor-pointer ${
+                    isShiftLocked ? 'opacity-70 cursor-not-allowed bg-slate-50' : ''
+                  }`}
+                >
+                  <option value="">Sem apoio / selecionar...</option>
+                  {employees
+                    .filter(e => e.role === 'GERENTE')
+                    .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <label className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    Vendas (€)
+                  </label>
+                  {shiftPeakData.length > 0 && (
+                    <div className="inline-flex items-center gap-1">
+                      {shiftPeakData.map((data, idx) => {
+                        const isActive = manualPeakHour === data.hour;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setManualPeakHour(data.hour);
+                              setSchedule({
+                                ...schedule,
+                                projectedSales: {
+                                  ...(schedule.projectedSales || {}),
+                                  [selectedShift]: data.totalSales,
+                                },
+                              });
+                            }}
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md cursor-pointer transition-colors ${
+                              isActive
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                            title={`Usar hora de ponta ${data.hour}: ${data.totalSales} €`}
+                          >
+                            {data.hour}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="number"
+                  disabled={isShiftLocked}
+                  placeholder="Ex.: 1500"
+                  value={schedule.projectedSales?.[selectedShift] || ''}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value) || 0;
+                    const peakHr =
+                      selectedShift === 'FECHO' || selectedShift === 'MADRUGADA' ? '19' : '12';
+                    const peakLabel = peakHr + 'h-' + (parseInt(peakHr) + 1) + 'h';
+                    const existingProj = schedule.hourlyProjections?.[selectedShift] || [];
+                    const updatedProj =
+                      existingProj.length > 1
+                        ? existingProj
+                        : [
+                            {
+                              hour: existingProj[0]?.hour || peakLabel,
+                              totalSales: val,
+                              totalGC: Math.round(val / 6),
+                              channelGC: existingProj[0]?.channelGC || {
+                                counter: 0,
+                                sok: 0,
+                                drive: 0,
+                                delivery: 0,
+                              },
+                            },
+                          ];
+                    setSchedule({
+                      ...schedule,
+                      projectedSales: {
+                        ...(schedule.projectedSales || {}),
+                        [selectedShift]: val,
+                      },
+                      hourlyProjections: {
+                        ...(schedule.hourlyProjections || {}),
+                        [selectedShift]: updatedProj,
+                      },
+                    });
+                  }}
+                  className="bg-white border border-slate-200 px-3 py-2 rounded-xl font-bold text-xs text-slate-900 w-full outline-none focus:border-slate-900 transition-all tabular-nums placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* 4 Compact High-Signal KPI Cards */}
+            <div className="xl:col-span-6 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200/80 flex items-center justify-between gap-2">
+                <div>
+                  <span className="block text-[11px] font-medium text-slate-500">Previstos</span>
+                  <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-tight">
+                    {requirement.count}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <Calculator size={15} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl px-3 py-2.5 border border-slate-200/80 flex items-center justify-between gap-2">
+                <div>
+                  <span className="block text-[11px] font-medium text-slate-500">Posicionados</span>
+                  <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-tight">
+                    {currentAssignedCount}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                  <Users size={15} />
+                </div>
+              </div>
+
+              <div
+                className={`rounded-xl px-3 py-2.5 border flex items-center justify-between gap-2 ${
+                  gap > 0
+                    ? 'bg-rose-50/70 border-rose-200'
+                    : gap < 0
+                    ? 'bg-amber-50/70 border-amber-200'
+                    : 'bg-emerald-50/70 border-emerald-200'
+                }`}
+              >
+                <div>
+                  <span
+                    className={`block text-[11px] font-semibold ${
+                      gap > 0 ? 'text-rose-700' : gap < 0 ? 'text-amber-800' : 'text-emerald-700'
+                    }`}
+                  >
+                    {gap > 0 ? 'Faltam' : gap < 0 ? 'Excesso' : 'Alinhado'}
+                  </span>
+                  <span
+                    className={`text-xl font-extrabold tabular-nums leading-tight ${
+                      gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-700' : 'text-emerald-700'
+                    }`}
+                  >
+                    {gap > 0 ? `-${gap}` : gap < 0 ? `+${Math.abs(gap)}` : 'OK'}
+                  </span>
+                </div>
+                <div
+                  className={`w-8 h-8 rounded-lg bg-white/90 flex items-center justify-center shrink-0 ${
+                    gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-600'
+                  }`}
+                >
+                  {gap === 0 ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                </div>
+              </div>
+
+              {(() => {
+                const plannedSales =
+                  schedule.projectedSales?.[selectedShift] || activeSalesData.totalSales || 0;
+                const splh = currentAssignedCount > 0 ? plannedSales / currentAssignedCount : 0;
+                return (
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-amber-200/90 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="block text-[11px] font-medium text-amber-800">
+                        SPLH (€/h)
+                      </span>
+                      <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-tight">
+                        {splh > 0 ? `${Math.round(splh)} €` : '—'}
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                      <TrendingUp size={15} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Slim Collapsible Objectives & Hourly Curve Strip */}
+          <div className="px-4 py-2 bg-white border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-4 text-xs min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-slate-700 min-w-0">
+                  <Target size={13.5} className="text-sky-600 shrink-0" />
+                  <span className="font-semibold text-slate-500">Objetivo de turno:</span>
+                  <span className="font-bold text-slate-900 truncate max-w-[260px]">
+                    {currentObjectives.turnObjective || 'Não definido'}
+                  </span>
+                </span>
+                <span className="hidden sm:inline text-slate-200">•</span>
+                <span className="inline-flex items-center gap-1.5 text-slate-700 min-w-0">
+                  <Flame size={13.5} className="text-orange-500 shrink-0" />
+                  <span className="font-semibold text-slate-500">Produção:</span>
+                  <span className="font-bold text-slate-900 truncate max-w-[260px]">
+                    {currentObjectives.productionObjective || 'Não definido'}
+                  </span>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setObjectivesExpanded(v => !v)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-900 px-2 py-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <span>{objectivesExpanded ? 'Recolher objetivos' : 'Editar objetivos & curva'}</span>
+                <ChevronDown
+                  size={13}
+                  className={`transition-transform ${objectivesExpanded ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </div>
+
+            {objectivesExpanded && (
+              <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 lg:grid-cols-12 gap-3">
+                <div className="lg:col-span-4">
+                  <label className="flex items-center gap-1.5 mb-1.5 text-slate-700 font-semibold text-xs">
+                    <Target size={13} className="text-sky-600" /> Objetivo de turno
+                  </label>
+                  <textarea
+                    value={currentObjectives.turnObjective || ''}
+                    onChange={e => handleObjectiveChange('turnObjective', e.target.value)}
+                    placeholder="Ex.: SOS < 160'', hospitalidade em sala..."
+                    disabled={isShiftLocked}
+                    className="w-full text-xs font-medium p-3 bg-slate-50/70 border border-slate-200 rounded-xl focus:border-slate-900 outline-none h-16 placeholder:text-slate-400 transition-all resize-none"
+                  />
+                </div>
+                <div className="lg:col-span-4">
+                  <label className="flex items-center gap-1.5 mb-1.5 text-slate-700 font-semibold text-xs">
+                    <Flame size={13} className="text-orange-500" /> Objetivo de produção
+                  </label>
+                  <textarea
+                    value={currentObjectives.productionObjective || ''}
+                    onChange={e => handleObjectiveChange('productionObjective', e.target.value)}
+                    placeholder="Ex.: Tempo reação KVS < 30'', níveis e2e..."
+                    disabled={isShiftLocked}
+                    className="w-full text-xs font-medium p-3 bg-slate-50/70 border border-slate-200 rounded-xl focus:border-slate-900 outline-none h-16 placeholder:text-slate-400 transition-all resize-none"
+                  />
+                </div>
+                <div className="lg:col-span-4 bg-slate-50/70 border border-slate-200/80 rounded-xl p-2.5 flex flex-col justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Curva horária do turno (€)
+                  </span>
+                  {(schedule.hourlyProjections?.[selectedShift] || []).length > 0 ? (
+                    <div className="h-14 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={schedule.hourlyProjections?.[selectedShift] || []}>
+                          <Tooltip
+                            formatter={(val: any) => [`${val} €`, 'Previsão']}
+                            contentStyle={{
+                              fontSize: '11px',
+                              borderRadius: '10px',
+                              border: '1px solid #e2e8f0',
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="totalSales"
+                            stroke="#d97706"
+                            strokeWidth={2}
+                            fill="#fef3c7"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 py-3">
+                      Importe a previsão horária no separador Previsão &amp; Vendas para ver a curva.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Turn Objectives and Production Goals */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-3 text-blue-900 font-black text-xs uppercase tracking-wider"><Target size={16} className="text-blue-500" /> Objetivo de Turno</div>
-              <textarea 
-                value={currentObjectives.turnObjective || ''} 
-                onChange={(e) => handleObjectiveChange('turnObjective', e.target.value)} 
-                placeholder="Objetivos do turno (qualidade, serviço, tempos)..." 
-                disabled={isShiftLocked} 
-                className="w-full text-xs font-semibold p-3.5 bg-blue-50/15 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 focus:outline-none outline-none h-20 placeholder:text-gray-400/85 transition-all resize-none" 
-              />
-           </div>
-           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-3 text-orange-900 font-black text-xs uppercase tracking-wider"><Flame size={16} className="text-orange-500" /> Objetivo de Produção</div>
-              <textarea 
-                value={currentObjectives.productionObjective || ''} 
-                onChange={(e) => handleObjectiveChange('productionObjective', e.target.value)} 
-                placeholder="Objetivos de produção (meta de tempo KVS, preparação)..." 
-                disabled={isShiftLocked} 
-                className="w-full text-xs font-semibold p-3.5 bg-orange-50/15 border border-orange-100 rounded-xl focus:ring-2 focus:ring-orange-500/15 focus:border-orange-500 focus:outline-none outline-none h-20 placeholder:text-gray-400/85 transition-all resize-none" 
-              />
-           </div>
-        </div>
+        {/* Stations Header & Clean Action Controls */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-0.5">
+          <div className="flex items-center gap-2.5">
+            <h3 className="font-bold text-slate-900 text-sm tracking-tight flex items-center gap-2">
+              <Briefcase size={16} className="text-slate-700" />
+              Planta Operacional de Postos
+            </h3>
+            <span className="bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full tabular-nums">
+              {totalVisibleStations} postos ativos
+            </span>
+          </div>
 
-        {/* Stations Title and Action Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2 px-1">
-          <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-            <Briefcase size={20} className="text-blue-600" /> Postos de Trabalho 
-            <span className="bg-blue-50 border border-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">{totalVisibleStations} Visíveis</span>
-          </h3>
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
               {!isShiftLocked && !isExpired && (
-                <button onClick={handleSaveAndLock} className="flex items-center gap-2 px-4.5 py-2.5 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 cursor-pointer">
-                  <Save size={14} /> Finalizar {getShiftLabel(selectedShift)}
+                <button
+                  onClick={handleSaveAndLock}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-2xs cursor-pointer"
+                >
+                  <Save size={13.5} /> Finalizar {getShiftLabel(selectedShift)}
                 </button>
               )}
               {isShiftLocked && !isExpired && (
-                <button onClick={handleUnlock} className="flex items-center gap-2 px-4.5 py-2.5 bg-amber-500 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-amber-600 transition-all shadow-sm active:scale-95 cursor-pointer">
-                  <Edit size={14} /> Editar {getShiftLabel(selectedShift)}
+                <button
+                  onClick={handleUnlock}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer"
+                >
+                  <Edit size={13.5} className="text-amber-600" /> Editar {getShiftLabel(selectedShift)}
                 </button>
               )}
               {!isShiftLocked && (
-                <button onClick={handleClearAssignments} className="flex items-center gap-2 px-4.5 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-black uppercase tracking-wider rounded-xl border border-red-100 transition-all active:scale-95 cursor-pointer">
-                  <Trash2 size={14} /> Limpar
+                <button
+                  onClick={handleClearAssignments}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-rose-600 hover:bg-rose-50 text-xs font-semibold rounded-xl border border-rose-200/80 transition-all cursor-pointer"
+                >
+                  <Trash2 size={13.5} /> Limpar
                 </button>
               )}
-              <button onClick={handlePrint} className="flex items-center gap-2 px-4.5 py-2.5 bg-slate-900 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-slate-800 transition-all shadow-sm active:scale-95 cursor-pointer"><Printer size={14} /> Imprimir</button>
-            </div>
-            <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
-            <div className="flex items-center gap-2" title="Mostrar todos os postos de trabalho configurados">
-              <span className="text-[10px] font-black uppercase text-slate-400 hidden lg:inline">Exibir Todos</span>
-              <button onClick={() => setShowAllStations(!showAllStations)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${showAllStations ? 'bg-blue-600' : 'bg-slate-200'}`}>
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showAllStations ? 'translate-x-6' : 'translate-x-1'}`} />
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-2xs cursor-pointer"
+              >
+                <Printer size={13.5} /> Imprimir planta
               </button>
             </div>
+
+            <div className="h-5 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+
+            <label
+              className="inline-flex items-center gap-2 cursor-pointer select-none"
+              title="Mostrar todos os postos configurados na loja"
+            >
+              <span className="text-xs font-medium text-slate-500 hidden lg:inline">
+                Todos os postos
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAllStations(!showAllStations)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                  showAllStations ? 'bg-slate-900' : 'bg-slate-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    showAllStations ? 'translate-x-4.5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </label>
           </div>
         </div>
 

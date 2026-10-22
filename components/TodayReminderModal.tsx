@@ -209,7 +209,7 @@ export const TodayReminderModal: React.FC<TodayReminderModalProps> = ({
                 onClose();
                 onOpenAgenda();
               }}
-              className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
             >
               <span>Abrir Agenda Digital</span>
               <ArrowRight size={14} />

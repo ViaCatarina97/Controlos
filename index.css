@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -13,11 +13,163 @@
     background-color: #f8fafc;
     color: #0f172a;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Custom subtle shadows missing in Tailwind v3 defaults */
+.shadow-2xs {
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.035);
+}
+.shadow-xs {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+}
+
+/* =========================================================================
+   EXECUTIVE DARK MODE (Screen-only — Print always outputs crisp white paper)
+   ========================================================================= */
+@media screen {
+  html.dark body {
+    background-color: #0b1120;
+    color: #f1f5f9;
+  }
+
+  /* Page canvases */
+  html.dark .bg-slate-50 {
+    background-color: #0b1120 !important;
+  }
+  html.dark .bg-slate-50\/40,
+  html.dark .bg-slate-50\/45,
+  html.dark .bg-slate-50\/50,
+  html.dark .bg-slate-50\/60,
+  html.dark .bg-slate-50\/70,
+  html.dark .bg-slate-50\/80,
+  html.dark .bg-slate-50\/90,
+  html.dark .bg-gray-50,
+  html.dark .bg-gray-50\/70 {
+    background-color: #131c2e !important;
+  }
+
+  /* Card surfaces & translucent headers */
+  html.dark .bg-white {
+    background-color: #111827 !important;
+  }
+  html.dark .bg-white\/95,
+  html.dark .bg-white\/90 {
+    background-color: rgba(17, 24, 39, 0.94) !important;
+  }
+
+  /* Secondary pills & controls */
+  html.dark .bg-slate-100,
+  html.dark .bg-slate-100\/90,
+  html.dark .bg-slate-100\/55,
+  html.dark .bg-gray-100 {
+    background-color: #1e293b !important;
+  }
+
+  /* Primary dark buttons stay visibly elevated on dark cards */
+  html.dark button.bg-slate-900 {
+    background-color: #fbbf24 !important;
+    color: #0f172a !important;
+  }
+  html.dark button.bg-slate-900:hover {
+    background-color: #f59e0b !important;
+  }
+
+  /* Soft semantic tints adapted for dark mode readability */
+  html.dark .bg-amber-50,
+  html.dark .bg-amber-50\/35,
+  html.dark .bg-amber-50\/40,
+  html.dark .bg-amber-50\/50,
+  html.dark .bg-amber-50\/70,
+  html.dark .bg-amber-50\/80,
+  html.dark .bg-amber-100\/80 {
+    background-color: rgba(245, 158, 11, 0.13) !important;
+  }
+  html.dark .bg-emerald-50,
+  html.dark .bg-emerald-50\/60,
+  html.dark .bg-emerald-50\/70 {
+    background-color: rgba(16, 185, 129, 0.13) !important;
+  }
+  html.dark .bg-rose-50,
+  html.dark .bg-rose-50\/60,
+  html.dark .bg-rose-50\/70,
+  html.dark .bg-red-50 {
+    background-color: rgba(244, 63, 94, 0.14) !important;
+  }
+  html.dark .bg-sky-50,
+  html.dark .bg-blue-50,
+  html.dark .bg-blue-50\/40 {
+    background-color: rgba(56, 189, 248, 0.13) !important;
+  }
+
+  /* Typography hierarchy */
+  html.dark .text-slate-900,
+  html.dark .text-slate-950,
+  html.dark .text-gray-900 {
+    color: #f8fafc !important;
+  }
+  html.dark .text-amber-400 + .text-slate-950,
+  html.dark .bg-amber-400.text-slate-950,
+  html.dark .bg-amber-400 .text-slate-950 {
+    color: #0f172a !important;
+  }
+  html.dark .text-slate-800,
+  html.dark .text-gray-800,
+  html.dark .text-slate-700,
+  html.dark .text-gray-700 {
+    color: #e2e8f0 !important;
+  }
+  html.dark .text-slate-600,
+  html.dark .text-gray-600,
+  html.dark .text-slate-500,
+  html.dark .text-gray-500 {
+    color: #94a3b8 !important;
+  }
+  html.dark .text-amber-900,
+  html.dark .text-amber-950,
+  html.dark .text-amber-800,
+  html.dark .text-amber-700 {
+    color: #fcd34d !important;
+  }
+  html.dark .text-emerald-700,
+  html.dark .text-emerald-800 {
+    color: #6ee7b7 !important;
+  }
+  html.dark .text-rose-700,
+  html.dark .text-rose-800,
+  html.dark .text-rose-600 {
+    color: #fda4af !important;
+  }
+  html.dark .text-sky-700 {
+    color: #7dd3fc !important;
+  }
+
+  /* Hairlines & borders */
+  html.dark .border-slate-200,
+  html.dark .border-slate-200\/90,
+  html.dark .border-slate-200\/85,
+  html.dark .border-slate-200\/80,
+  html.dark .border-slate-200\/70,
+  html.dark .border-slate-100,
+  html.dark .border-gray-200,
+  html.dark .border-gray-100 {
+    border-color: #1f2d42 !important;
+  }
+
+  /* Form controls */
+  html.dark input:not([type="checkbox"]):not([type="radio"]),
+  html.dark select,
+  html.dark textarea {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+    border-color: #334155 !important;
+    color-scheme: dark;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -33,4 +185,7 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
 }

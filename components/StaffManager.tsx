@@ -58,7 +58,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({ employees, setEmploy
         <h2 className="text-2xl font-bold text-gray-800">Equipa e Cargos</h2>
         <button
           onClick={() => openModal()}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors"
         >
           <Plus size={18} />
           Novo Colaborador
@@ -134,7 +134,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({ employees, setEmploy
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+                  className="px-4 py-2 bg-slate-900 text-white rounded hover:bg-slate-800 flex items-center gap-2"
                 >
                   <Check size={16} /> Guardar
                 </button>

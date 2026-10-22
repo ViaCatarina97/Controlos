@@ -116,7 +116,7 @@ export const BillingCreditsTab: React.FC<BillingCreditsTabProps> = ({
         </div>
         <button 
           onClick={handleOpenCreateMode}
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+          className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-all active:scale-95"
         >
           <Plus size={20} /> Lançar NC
         </button>
@@ -139,7 +139,7 @@ export const BillingCreditsTab: React.FC<BillingCreditsTabProps> = ({
                 onClick={() => setShowAllMonths(!showAllMonths)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter border transition-all ${
                   showAllMonths 
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                    ? 'bg-slate-900 text-white border-blue-600 shadow-sm' 
                     : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                 }`}
               >
@@ -469,7 +469,7 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
                 </button>
                 <button 
                   onClick={handleNext}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+                  className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-all active:scale-95"
                 >
                   Seguinte <ArrowRight size={16} />
                 </button>
@@ -630,7 +630,7 @@ const CreditNoteWizardModal: React.FC<CreditNoteWizardModalProps> = ({
                 <button 
                   type="button" 
                   onClick={handleSave}
-                  className="flex-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-[0.98]"
+                  className="flex-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-all active:scale-[0.98]"
                 >
                   Gravar
                 </button>

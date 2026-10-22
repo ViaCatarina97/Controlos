@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { PtDateNavigator } from './ui/PtDateNavigator';
 import { 
   Employee, AppSettings, CofreCount, DepositRecord, DepositRow, ProsegurDepositRecord, FinanceInvoice, 
   ProsegurWeeklyDeposit, ProsegurCoinMovement, ProsegurDailyDeposit, CaixaSurpresaRecord
@@ -1941,7 +1942,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           {/* Form Meta Setup */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 print:bg-white print:border-0 print:grid-cols-5 print:p-2">
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Data</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data</label>
               <div className="relative">
                 <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                 <input 
@@ -1955,7 +1956,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Turno</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Turno</label>
               <div className="relative">
                 <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                 <select
@@ -1972,7 +1973,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Estado do Turno</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Estado do Turno</label>
               <div className="relative">
                 <select
                   disabled={editingCofre.isLocked && !isCofreUnlocked}
@@ -1995,7 +1996,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             {editingCofre.turn === 'Tarde' ? (
               <div className="grid grid-cols-1 gap-2">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-[2px]">Gerente Abertura</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-[2px]">Gerente Abertura</label>
                   <div className="relative">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                     <select
@@ -2012,7 +2013,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-[2px]">Gerente de Fecho</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-[2px]">Gerente de Fecho</label>
                   <div className="relative">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                     <select
@@ -2031,7 +2032,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
             ) : (
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Gerente de Turno</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Gerente de Turno</label>
                 <div className="relative">
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 print:hidden" size={14} />
                   <select
@@ -2050,7 +2051,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             )}
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Fundos de Gaveta 🔒</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Fundos de Gaveta 🔒</label>
               <div className="flex gap-2 items-center">
                 <input 
                   type="number"
@@ -2336,7 +2337,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   setEditingCofre(null);
                   setIsCofreUnlocked(false);
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
+                className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
               >
                 Voltar
               </button>
@@ -2363,7 +2364,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       handleSaveCofreCountEdit(true);
                     }
                   }}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 font-bold text-xs uppercase tracking-wider shadow-md shadow-blue-50"
+                  className="bg-slate-900 text-white px-6 py-2 rounded-xl hover:bg-slate-800 font-bold text-xs uppercase tracking-wider shadow-md shadow-blue-50"
                 >
                   Submeter 🔒
                 </button>
@@ -2819,7 +2820,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditingDeposit(null)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
+                    className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-wider"
                   >
                     Sair da Visualização
                   </button>
@@ -2895,7 +2896,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Data de Recolha</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data de Recolha</label>
                 <input 
                   type="date"
                   value={editingProsegur.date}
@@ -2904,7 +2905,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Nº Selo / Saco Seguro</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Nº Selo / Saco Seguro</label>
                 <input 
                   type="text"
                   placeholder="Sacos e Selos nº..."
@@ -2917,7 +2918,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Valor Notas (€)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Valor Notas (€)</label>
                 <input 
                   type="number"
                   placeholder="0.00"
@@ -2927,7 +2928,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Valor Moedas (€)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Valor Moedas (€)</label>
                 <input 
                   type="number"
                   placeholder="0.00"
@@ -2937,7 +2938,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Valor Total Programado</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Valor Total Programado</label>
                 <div className="py-2.5 px-3 bg-gray-50 border rounded-xl font-black text-xs text-emerald-800 text-center">
                   {formatEuro(Number(editingProsegur.amountNotes || 0) + Number(editingProsegur.amountCoins || 0))}
                 </div>
@@ -2946,7 +2947,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Nº Guia de Transporte Prosegur</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Nº Guia de Transporte Prosegur</label>
                 <input 
                   type="text"
                   placeholder="Ex: GUIA-920"
@@ -2956,7 +2957,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Estado de Liquidação</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Estado de Liquidação</label>
                 <select
                   value={editingProsegur.status}
                   onChange={(e) => setEditingProsegur({ ...editingProsegur, status: e.target.value as any })}
@@ -2970,7 +2971,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Observações</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Observações</label>
               <textarea 
                 rows={2}
                 placeholder="Escreva detalhes adicionais ou códigos..."
@@ -3006,28 +3007,28 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
             <div className="space-y-6">
               
               {/* Selector area to add past or other days for counting */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 gap-4">
-                <div></div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Registo &amp; Conferência de Cofre</h3>
+                  <p className="text-xs text-slate-500">Selecione uma data para iniciar ou consultar as 3 contagens diárias</p>
+                </div>
                 
-                <div className="flex items-center gap-2 self-stretch sm:self-auto">
-                  <input 
-                    type="date"
+                <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
+                  <PtDateNavigator
                     value={customDateInput}
-                    onChange={(e) => setCustomDateInput(e.target.value)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-xl font-bold text-xs bg-white text-gray-700 focus:ring-1 focus:ring-blue-500"
+                    onChange={setCustomDateInput}
                   />
                   <button
                     onClick={() => {
                       if (!customDateInput) return;
-                      // Add to custom dates list if not already there
                       if (!extraDates.includes(customDateInput)) {
                         setExtraDates([...extraDates, customDateInput]);
                       }
-                      alert(`Dia ${customDateInput} iniciado. Veja a linha correspondente abaixo.`);
+                      alert(`Dia ${customDateInput} disponível na lista de contagens abaixo.`);
                     }}
-                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
+                    className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-2xs cursor-pointer"
                   >
-                    <Plus size={14} /> Nova Contagem
+                    <Plus size={14} /> Nova contagem
                   </button>
                 </div>
               </div>
@@ -3190,7 +3191,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               {allThreeDone ? (
                                 <button
                                   onClick={() => handleCloseDay(day.date)}
-                                  className="w-full flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md shadow-blue-100"
+                                  className="w-full flex items-center justify-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md shadow-slate-200/60"
                                 >
                                   🔒 Encerrar Dia
                                 </button>
@@ -4412,7 +4413,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest">Soma Depósitos Semanal</span>
+                            <span className="block text-[10.5px] font-semibold text-slate-500">Soma Depósitos Semanal</span>
                             <span className="text-sm font-extrabold text-slate-800 font-mono">{formatEuro(grandTotal)}</span>
                           </div>
                           
@@ -4545,33 +4546,33 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       <div className="grid grid-cols-2 md:grid-cols-7 gap-4 items-center">
                         {/* 1. Nº da Semana */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Semana</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Semana</span>
                           <span className="text-xs font-black text-slate-800">Semana Nº {weekNum}</span>
                           <span className="block text-[9px] text-gray-450 font-bold mt-0.5">({formatDateToDMY(week.startDate)})</span>
                         </div>
                         {/* 2. Total Depósitos */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Depósitos</span>
                           <span className="text-xs font-mono font-black text-slate-700">{formatEuro(dailySum)}</span>
                         </div>
                         {/* 3. Total Moedas */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos Moedas</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Depósitos Moedas</span>
                           <span className="text-xs font-mono font-black text-slate-700">{formatEuro(coinSum)}</span>
                         </div>
                         {/* 4. Total (soma) */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Total</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Total</span>
                           <span className="text-xs font-mono font-black text-emerald-700">{formatEuro(grandTotal)}</span>
                         </div>
                         {/* 5. Gerente de Fecho */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Gerente de Fecho</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Gerente de Fecho</span>
                           <span className="text-xs font-bold text-slate-700 truncate block" title={managerClose}>{managerClose}</span>
                         </div>
                         {/* 6. Data de Finalização */}
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Fecho</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Data de Fecho</span>
                           <span className="text-xs font-bold text-slate-700">{closeDate}</span>
                         </div>
                         {/* 7. Status & Delete */}
@@ -4665,7 +4666,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               }
                               handleSaveWeeklyEdit(editingWeekly);
                             }}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-50"
                           >
                             Iniciar Semana
                           </button>
@@ -4749,7 +4750,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         <>
                           {/* Daily Deposit Form Fields */}
                           <div>
-                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                               Valor do Depósito (€)
                             </label>
                             <input
@@ -4764,7 +4765,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                               Data do Depósito
                             </label>
                             <input
@@ -4776,7 +4777,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                               Gerente Responsável
                             </label>
                             <input
@@ -4793,7 +4794,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         <>
                           {/* Coin Slots Form Fields */}
                           <div>
-                            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-2">
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-2">
                               Como deseja lançar as moedas?
                             </label>
                             <div className="flex gap-2 mb-3">
@@ -4824,7 +4825,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                           {!slotIsCustomCoin ? (
                             <div>
-                              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                                 Selecione do separador "Moedas"
                               </label>
                               {(() => {
@@ -4859,7 +4860,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             </div>
                           ) : (
                             <div>
-                              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                                 Valor Manual de Moedas (€)
                               </label>
                               <input
@@ -4909,7 +4910,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                         <button
                           type="button"
                           onClick={handleSaveWeeklySlot}
-                          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-blue-100"
+                          className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-slate-200/60"
                         >
                           Guardar Lançamento
                         </button>
@@ -4976,11 +4977,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                             >
                               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 grid grid-cols-3 gap-3 text-center">
                                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos</span>
+                                  <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Depósitos</span>
                                   <span className="text-xs font-mono font-black text-slate-800">{formatEuro(dailySum)}</span>
                                 </div>
                                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Depósitos Moedas</span>
+                                  <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Depósitos Moedas</span>
                                   <span className="text-xs font-mono font-black text-slate-800">{formatEuro(coinSum)}</span>
                                 </div>
                                 <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
@@ -5080,19 +5081,19 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       {/* Meta Information Grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Iniciada por</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Iniciada por</span>
                           <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.managerOpen}</span>
                         </div>
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Fechada por</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Fechada por</span>
                           <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.managerClose || '—'}</span>
                         </div>
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Início</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Data de Início</span>
                           <span className="text-xs font-bold text-slate-800">{formatDateToDMY(viewingHistoricWeek.startDate)}</span>
                         </div>
                         <div>
-                          <span className="block text-[8px] font-black text-gray-400 uppercase tracking-wider mb-1">Data de Fecho</span>
+                          <span className="block text-[10.5px] font-semibold text-slate-500 mb-1">Data de Fecho</span>
                           <span className="text-xs font-bold text-slate-800">{viewingHistoricWeek.endDate ? formatDateToDMY(viewingHistoricWeek.endDate) : '—'}</span>
                         </div>
                       </div>
@@ -5518,7 +5519,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <div className="space-y-3.5">
                       {/* Date Input */}
                       <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                           Data da Fatura
                         </label>
                         <input 
@@ -5531,7 +5532,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                       {/* Categoria Selector */}
                       <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                           Categoria
                         </label>
                         <select
@@ -5547,7 +5548,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                       {/* Fornecedor Input */}
                       <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                           Fornecedor
                         </label>
                         <input 
@@ -5561,7 +5562,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
                       {/* Valor Input */}
                       <div>
-                        <label className="block text-[9px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                           Valor (€)
                         </label>
                         <input 
@@ -5577,7 +5578,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       {/* Action Button */}
                       <button
                         onClick={handleRegisterInvoiceMainPage}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md mt-4 flex justify-center items-center gap-2"
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md mt-4 flex justify-center items-center gap-2"
                       >
                         <Plus size={14} /> Lançar Fatura
                       </button>
@@ -5759,7 +5760,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                     <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
                        <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                             Total de Fundos
                           </label>
                           <input 
@@ -5771,7 +5772,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                             Valor Por Fundo
                           </label>
                           <input 
@@ -5785,7 +5786,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                           Fundo Base de Gerente Predefinido (€)
                         </label>
                         <input 
@@ -5865,7 +5866,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           alert("Números mecanográficos gravados com sucesso!");
                         }
                       }}
-                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md ml-auto"
+                      className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md ml-auto"
                     >
                       <Save size={16} /> Guardar Números
                     </button>

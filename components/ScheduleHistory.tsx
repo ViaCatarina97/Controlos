@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { DailySchedule, ShiftType, Employee } from '../types';
 import { AVAILABLE_SHIFTS } from '../constants';
+import { PtDateNavigator } from './ui/PtDateNavigator';
 import { Search, User, Filter, Eye, Trash2, History, CheckCircle2, Clock } from 'lucide-react';
 
 interface ScheduleHistoryProps {
@@ -179,14 +180,13 @@ export const ScheduleHistory: React.FC<ScheduleHistoryProps> = ({
             </select>
           </div>
 
-          <div className="relative">
-            <input
-              type="date"
-              value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-              className="py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-slate-900"
-            />
-          </div>
+          <PtDateNavigator
+            value={filterDate}
+            onChange={setFilterDate}
+            allowClear
+            compact
+            placeholder="Filtrar data"
+          />
         </div>
       </div>
 

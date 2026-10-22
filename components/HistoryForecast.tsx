@@ -336,7 +336,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                                 <button 
                                     key={d} 
                                     onClick={() => toggleDayFilter(d)}
-                                    className={`w-8 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                    className={`w-8 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-slate-900 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
                                 >
                                     {getDayName(d)}
                                 </button>
@@ -370,7 +370,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                                           );
                                           setSelectedIds(new Set());
                                       }}
-                                      className={`px-3 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                      className={`px-3 h-8 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border ${isSelected ? 'bg-slate-900 border-blue-600 text-white shadow-md scale-110' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
                                   >
                                       {y}
                                   </button>
@@ -497,7 +497,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
                 disabled={!averageData} 
                  className={`w-full lg:w-auto h-full px-6 py-6.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-md text-xs uppercase tracking-wider ${
                    averageData 
-                     ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer hover:scale-[1.02] active:scale-95 shadow-blue-200' 
+                     ? 'bg-slate-900 hover:bg-blue-500 text-white cursor-pointer hover:scale-[1.02] active:scale-95 shadow-slate-200/70' 
                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
               >

@@ -39,7 +39,10 @@ import {
   AlertTriangle,
   Clock,
   RefreshCw,
+  Moon,
+  Sun,
 } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts';
 
 type ModuleKey =
   | 'positioning'
@@ -59,6 +62,8 @@ interface ModuleSelectorProps {
   employees?: Employee[];
   schedules?: DailySchedule[];
   history?: HistoryEntry[];
+  darkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
 const HAVI_CODE_MAP: Record<string, string> = {
@@ -116,6 +121,8 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
   employees = [],
   schedules = [],
   history = [],
+  darkMode = false,
+  onToggleDarkMode,
 }) => {
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
@@ -398,7 +405,7 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
           {todayEventsCount > 0 && onOpenTodayReminders && (
             <button
               onClick={onOpenTodayReminders}
-              className="flex items-center gap-1.5 text-amber-900 bg-amber-100/80 border border-amber-300 hover:bg-amber-200/70 transition-colors px-3 py-2 rounded-xl text-xs font-bold"
+              className="flex items-center gap-1.5 text-amber-900 bg-amber-100/80 border border-amber-300 hover:bg-amber-200/70 transition-colors px-3 py-2 rounded-xl text-xs font-bold cursor-pointer"
               title="Ver lembretes de hoje"
             >
               <Bell size={15} className="text-amber-700" />
@@ -408,16 +415,27 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
               <span className="sm:hidden">{todayEventsCount}</span>
             </button>
           )}
+          {onToggleDarkMode && (
+            <button
+              type="button"
+              onClick={onToggleDarkMode}
+              className="flex items-center gap-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200/80 transition-colors px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              title={darkMode ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+            >
+              {darkMode ? <Sun size={15} className="text-amber-500" /> : <Moon size={15} />}
+              <span className="hidden md:inline">{darkMode ? 'Claro' : 'Escuro'}</span>
+            </button>
+          )}
           <button
             onClick={onSettingsClick}
-            className="flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200/80 transition-colors px-3.5 py-2 rounded-xl text-xs font-semibold"
+            className="flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200/80 transition-colors px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer"
           >
             <Settings size={16} />
             <span className="hidden sm:inline">Equipa ({employees.length})</span>
           </button>
           <button
             onClick={onLogout}
-            className="flex items-center gap-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors px-3 py-2 rounded-xl text-xs font-semibold"
+            className="flex items-center gap-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
           >
             <LogOut size={16} />
             <span className="hidden sm:inline">Sair</span>
@@ -446,7 +464,7 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
 
         {/* 4 Live KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {/* KPI 1: Sales */}
+          {/* KPI 1: Sales + Daily Sparkline */}
           <button
             type="button"
             onClick={() =>
@@ -454,20 +472,59 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                 ? onSelectModule('billing', 'summary')
                 : onSelectModule('positioning', 'sales_history')
             }
-            className="text-left bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm hover:border-slate-300 transition-all"
+            className="text-left bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-              <span>Vendas Acumuladas Mês</span>
-              <TrendingUp size={15} className="text-emerald-600" />
+            <div>
+              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                <span>Vendas Acumuladas Mês</span>
+                <TrendingUp size={15} className="text-emerald-600" />
+              </div>
+              {loadingKpis ? (
+                <div className="mt-2.5 h-8 w-40 rounded-lg bg-slate-100 animate-pulse" />
+              ) : (
+                <div className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
+                  {telemetry.vendasMes > 0
+                    ? formatEUR(telemetry.vendasMes)
+                    : telemetry.latestHistory
+                    ? formatEUR(telemetry.latestHistory.totalSales)
+                    : '—'}
+                </div>
+              )}
+
+              {/* Mini Sparkline from real daily history */}
+              {history.length >= 2 && (
+                <div className="mt-2 h-9 w-full pointer-events-none opacity-90">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={[...history]
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                        .slice(-14)}
+                    >
+                      <defs>
+                        <linearGradient id="salesSparkGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.28} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <Tooltip
+                        formatter={(v: any) => [`${v} €`, 'Vendas']}
+                        labelFormatter={(l: any) => `Dia ${l}`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="totalSales"
+                        stroke="#059669"
+                        strokeWidth={2}
+                        fill="url(#salesSparkGrad)"
+                        isAnimationActive={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
-            <div className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
-              {telemetry.vendasMes > 0
-                ? formatEUR(telemetry.vendasMes)
-                : telemetry.latestHistory
-                ? formatEUR(telemetry.latestHistory.totalSales)
-                : '—'}
-            </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 tabular-nums">
+
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 tabular-nums">
               <span>
                 Último Dia:{' '}
                 <strong className="text-slate-800">
@@ -475,36 +532,65 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                 </strong>
               </span>
               <span>
-                HAVI Mês: <strong className="text-slate-800">{formatEUR(telemetry.haviTotal)}</strong>
+                HAVI Mês:{' '}
+                <strong className="text-slate-800">{formatEUR(telemetry.haviTotal)}</strong>
               </span>
             </div>
           </button>
 
-          {/* KPI 2: Food & Paper Cost */}
+          {/* KPI 2: Food & Paper Cost + Segmented Visual Bar */}
           <button
             type="button"
             onClick={() => onSelectModule('billing', 'summary')}
-            className="text-left bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm hover:border-slate-300 transition-all"
+            className="text-left bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-              <span>Food &amp; Paper Cost Real</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                  telemetry.foodPct !== null
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {telemetry.foodPct !== null ? 'Mês Atual' : 'Por apurar'}
-              </span>
+            <div>
+              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                <span>Food &amp; Paper Cost Real</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                    telemetry.foodPct !== null
+                      ? 'bg-sky-50 text-sky-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {telemetry.foodPct !== null ? 'Mês Atual' : 'Por apurar'}
+                </span>
+              </div>
+              {loadingKpis ? (
+                <div className="mt-2.5 h-8 w-28 rounded-lg bg-slate-100 animate-pulse" />
+              ) : (
+                <div className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
+                  {telemetry.foodPct !== null && telemetry.paperPct !== null
+                    ? `${(telemetry.foodPct + telemetry.paperPct).toFixed(2).replace('.', ',')}%`
+                    : '—'}
+                </div>
+              )}
+
+              {/* Proportional Visual Cost Split Bar */}
+              {telemetry.foodPct !== null && telemetry.paperPct !== null && (
+                <div className="mt-3.5 space-y-1">
+                  <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden flex gap-0.5">
+                    <div
+                      className="h-full bg-slate-900 rounded-l-full"
+                      style={{
+                        width: `${Math.min(82, Math.max(8, telemetry.foodPct * 2.1))}%`,
+                      }}
+                    />
+                    <div
+                      className="h-full bg-amber-400 rounded-r-full"
+                      style={{
+                        width: `${Math.min(25, Math.max(4, telemetry.paperPct * 2.5))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
-              {telemetry.foodPct !== null && telemetry.paperPct !== null
-                ? `${(telemetry.foodPct + telemetry.paperPct).toFixed(2).replace('.', ',')}%`
-                : '—'}
-            </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 tabular-nums">
-              <span>
+
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 tabular-nums">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-slate-900" />
                 Comida:{' '}
                 <strong className="text-slate-800">
                   {telemetry.foodPct !== null
@@ -512,7 +598,8 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                     : '—'}
                 </strong>
               </span>
-              <span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
                 Papel:{' '}
                 <strong className="text-slate-800">
                   {telemetry.paperPct !== null

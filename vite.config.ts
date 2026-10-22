@@ -21,13 +21,14 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 900,
+      chunkSizeWarningLimit: 950,
       rollupOptions: {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'lucide-react'],
             'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-            'vendor-data': ['xlsx', 'recharts'],
+            'vendor-charts': ['recharts'],
+            'vendor-xlsx': ['xlsx'],
           },
         },
       },

@@ -79,6 +79,8 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 type ModuleType =
@@ -131,6 +133,24 @@ const App: React.FC = () => {
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('app_theme_mode') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    try {
+      localStorage.setItem('app_theme_mode', darkMode ? 'dark' : 'light');
+    } catch {
+      // ignore storage errors
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString('pt-PT'));
 
@@ -818,6 +838,8 @@ const App: React.FC = () => {
           employees={currentEmployees}
           schedules={savedSchedules}
           history={historyEntries}
+          darkMode={darkMode}
+          onToggleDarkMode={toggleDarkMode}
         />
         <TodayReminderModal
           isOpen={showTodayReminderPopup}
@@ -987,15 +1009,28 @@ const App: React.FC = () => {
 
         <div className="p-3 border-t border-slate-800 space-y-1">
           <button
+            type="button"
+            onClick={toggleDarkMode}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-amber-300 hover:bg-slate-800/80 transition-colors cursor-pointer"
+            title={darkMode ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
+          >
+            {darkMode ? (
+              <Sun size={17} className="shrink-0 text-amber-400" />
+            ) : (
+              <Moon size={17} className="shrink-0 text-slate-400" />
+            )}
+            {sidebarOpen && <span>{darkMode ? 'Modo Claro' : 'Modo Escuro'}</span>}
+          </button>
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors cursor-pointer"
           >
             <LogOut size={17} className="shrink-0" />
             {sidebarOpen && <span>Terminar Sessão</span>}
           </button>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center justify-center py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+            className="w-full flex items-center justify-center py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
             title={sidebarOpen ? 'Recolher barra lateral' : 'Expandir barra lateral'}
           >
             {sidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
@@ -1029,10 +1064,18 @@ const App: React.FC = () => {
 
             <nav className="flex-1 p-3 space-y-1 overflow-y-auto">{renderSidebarLinks(true)}</nav>
 
-            <div className="p-3 border-t border-slate-800">
+            <div className="p-3 border-t border-slate-800 space-y-1">
+              <button
+                type="button"
+                onClick={toggleDarkMode}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer"
+              >
+                {darkMode ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} />}
+                <span>{darkMode ? 'Modo Claro' : 'Modo Escuro'}</span>
+              </button>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-slate-800"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-slate-800 cursor-pointer"
               >
                 <LogOut size={16} /> Terminar Sessão
               </button>

@@ -790,7 +790,7 @@ export const BillingDeliveryDetail: React.FC<BillingDeliveryDetailProps> = ({ re
                </div>
                <div className="pt-4 flex gap-3">
                   <button onClick={() => setShowMissingModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all uppercase text-xs tracking-widest">Cancelar</button>
-                  <button onClick={handleAddMissingProductConfirm} className="flex-2 px-8 py-3 bg-blue-600 text-white font-black uppercase text-xs tracking-widest rounded-xl hover:bg-blue-700 transition-all shadow-lg">Adicionar</button>
+                  <button onClick={handleAddMissingProductConfirm} className="flex-2 px-8 py-3 bg-slate-900 text-white font-black uppercase text-xs tracking-widest rounded-xl hover:bg-slate-800 transition-all shadow-lg">Adicionar</button>
                </div>
             </div>
           </div>

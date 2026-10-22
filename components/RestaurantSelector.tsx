@@ -63,7 +63,7 @@ export const RestaurantSelector: React.FC<RestaurantSelectorProps> = ({ restaura
                 </button>
                 <button 
                   onClick={handleCreate}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium"
                 >
                   Criar Restaurante
                 </button>

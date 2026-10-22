@@ -2,7 +2,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
 import { getMonthlyOps, saveMonthlyOps } from '../services/firebaseService';
-import { Printer, Calendar, Plus, Trash2, FileSpreadsheet, Lock, Unlock, Check, AlertTriangle } from 'lucide-react';
+import { Printer, Calendar, Plus, Trash2, FileSpreadsheet, Lock, Unlock, Check, AlertTriangle, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
@@ -568,17 +569,46 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
       <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm print:hidden">
         <div className="flex flex-wrap items-center gap-4">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Mês em Análise
+            <span className="text-[11px] font-semibold text-slate-500 block mb-1">
+              Mês em análise
             </span>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={e => setSelectedMonth(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-slate-900"
-              />
+            <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-xl p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const d = new Date(y, (m || 1) - 2, 1);
+                  setSelectedMonth(
+                    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                  );
+                }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                title="Mês anterior"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="px-2.5 py-1 text-xs font-bold text-slate-900 capitalize flex items-center gap-1.5 whitespace-nowrap">
+                <Calendar size={13.5} className="text-amber-600 shrink-0" />
+                {(() => {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const d = new Date(y, (m || 1) - 1, 1);
+                  return d.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+                })()}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const d = new Date(y, m || 1, 1);
+                  setSelectedMonth(
+                    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                  );
+                }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                title="Mês seguinte"
+              >
+                <ChevronRight size={15} />
+              </button>
             </div>
           </div>
           <div className="hidden sm:block pl-4 border-l border-slate-100">
@@ -676,6 +706,156 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
               .
             </p>
           )}
+        </div>
+      )}
+
+      {/* Executive Visual Comparison Charts (HAVI vs MyStore & Divergent Variance Map) */}
+      {(grandTotalHavi > 0 || grandTotalSms > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 print:hidden">
+          {/* Left: HAVI vs MyStore Grouped Bar Chart */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <BarChart3 size={16} className="text-amber-600" />
+                  Comparação Visual por Rubrica (HAVI vs MyStore)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Montantes mensais faturados pela HAVI face aos lançamentos registados na loja
+                </p>
+              </div>
+              <div className="hidden sm:flex items-center gap-3 text-[11px] font-semibold text-slate-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-slate-900" /> HAVI
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> MyStore
+                </span>
+              </div>
+            </div>
+
+            <div className="h-52 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    'Comida',
+                    'Papel',
+                    'F. Operacionais',
+                    'Happy Meal',
+                    'Outros',
+                    'Material Adm',
+                  ].map(cat => ({
+                    rubrica: cat === 'F. Operacionais' ? 'F. Oper.' : cat,
+                    HAVI: Math.round(((aggregatedSms[cat] || 0) + (categoryDifferences[cat] || 0)) * 100) / 100,
+                    MyStore: Math.round((aggregatedSms[cat] || 0) * 100) / 100,
+                  }))}
+                  margin={{ top: 6, right: 8, left: 4, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="rubrica"
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={52}
+                  />
+                  <Tooltip
+                    formatter={(val: any, name: any) => [
+                      `${Number(val).toLocaleString('pt-PT', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} €`,
+                      String(name),
+                    ]}
+                    contentStyle={{
+                      fontSize: '12px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 4px 16px rgba(15,23,42,0.08)',
+                    }}
+                  />
+                  <Bar dataKey="HAVI" fill="#0f172a" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="MyStore" fill="#fbbf24" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Right: Zero-Centered Divergent Variance Bars */}
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Mapa de Compensações entre Famílias (Δ €)
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Barras opostas revelam trocas de rubrica no lançamento MyStore
+              </p>
+
+              <div className="space-y-2.5">
+                {(() => {
+                  const cats = [
+                    'Comida',
+                    'Papel',
+                    'F. Operacionais',
+                    'Material Adm',
+                    'Happy Meal',
+                    'Outros',
+                  ];
+                  const maxAbs = Math.max(
+                    10,
+                    ...cats.map(c => Math.abs(categoryDifferences[c] || 0))
+                  );
+                  return cats.map(cat => {
+                    const d = categoryDifferences[cat] || 0;
+                    const pct = Math.min(48, (Math.abs(d) / maxAbs) * 48);
+                    const isAlert = Math.abs(d) > 5;
+                    return (
+                      <div key={cat} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs tabular-nums">
+                          <span className="font-semibold text-slate-700">{cat}</span>
+                          <span
+                            className={`font-bold ${
+                              isAlert
+                                ? d > 0
+                                  ? 'text-amber-700'
+                                  : 'text-rose-600'
+                                : 'text-emerald-700'
+                            }`}
+                          >
+                            {d > 0 ? `+${formatEuro(d)}` : formatEuro(d)}
+                          </span>
+                        </div>
+                        <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10" />
+                          {Math.abs(d) > 0.02 && (
+                            <div
+                              className={`absolute top-0 bottom-0 rounded-full ${
+                                !isAlert
+                                  ? 'bg-emerald-500'
+                                  : d > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-rose-500'
+                              }`}
+                              style={
+                                d >= 0
+                                  ? { left: '50%', width: `${Math.max(2, pct)}%` }
+                                  : { right: '50%', width: `${Math.max(2, pct)}%` }
+                              }
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -197,7 +197,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                                 <button 
                                     key={shift.id} 
                                     onClick={() => toggleShift(shift.id)}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-sm font-bold ${isActive ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-sm font-bold ${isActive ? 'bg-slate-900 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}
                                 >
                                     {isActive ? <CheckSquare size={18} /> : <Square size={18} />}
                                     {shift.label}
@@ -255,7 +255,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
                    </button>
                    <button 
                      onClick={() => handleOpenStationModal()}
-                     className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95"
+                     className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95"
                    >
                      <Plus size={18} /> Novo Posto
                    </button>
@@ -368,7 +368,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
 
               <div className="pt-6 flex gap-3">
                 <button onClick={() => setIsStationModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
-                <button onClick={handleSaveStation} className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2">
+                <button onClick={handleSaveStation} className="flex-2 px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2">
                    <Check size={18} /> Guardar Posto
                 </button>
               </div>

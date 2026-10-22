@@ -33,7 +33,7 @@ const EVENT_TYPE_CONFIG: Record<AgendaEventType, { label: string; icon: any; col
   reuniao: {
     label: 'Reunião',
     icon: Users,
-    color: 'bg-blue-600 text-white',
+    color: 'bg-slate-900 text-white',
     badge: 'bg-blue-100 text-blue-700 border-blue-200',
     border: 'border-blue-500'
   },
@@ -445,7 +445,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
 
           <button
             onClick={() => handleOpenNewModal()}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ml-auto lg:ml-0"
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ml-auto lg:ml-0"
           >
             <Plus size={16} />
             <span>Novo Evento</span>
@@ -587,7 +587,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                       <span
                         className={`text-xs font-black w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                           cell.isToday
-                            ? 'bg-blue-600 text-white shadow-xs'
+                            ? 'bg-slate-900 text-white shadow-xs'
                             : isSelected
                             ? 'bg-gray-900 text-white'
                             : cell.isCurrentMonth
@@ -837,7 +837,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`text-sm font-black w-6 h-6 rounded-full flex items-center justify-center ${
-                            isToday ? 'bg-blue-600 text-white' : 'text-gray-800'
+                            isToday ? 'bg-slate-900 text-white' : 'text-gray-800'
                           }`}
                         >
                           {wd.dateObj.getDate()}
@@ -908,7 +908,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
             <h2 className="text-lg font-black text-gray-900">Todos os Eventos ({filteredEvents.length})</h2>
             <button
               onClick={() => handleOpenNewModal()}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
             >
               <Plus size={14} />
               <span>Novo Evento</span>
@@ -961,7 +961,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                             {ev.time && !ev.isAllDay ? ev.time : 'Dia inteiro'}
                           </span>
                           {isToday && (
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-blue-600 text-white rounded-full">
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-slate-900 text-white rounded-full">
                               Hoje
                             </span>
                           )}
@@ -1048,7 +1048,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
             {/* Modal Header */}
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs">
+                <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-xs">
                   <CalendarDays size={20} />
                 </div>
                 <div>
@@ -1263,7 +1263,7 @@ export const DigitalAgenda: React.FC<DigitalAgendaProps> = ({
                   <button
                     type="submit"
                     disabled={formSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
                   >
                     <span>{formSubmitting ? 'A guardar...' : editingEvent ? 'Atualizar Evento' : 'Guardar Evento'}</span>
                   </button>

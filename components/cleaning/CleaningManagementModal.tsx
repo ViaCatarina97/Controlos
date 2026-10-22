@@ -429,7 +429,7 @@ export const CleaningManagementModal: React.FC<CleaningManagementModalProps> = (
                   <button
                     type="submit"
                     disabled={!newTarefa.trim()}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                   >
                     <Plus size={14} />
                     <span>Adicionar Tarefa Zelador</span>
@@ -493,7 +493,7 @@ export const CleaningManagementModal: React.FC<CleaningManagementModalProps> = (
                               {isEditing ? (
                                 <button
                                   onClick={() => saveEditTask(true)}
-                                  className="p-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-md"
+                                  className="p-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-md"
                                   title="Guardar"
                                 >
                                   <Check size={14} />
