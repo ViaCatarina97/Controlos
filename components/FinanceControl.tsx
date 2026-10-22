@@ -891,6 +891,44 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     }
   };
 
+  const handleCloseAllValidatedDays = async () => {
+    const readyDays = groupedDays.filter(
+      d =>
+        !d.isClosed &&
+        d.abertura?.isLocked &&
+        d.tarde?.isLocked &&
+        d.fecho?.isLocked
+    );
+    if (readyDays.length === 0) return;
+    if (
+      !confirm(
+        `Confirmar encerramento em lote de ${readyDays.length} dia(s) já conferidos nos 3 turnos?`
+      )
+    )
+      return;
+
+    setIsLoading(true);
+    try {
+      const promises: Promise<any>[] = [];
+      readyDays.forEach(day => {
+        if (day.abertura)
+          promises.push(saveCofreCount(restaurantId, { ...day.abertura, isLocked: true, isDayClosed: true }));
+        if (day.tarde)
+          promises.push(saveCofreCount(restaurantId, { ...day.tarde, isLocked: true, isDayClosed: true }));
+        if (day.fecho)
+          promises.push(saveCofreCount(restaurantId, { ...day.fecho, isLocked: true, isDayClosed: true }));
+      });
+      await Promise.all(promises);
+      alert(`${readyDays.length} dia(s) encerrado(s) com sucesso!`);
+      await loadData();
+    } catch (err) {
+      console.error('Error closing validated days:', err);
+      alert('Erro ao encerrar os dias selecionados.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCloseDay = async (date: string) => {
     const day = groupedDays.find(d => d.date === date);
     if (!day || !day.abertura || !day.tarde || !day.fecho) {
@@ -3003,14 +3041,40 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                   
                   {/* SECTION 1: DIAS EM CURSO (ACTIVE DAYS) */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
+                      <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                         Contagens Abertas
                       </h3>
-                      <span className="text-[10px] bg-amber-50 text-amber-700 font-black px-2.5 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
-                        {groupedDays.filter(d => !d.isClosed).length} Dias Ativos
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {groupedDays.filter(
+                          d =>
+                            !d.isClosed &&
+                            d.abertura?.isLocked &&
+                            d.tarde?.isLocked &&
+                            d.fecho?.isLocked
+                        ).length > 1 && (
+                          <button
+                            onClick={handleCloseAllValidatedDays}
+                            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider transition-all shadow-sm"
+                          >
+                            <Lock size={11} /> Encerrar{' '}
+                            {
+                              groupedDays.filter(
+                                d =>
+                                  !d.isClosed &&
+                                  d.abertura?.isLocked &&
+                                  d.tarde?.isLocked &&
+                                  d.fecho?.isLocked
+                              ).length
+                            }{' '}
+                            Dias Validados
+                          </button>
+                        )}
+                        <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2.5 py-1 rounded-full border border-amber-200 uppercase tracking-wider">
+                          {groupedDays.filter(d => !d.isClosed).length} Dias Ativos
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
@@ -3149,10 +3213,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                               {(hasAbertura || hasTarde || hasFecho) && (
                                 <button
                                   onClick={() => handleTriggerDeleteDayModal(day)}
-                                  className="w-full flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 font-bold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-xl transition-all"
-                                  title="Eliminar as contagens deste dia"
+                                  className="self-center lg:self-end inline-flex items-center gap-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-semibold text-[10px] py-1 px-2 rounded-lg transition-all"
+                                  title="Eliminar as contagens deste dia (requer palavra-passe)"
                                 >
-                                  <Trash2 size={12} /> Eliminar Dia
+                                  <Trash2 size={11} /> Remover registo
                                 </button>
                               )}
                             </div>

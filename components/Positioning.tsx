@@ -675,34 +675,42 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         {/* Console de Botões */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 flex-wrap">
+        <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center gap-2.5 flex-wrap">
              <button 
                onClick={() => {
                  onSaveSchedule(schedule);
                  alert("Rascunho do posicionamento guardado com sucesso no histórico!");
                }} 
-               className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition-all shadow-sm"
+               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
              >
-               Gravar Rascunho
+               Guardar Rascunho
              </button>
              <button 
                onClick={handleSaveAndLock}
                disabled={isShiftLocked}
-               title={isExpired ? 'Datas passadas são apenas de consulta' : isShiftLocked ? 'Turno já trancado' : 'Validar e trancar o turno'}
-               className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+               title={isExpired ? 'Datas passadas são apenas de consulta' : isShiftLocked ? 'Turno já submetido e validado' : 'Validar e trancar o turno'}
+               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                 isShiftLocked
+                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                   : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
+               }`}
              >
-               Submeter Posicionamento
+               {isShiftLocked ? (
+                 <><CheckCircle2 size={14} className="text-emerald-600" /> Posicionamento Submetido</>
+               ) : (
+                 <>Submeter Posicionamento</>
+               )}
              </button>
              {isExpired && (
-               <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 flex items-center gap-1.5">
-                 <Lock size={12} /> Data passada — só consulta
+               <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 flex items-center gap-1.5">
+                 <Lock size={12} /> Data passada — consulta
                </span>
              )}
              {orphanAssignmentsCount > 0 && (
                <button
                  onClick={handleCleanOrphanAssignments}
                  disabled={isShiftLocked}
-                 className="text-xs font-black text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 flex items-center gap-1.5 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                 className="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-200 flex items-center gap-1.5 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
                  title="Remover colaboradores inativos/removidos deste turno"
                >
                  <AlertTriangle size={12} /> {orphanAssignmentsCount} posicionado(s) inativo(s) — limpar
@@ -710,10 +718,10 @@ export const Positioning: React.FC<PositioningProps> = ({
              )}
              <div className="flex-1"></div>
              
-             <div className="flex items-center gap-3">
+             <div className="flex items-center gap-2.5">
                 {manualAdj !== 0 && (
-                  <span className="text-xs font-black text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-                    Ajuste Ativo: {manualAdj > 0 ? `+${manualAdj}` : manualAdj} Colaboradores
+                  <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200">
+                    Ajuste Ativo: {manualAdj > 0 ? `+${manualAdj}` : manualAdj}
                   </span>
                 )}
                 <button 
@@ -727,7 +735,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                       setManualAdjType(currentCustoms.length > 0 ? 'custom' : 'staffing');
                       setShowManualAdjModal(true);
                    }}
-                   className="px-6 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-sm"
+                   className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                    Ajuste Manual
                 </button>
@@ -782,6 +790,15 @@ export const Positioning: React.FC<PositioningProps> = ({
                             const val = parseFloat(e.target.value) || 0;
                             const peakHr = selectedShift === 'FECHO' || selectedShift === 'MADRUGADA' ? '19' : '12';
                             const peakLabel = peakHr + 'h-' + (parseInt(peakHr) + 1) + 'h';
+                            const existingProj = schedule.hourlyProjections?.[selectedShift] || [];
+                            const updatedProj = existingProj.length > 1
+                              ? existingProj
+                              : [{
+                                  hour: existingProj[0]?.hour || peakLabel,
+                                  totalSales: val,
+                                  totalGC: Math.round(val / 6),
+                                  channelGC: existingProj[0]?.channelGC || { counter: 0, sok: 0, drive: 0, delivery: 0 }
+                                }];
                             setSchedule({
                               ...schedule,
                               projectedSales: {
@@ -790,14 +807,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                               },
                               hourlyProjections: {
                                 ...(schedule.hourlyProjections || {}),
-                                [selectedShift]: schedule.hourlyProjections?.[selectedShift]?.length ? schedule.hourlyProjections[selectedShift] : [
-                                  {
-                                    hour: peakLabel,
-                                    totalSales: val,
-                                    totalGC: Math.round(val / 6),
-                                    channelGC: { counter: 0, sok: 0, drive: 0, delivery: 0 }
-                                  }
-                                ]
+                                [selectedShift]: updatedProj
                               }
                             });
                           }}
@@ -849,42 +859,62 @@ export const Positioning: React.FC<PositioningProps> = ({
                     </div>
                 </div>
                 <div className="lg:col-span-7 lg:pl-6 flex items-center">
-                    <div className="grid grid-cols-3 gap-4 w-full">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 w-full">
                         {/* Necessários */}
-                        <div className="bg-blue-50/40 rounded-2xl p-5 border border-blue-100 flex flex-col items-center justify-center text-center shadow-inner">
-                          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">Previstos</span>
-                          <div className="p-2.5 bg-blue-100/60 rounded-xl mb-2 text-blue-600">
-                            <Calculator size={20} />
+                        <div className="bg-blue-50/40 rounded-2xl p-4 border border-blue-100 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">Previstos</span>
+                          <div className="p-2 bg-blue-100/70 rounded-xl mb-2 text-blue-600">
+                            <Calculator size={18} />
                           </div>
-                          <span className="text-3xl font-black text-blue-900 leading-none">{requirement.count}</span>
+                          <span className="text-3xl font-extrabold text-blue-950 leading-none tabular-nums">{requirement.count}</span>
+                          <span className="text-[10px] font-medium text-slate-500 mt-1.5">Critério Loja</span>
                         </div>
                         
                         {/* Posicionados */}
-                        <div className="bg-slate-50/80 rounded-2xl p-5 border border-gray-200/60 flex flex-col items-center justify-center text-center shadow-sm">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Posicionados</span>
-                          <div className="p-2.5 bg-slate-100 rounded-xl mb-2 text-slate-600">
-                            <Users size={20} />
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Posicionados</span>
+                          <div className="p-2 bg-white border border-slate-200/60 rounded-xl mb-2 text-slate-700">
+                            <Users size={18} />
                           </div>
-                          <span className="text-3xl font-black text-gray-800 leading-none">{currentAssignedCount}</span>
+                          <span className="text-3xl font-extrabold text-slate-900 leading-none tabular-nums">{currentAssignedCount}</span>
+                          <span className="text-[10px] font-medium text-slate-500 mt-1.5">Em Posto</span>
                         </div>
                         
                         {/* Diferença */}
-                        <div className={`rounded-2xl p-5 border flex flex-col items-center justify-center text-center shadow-sm ${
+                        <div className={`rounded-2xl p-4 border flex flex-col items-center justify-center text-center ${
                           gap > 0 
-                            ? 'bg-rose-50/50 border-rose-200' 
-                            : gap < 0 ? 'bg-amber-50/50 border-amber-200' : 'bg-emerald-50/50 border-emerald-200'
+                            ? 'bg-rose-50/60 border-rose-200' 
+                            : gap < 0 ? 'bg-amber-50/60 border-amber-200' : 'bg-emerald-50/60 border-emerald-200'
                         }`}>
-                          <span className={`text-[10px] font-black uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-500' : gap < 0 ? 'text-amber-600' : 'text-emerald-550'}`}>Diferença</span>
-                          <div className={`p-2.5 rounded-xl mb-2 bg-white ${gap > 0 ? 'text-rose-650' : gap < 0 ? 'text-amber-600' : 'text-emerald-650'}`}>
-                            {gap === 0 ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                          <span className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Diferença</span>
+                          <div className={`p-2 rounded-xl mb-2 bg-white border border-black/5 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                            {gap === 0 ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                           </div>
-                          <span className={`text-3xl font-black leading-none ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-650'}`}>
+                          <span className={`text-3xl font-extrabold leading-none tabular-nums ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
                             {gap > 0 ? `-${gap}` : gap < 0 ? `+${Math.abs(gap)}` : 'OK'}
                           </span>
-                          <span className={`text-[9px] font-bold mt-1.5 uppercase ${gap > 0 ? 'text-rose-450' : gap < 0 ? 'text-amber-600' : 'text-emerald-550'}`}>
-                            {gap > 0 ? 'Faltam' : gap < 0 ? 'Em excesso' : 'Tudo Pronto'}
+                          <span className={`text-[10px] font-semibold mt-1.5 ${gap > 0 ? 'text-rose-600' : gap < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                            {gap > 0 ? 'Faltam' : gap < 0 ? 'Excesso' : 'Alinhado'}
                           </span>
                         </div>
+
+                        {/* SPLH / Produtividade */}
+                        {(() => {
+                          const plannedSales = schedule.projectedSales?.[selectedShift] || activeSalesData.totalSales || 0;
+                          const splh = currentAssignedCount > 0 ? plannedSales / currentAssignedCount : 0;
+                          return (
+                            <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-200/80 flex flex-col items-center justify-center text-center">
+                              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2">Produtividade</span>
+                              <div className="p-2 bg-white border border-amber-200/60 rounded-xl mb-2 text-amber-600">
+                                <TrendingUp size={18} />
+                              </div>
+                              <span className="text-2xl font-extrabold text-slate-900 leading-none tabular-nums">
+                                {splh > 0 ? `${Math.round(splh)} €` : '—'}
+                              </span>
+                              <span className="text-[10px] font-semibold text-amber-800 mt-1.5">SPLH (€/colab·h)</span>
+                            </div>
+                          );
+                        })()}
                     </div>
                 </div>
             </div>

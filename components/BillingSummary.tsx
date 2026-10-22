@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { DeliveryRecord, CreditNoteRecord, Employee, MonthlyOperationalData, OtherSupplierEntry } from '../types';
 import { getMonthlyOps, saveMonthlyOps } from '../services/firebaseService';
-import { Printer, Calendar, Plus, Trash2, FileSpreadsheet, Lock, Unlock, Check } from 'lucide-react';
+import { Printer, Calendar, Plus, Trash2, FileSpreadsheet, Lock, Unlock, Check, AlertTriangle } from 'lucide-react';
 
 interface BillingSummaryProps {
   deliveries: DeliveryRecord[];
@@ -379,6 +379,22 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     return (Object.values(categoryDifferences) as number[]).reduce((s, d) => s + d, 0);
   }, [categoryDifferences]);
 
+  const grossTotalDiff = useMemo(() => {
+    return (Object.values(categoryDifferences) as number[]).reduce((s, d) => s + Math.abs(d), 0);
+  }, [categoryDifferences]);
+
+  const anomalousCategories = useMemo(() => {
+    return (Object.entries(categoryDifferences) as [string, number][]).filter(
+      ([, d]) => Math.abs(d) > 10
+    );
+  }, [categoryDifferences]);
+
+  const unbilledSuppliers = useMemo(() => {
+    return monthlyData.otherSuppliers.filter(
+      s => (s.myStoreValue || 0) > 0 && (!s.invoiceValue || s.invoiceValue === 0)
+    );
+  }, [monthlyData.otherSuppliers]);
+
   const formatMonthHeader = (monthStr: string) => {
     const [y, m] = monthStr.split('-');
     const months = [
@@ -541,316 +557,638 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
     }
   };
 
+  const pctFoodCost = monthlyData.vendasMes > 0 ? (computedConsumoComida / monthlyData.vendasMes) * 100 : 0;
+  const pctPaperCost = monthlyData.vendasMes > 0 ? (computedConsumoPapel / monthlyData.vendasMes) * 100 : 0;
+  const pctOpsCost = monthlyData.vendasMes > 0 ? (computedConsumoOps / monthlyData.vendasMes) * 100 : 0;
+  const pctCombinedCost = pctFoodCost + pctPaperCost;
+
   return (
-    <div className="flex flex-col h-full bg-white animate-fade-in p-4 overflow-auto custom-scrollbar print:h-auto print:overflow-visible print:p-0">
-      {/* Controls */}
-      <div className="flex justify-between items-center mb-6 print:hidden">
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase text-gray-400 mb-1">Período de Resumo</span>
+    <div className="flex flex-col h-full bg-slate-50/50 animate-fade-in p-4 sm:p-6 overflow-auto space-y-6 print:bg-white print:h-auto print:overflow-visible print:p-0">
+      {/* Top Action Toolbar */}
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm print:hidden">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+              Mês em Análise
+            </span>
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600" size={16} />
-              <input 
-                type="month" 
-                value={selectedMonth} 
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-slate-900"
               />
             </div>
           </div>
+          <div className="hidden sm:block pl-4 border-l border-slate-100">
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+              Reconciliação HAVI vs MyStore &amp; Food Cost
+            </h2>
+            <p className="text-xs text-slate-500">
+              Controlo cruzado de mercadorias, outros fornecedores e apuramento operacional do mês
+            </p>
+          </div>
         </div>
-        <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-all">
-          <Printer size={18} /> Imprimir Resumo
+
+        <button
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-sm"
+        >
+          <Printer size={15} /> Imprimir Resumo
         </button>
       </div>
 
-      <div className="bg-white border-2 border-slate-100 p-8 shadow-sm flex flex-col space-y-6 min-w-[1000px] print:min-w-0 print:w-full print:p-0 print:border-none print:shadow-none">
-        
-        {/* Header Section */}
-        <div className="flex items-center justify-between border-b-4 border-[#5a7d36] pb-2">
-          <div className="bg-[#5a7d36] text-white px-12 py-3 rounded-r-full">
-            <h1 className="text-3xl font-black uppercase tracking-tighter">Resumo Controlo de Facturação</h1>
+      {/* NEW: Executive Reconciliation KPI Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 print:hidden">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm">
+          <span className="text-xs font-medium text-slate-500">Total Faturação HAVI</span>
+          <div className="mt-1.5 text-2xl font-extrabold text-slate-900 tabular-nums">
+            {formatEuro(grandTotalHavi)}
           </div>
-          <div className="flex items-center gap-8 shrink-0 text-right">
-            <div className="text-4xl font-black text-gray-300 tracking-widest uppercase text-right">
-              {formatMonthHeader(selectedMonth)}
+          <span className="text-[11px] text-slate-400">Líquido de notas de crédito</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm">
+          <span className="text-xs font-medium text-slate-500">Total Registo MyStore</span>
+          <div className="mt-1.5 text-2xl font-extrabold text-slate-900 tabular-nums">
+            {formatEuro(grandTotalSms)}
+          </div>
+          <span className="text-[11px] text-slate-400">Lançamentos na loja</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm">
+          <span className="text-xs font-medium text-slate-500">Diferença Líquida Global</span>
+          <div
+            className={`mt-1.5 text-2xl font-extrabold tabular-nums ${
+              Math.abs(grandTotalDiff) > 5 ? 'text-rose-600' : 'text-emerald-700'
+            }`}
+          >
+            {grandTotalDiff > 0 ? `+${formatEuro(grandTotalDiff)}` : formatEuro(grandTotalDiff)}
+          </div>
+          <span className="text-[11px] text-slate-400">Saldo global HAVI − MyStore</span>
+        </div>
+
+        <div
+          className={`rounded-2xl p-4 border shadow-sm ${
+            grossTotalDiff > 25
+              ? 'bg-amber-50/80 border-amber-300'
+              : 'bg-white border-slate-200/90'
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-900">
+            <span>Desvio Absoluto Bruto (∑|Δ|)</span>
+            {grossTotalDiff > 25 && <AlertTriangle size={15} className="text-amber-600" />}
+          </div>
+          <div className="mt-1.5 text-2xl font-extrabold text-slate-900 tabular-nums">
+            {formatEuro(grossTotalDiff)}
+          </div>
+          <span className="text-[11px] text-amber-800">
+            {grossTotalDiff > 25
+              ? 'Atenção: compensação entre rubricas'
+              : 'Sem desvios entre famílias'}
+          </span>
+        </div>
+      </div>
+
+      {/* Diagnostic Banner when offsetting errors or missing supplier invoices exist */}
+      {(grossTotalDiff > 25 || unbilledSuppliers.length > 0) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col gap-1.5 text-xs text-amber-950 print:hidden">
+          <div className="font-extrabold flex items-center gap-2 text-amber-900">
+            <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+            Diagnóstico Automático de Controlo de Gestão
+          </div>
+          {anomalousCategories.length > 0 && (
+            <p className="text-amber-900/90 pl-6">
+              • <strong>Compensação entre rubricas detetada:</strong>{' '}
+              {anomalousCategories
+                .map(([c, d]) => `${c} (${d > 0 ? '+' : ''}${formatEuro(d)})`)
+                .join(' • ')}
+              . Corrija a família no MyStore para evitar distorção nas percentagens de custo.
+            </p>
+          )}
+          {unbilledSuppliers.length > 0 && (
+            <p className="text-rose-800 pl-6">
+              • <strong>Fatura em falta em Outros Fornecedores:</strong>{' '}
+              {unbilledSuppliers
+                .map(s => `${s.supplier} (${formatEuro(s.myStoreValue)} no MyStore sem fatura)`)
+                .join(', ')}
+              .
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Printable & Responsive Sheet Container */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-7 shadow-sm flex flex-col space-y-6 print:w-full print:p-0 print:border-none print:shadow-none">
+        {/* Sheet Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-slate-900 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-base">
+              M
             </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-tight">
+                Resumo de Controlo de Faturação
+              </h1>
+              <p className="text-xs text-slate-500">Conferência Mensal de Mercadorias &amp; Consumos</p>
+            </div>
+          </div>
+          <div className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight uppercase">
+            {formatMonthHeader(selectedMonth)}
           </div>
         </div>
 
-        {/* Main Grid: HAVI / MyStore / Diferença */}
-        <div className="grid grid-cols-12 gap-6">
-          
-          <div className="col-span-4 flex flex-col border border-gray-200">
-            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">HAVI</div>
-            <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
-              <div className="col-span-2 px-2 py-1 border-r border-gray-50">Grupo</div>
-              <div className="col-span-7 px-2 py-1 border-r border-gray-50">Descrição</div>
-              <div className="col-span-3 px-2 py-1 text-right">Total</div>
+        {/* Main 3-Column Comparison Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 print:grid-cols-12">
+          {/* Col 1: HAVI */}
+          <div className="lg:col-span-5 flex flex-col rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-white py-2.5 px-4 font-bold uppercase text-xs tracking-wider flex justify-between">
+              <span>Faturação HAVI</span>
+              <span className="text-slate-400">Por Grupo</span>
             </div>
-            <div className="flex flex-col bg-white">
-              {(Object.entries(aggregatedHavi) as [string, { desc: string, total: number }][]).map(([code, g]) => (
-                <div key={code} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                  <div className="col-span-2 px-2 py-0.5 border-r border-gray-50">{code}</div>
-                  <div className="col-span-7 px-2 py-0.5 border-r border-gray-50 truncate">{g.desc}</div>
-                  <div className="col-span-3 px-2 py-0.5 text-right tabular-nums">{formatEuro(g.total)}</div>
-                </div>
-              ))}
-              {/* Removed Ponto Verde row */}
+            <div className="grid grid-cols-12 text-[10px] font-bold uppercase text-slate-400 bg-slate-50 border-b border-slate-200">
+              <div className="col-span-2 px-3 py-2">Grp</div>
+              <div className="col-span-6 px-3 py-2">Descrição</div>
+              <div className="col-span-4 px-3 py-2 text-right">Total</div>
             </div>
-            <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{formatEuro(grandTotalHavi)}</div>
-            </div>
-          </div>
-
-          <div className="col-span-4 flex flex-col border border-gray-200">
-            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">MyStore</div>
-            <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
-              <div className="col-span-8 px-2 py-1 border-r border-gray-50">Descrição</div>
-              <div className="col-span-4 px-2 py-1 text-right">Total</div>
-            </div>
-            <div className="flex flex-col bg-white h-full">
-              {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, val]) => (
-                <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                  <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
-                  <div className="col-span-4 px-2 py-1 text-right tabular-nums">{formatEuro(val)}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-              <div className="text-2xl font-black text-slate-900">{formatEuro(grandTotalSms)}</div>
-            </div>
-          </div>
-
-          <div className="col-span-4 flex flex-col border border-gray-200">
-            <div className="bg-gray-50 py-2 text-center font-black uppercase text-xs tracking-widest border-b border-gray-200">Diferença</div>
-            <div className="grid grid-cols-12 text-[10px] font-black uppercase text-gray-400 bg-white border-b border-gray-100">
-              <div className="col-span-8 px-2 py-1 border-r border-gray-50">Descrição</div>
-              <div className="col-span-4 px-2 py-1 text-right">Total</div>
-            </div>
-            <div className="flex flex-col bg-white">
-                 {(Object.entries(categoryDifferences) as [string, number][]).map(([desc, diff]) => {
-                   return (
-                    <div key={desc} className="grid grid-cols-12 text-[11px] font-bold border-b border-gray-50 last:border-0">
-                      <div className="col-span-8 px-2 py-1 border-r border-gray-50">{desc}</div>
-                      <div className={`col-span-4 px-2 py-1 text-right tabular-nums ${Math.abs(diff) > 0.1 ? 'text-red-500' : 'text-gray-400'}`}>
-                        {formatEuro(diff)}
-                      </div>
+            <div className="flex flex-col bg-white divide-y divide-slate-100">
+              {(Object.entries(aggregatedHavi) as [string, { desc: string; total: number }][]).map(
+                ([code, g]) => (
+                  <div
+                    key={code}
+                    className="grid grid-cols-12 text-xs font-medium hover:bg-slate-50 py-1.5"
+                  >
+                    <div className="col-span-2 px-3 font-bold text-slate-500">{code}</div>
+                    <div className="col-span-6 px-3 text-slate-800 truncate">{g.desc}</div>
+                    <div className="col-span-4 px-3 text-right font-semibold text-slate-900 tabular-nums whitespace-nowrap">
+                      {formatEuro(g.total)}
                     </div>
-                   );
-                 })}
+                  </div>
+                )
+              )}
             </div>
-            <div className="mt-auto bg-white p-3 text-right border-t-2 border-gray-200">
-               <div className={`text-2xl font-black ${Math.abs(grandTotalDiff) > 0.1 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {formatEuro(grandTotalDiff)}
-               </div>
+            <div className="mt-auto bg-slate-50 px-4 py-3 text-right border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Total HAVI</span>
+              <div className="text-lg font-extrabold text-slate-900 tabular-nums">
+                {formatEuro(grandTotalHavi)}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Quadro Unificado de Outros Fornecedores */}
-        <div className="border border-gray-200 rounded overflow-hidden">
-            <div className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center">
-                <span className="font-bold text-sm uppercase tracking-widest">Outros Fornecedores</span>
-                <div className="flex items-center gap-2 print:hidden">
-                    {!monthlyData.isFinalized && (
-                        <button onClick={handleAddOtherSupplier} className="bg-white/10 hover:bg-white/20 p-1 rounded transition-colors" title="Adicionar fornecedor">
-                            <Plus size={16} />
-                        </button>
-                    )}
-                </div>
+          {/* Col 2: MyStore */}
+          <div className="lg:col-span-3 flex flex-col rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-800 text-white py-2.5 px-4 font-bold uppercase text-xs tracking-wider">
+              Registo MyStore
             </div>
-            <table className="w-full text-[11px]">
-                <thead className="bg-gray-100 text-gray-500 font-bold border-b border-gray-200">
-                    <tr>
-                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Fornecedor</th>
-                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Data</th>
-                        <th className="px-2 py-1.5 text-center border-r border-gray-200">Qtd</th>
-                        <th className="px-2 py-1.5 text-right border-r border-gray-200">Fatura (€)</th>
-                        <th className="px-2 py-1.5 text-right border-r border-gray-200">MyStore (€)</th>
-                        <th className="px-2 py-1.5 text-right border-r border-gray-200">Diferença (€)</th>
-                        <th className="px-2 py-1.5 text-left border-r border-gray-200">Gerente</th>
-                        <th className="px-2 py-1.5 text-center print:hidden w-10"></th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                    {monthlyData.otherSuppliers.map(entry => (
-                        <tr key={entry.id} className="hover:bg-gray-50 group">
-                            <td className="p-1 border-r border-gray-50">
-                                <select 
-                                    value={entry.supplier} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'supplier', e.target.value)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full bg-transparent border-none outline-none font-bold text-gray-700 disabled:opacity-75"
-                                >
-                                    <option value="Air Liquide">Air Liquide</option>
-                                    <option value="MaiaPapper">MaiaPapper</option>
-                                </select>
-                            </td>
-                            <td className="p-1 border-r border-gray-50">
-                                <input 
-                                    type="date" 
-                                    value={entry.date} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'date', e.target.value)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full bg-transparent border-none outline-none disabled:opacity-75" 
-                                />
-                            </td>
-                            <td className="p-1 border-r border-gray-50">
-                                <input 
-                                    type="number" 
-                                    value={entry.quantity || ''} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'quantity', parseFloat(e.target.value) || 0)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full text-center bg-transparent border-none outline-none disabled:opacity-75" 
-                                    placeholder="0" 
-                                />
-                            </td>
-                            <td className="p-1 border-r border-gray-50">
-                                <input 
-                                    type="number" 
-                                    value={entry.invoiceValue || ''} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'invoiceValue', parseFloat(e.target.value) || 0)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full text-right bg-transparent border-none outline-none font-black disabled:opacity-75" 
-                                    placeholder="0.00" 
-                                />
-                            </td>
-                            <td className="p-1 border-r border-gray-50">
-                                <input 
-                                    type="number" 
-                                    value={entry.myStoreValue || ''} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'myStoreValue', parseFloat(e.target.value) || 0)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full text-right bg-transparent border-none outline-none font-bold disabled:opacity-75" 
-                                    placeholder="0.00" 
-                                />
-                            </td>
-                            <td className="p-1 border-r border-gray-50 text-right font-black tabular-nums">
-                                {formatNumber(entry.invoiceValue - entry.myStoreValue)}
-                            </td>
-                            <td className="p-1 border-r border-gray-50">
-                                <select 
-                                    value={entry.managerId} 
-                                    onChange={e => handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)} 
-                                    disabled={monthlyData.isFinalized}
-                                    className="w-full bg-transparent border-none outline-none font-medium truncate disabled:opacity-75"
-                                >
-                                    <option value="">-</option>
-                                    {gerentes.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                </select>
-                            </td>
-                            <td className="p-1 text-center print:hidden">
-                                {!monthlyData.isFinalized && (
-                                    <button onClick={() => handleDeleteOtherSupplier(entry.id)} className="text-gray-300 hover:text-red-500">
-                                        <Trash2 size={14}/>
-                                    </button>
-                                )}
-                            </td>
-                        </tr>
-                    ))}
-                    {monthlyData.otherSuppliers.length === 0 && (
-                        <tr><td colSpan={8} className="p-4 text-center text-gray-400 italic">Clique em "+" para adicionar lançamentos de outros fornecedores.</td></tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
+            <div className="grid grid-cols-12 text-[10px] font-bold uppercase text-slate-400 bg-slate-50 border-b border-slate-200">
+              <div className="col-span-7 px-3 py-2">Família</div>
+              <div className="col-span-5 px-3 py-2 text-right">Total</div>
+            </div>
+            <div className="flex flex-col bg-white divide-y divide-slate-100 h-full">
+              {(Object.entries(aggregatedSms) as [string, number][]).map(([desc, val]) => (
+                <div
+                  key={desc}
+                  className="grid grid-cols-12 text-xs font-medium hover:bg-slate-50 py-2"
+                >
+                  <div className="col-span-7 px-3 font-semibold text-slate-800 truncate">{desc}</div>
+                  <div className="col-span-5 px-3 text-right font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                    {formatEuro(val)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-auto bg-slate-50 px-4 py-3 text-right border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Total</span>
+              <div className="text-lg font-extrabold text-slate-900 tabular-nums">
+                {formatEuro(grandTotalSms)}
+              </div>
+            </div>
+          </div>
 
-        {/* Resumo Mês section wrapped to avoid page break inside when printing */}
-        <div className="print:break-inside-avoid">
-          {/* Resumo Mês Bar */}
-          <div className="bg-[#5a7d36] text-white px-4 py-2 mt-6 rounded-t-lg flex justify-between items-center print:bg-[#5a7d36] print:text-white">
-              <div className="flex items-center gap-3">
-                  <span className="font-bold text-sm uppercase tracking-widest">Resumo Mês</span>
-                  {monthlyData.isFinalized && (
-                      <span className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-400">
-                          <Check size={10} /> Submetido
+          {/* Col 3: Diferença por Rubrica */}
+          <div className="lg:col-span-4 flex flex-col rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-amber-400 py-2.5 px-4 font-bold uppercase text-xs tracking-wider">
+              Diferença por Rubrica
+            </div>
+            <div className="grid grid-cols-12 text-[10px] font-bold uppercase text-slate-400 bg-slate-50 border-b border-slate-200">
+              <div className="col-span-7 px-3 py-2">Rubrica</div>
+              <div className="col-span-5 px-3 py-2 text-right">Desvio</div>
+            </div>
+            <div className="flex flex-col bg-white divide-y divide-slate-100">
+              {(Object.entries(categoryDifferences) as [string, number][]).map(([desc, diff]) => {
+                const isMajor = Math.abs(diff) > 10;
+                const isMinor = Math.abs(diff) > 0.1;
+                return (
+                  <div
+                    key={desc}
+                    className={`grid grid-cols-12 text-xs py-2 items-center ${
+                      isMajor ? 'bg-amber-50/60' : ''
+                    }`}
+                  >
+                    <div className="col-span-7 px-3 font-semibold text-slate-800">{desc}</div>
+                    <div className="col-span-5 px-3 text-right tabular-nums whitespace-nowrap">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full font-bold text-[11px] ${
+                          isMajor
+                            ? 'bg-rose-100 text-rose-700'
+                            : isMinor
+                            ? 'text-amber-700'
+                            : 'text-emerald-700'
+                        }`}
+                      >
+                        {diff > 0 ? `+${formatEuro(diff)}` : formatEuro(diff)}
                       </span>
-                  )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-auto bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase text-slate-500">Saldo Líquido</span>
+              <div
+                className={`text-lg font-extrabold tabular-nums ${
+                  Math.abs(grandTotalDiff) > 5 ? 'text-rose-600' : 'text-emerald-700'
+                }`}
+              >
+                {grandTotalDiff > 0 ? `+${formatEuro(grandTotalDiff)}` : formatEuro(grandTotalDiff)}
               </div>
-              <div className="flex items-center gap-2 print:hidden">
-                  <button 
-                      onClick={handleExportMonthlySummaryToExcel} 
-                      title="Exportar para Excel"
-                      id="btn-export-excel-resumo-mes"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1 rounded flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-emerald-500/30"
-                  >
-                      <FileSpreadsheet size={14} />
-                      <span>Exportar Excel</span>
-                  </button>
-                  <button 
-                      onClick={handleToggleFinalize} 
-                      id="btn-submeter-resumo-mes"
-                      className={`text-xs font-bold px-3 py-1 rounded flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border ${
-                          monthlyData.isFinalized 
-                            ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500/30' 
-                            : 'bg-white text-[#5a7d36] hover:bg-slate-100 border-white/30'
-                      }`}
-                  >
-                      {monthlyData.isFinalized ? (
-                          <>
-                              <Unlock size={14} />
-                              <span>Reabrir Edição</span>
-                          </>
-                      ) : (
-                          <>
-                              <Lock size={14} />
-                              <span>Gravar e Submeter</span>
-                          </>
-                      )}
-                  </button>
-              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Outros Fornecedores */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-slate-900 text-white px-4 py-2.5 flex justify-between items-center">
+            <span className="font-bold text-xs uppercase tracking-wider">
+              Outros Fornecedores Diretos (Air Liquide / MaiaPapper)
+            </span>
+            <div className="flex items-center gap-2 print:hidden">
+              {!monthlyData.isFinalized && (
+                <button
+                  onClick={handleAddOtherSupplier}
+                  className="inline-flex items-center gap-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-lg transition-colors"
+                  title="Adicionar fornecedor"
+                >
+                  <Plus size={14} /> Adicionar Linha
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 text-[11px] uppercase">
+                <tr>
+                  <th className="px-3 py-2 text-left">Fornecedor</th>
+                  <th className="px-3 py-2 text-left">Data</th>
+                  <th className="px-3 py-2 text-center">Qtd</th>
+                  <th className="px-3 py-2 text-right">Fatura (€)</th>
+                  <th className="px-3 py-2 text-right">MyStore (€)</th>
+                  <th className="px-3 py-2 text-right">Diferença (€)</th>
+                  <th className="px-3 py-2 text-left">Gerente</th>
+                  <th className="px-3 py-2 text-center print:hidden w-10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {monthlyData.otherSuppliers.map(entry => {
+                  const rowDiff = (entry.invoiceValue || 0) - (entry.myStoreValue || 0);
+                  return (
+                    <tr key={entry.id} className="hover:bg-slate-50/80 group">
+                      <td className="p-2">
+                        <select
+                          value={entry.supplier}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(entry.id, 'supplier', e.target.value)
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 disabled:opacity-75"
+                        >
+                          <option value="Air Liquide">Air Liquide</option>
+                          <option value="MaiaPapper">MaiaPapper</option>
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="date"
+                          value={entry.date}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(entry.id, 'date', e.target.value)
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-800 disabled:opacity-75"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          value={entry.quantity || ''}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(
+                              entry.id,
+                              'quantity',
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="w-20 text-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 tabular-nums disabled:opacity-75"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          value={entry.invoiceValue || ''}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(
+                              entry.id,
+                              'invoiceValue',
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="w-28 text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold tabular-nums disabled:opacity-75"
+                          placeholder="0,00"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          value={entry.myStoreValue || ''}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(
+                              entry.id,
+                              'myStoreValue',
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="w-28 text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-bold tabular-nums disabled:opacity-75"
+                          placeholder="0,00"
+                        />
+                      </td>
+                      <td
+                        className={`p-2 text-right font-extrabold tabular-nums ${
+                          Math.abs(rowDiff) > 0.1 ? 'text-rose-600' : 'text-emerald-700'
+                        }`}
+                      >
+                        {formatNumber(rowDiff)} €
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={entry.managerId}
+                          onChange={e =>
+                            handleUpdateOtherSupplier(entry.id, 'managerId', e.target.value)
+                          }
+                          disabled={monthlyData.isFinalized}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-medium disabled:opacity-75"
+                        >
+                          <option value="">— Selecionar —</option>
+                          {gerentes.map(g => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 text-center print:hidden">
+                        {!monthlyData.isFinalized && (
+                          <button
+                            onClick={() => handleDeleteOtherSupplier(entry.id)}
+                            className="p-1 text-slate-300 hover:text-rose-600"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {monthlyData.otherSuppliers.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-5 text-center text-slate-400">
+                      Sem lançamentos diretos neste mês. Clique em &quot;Adicionar Linha&quot; para registar Air Liquide ou MaiaPapper.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Resumo Mês & Apuramento P&L */}
+        <div className="print:break-inside-avoid rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-slate-900 text-white px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-xs uppercase tracking-wider">
+                Apuramento Mensal de Consumos, Inventários &amp; Food Cost
+              </span>
+              {monthlyData.isFinalized && (
+                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 border border-emerald-400/30">
+                  <Check size={11} /> Fechado
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 print:hidden">
+              <button
+                onClick={handleExportMonthlySummaryToExcel}
+                title="Exportar para Excel"
+                id="btn-export-excel-resumo-mes"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"
+              >
+                <FileSpreadsheet size={14} />
+                <span>Exportar CSV/Excel</span>
+              </button>
+              <button
+                onClick={handleToggleFinalize}
+                id="btn-submeter-resumo-mes"
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                  monthlyData.isFinalized
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                    : 'bg-white text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                {monthlyData.isFinalized ? (
+                  <>
+                    <Unlock size={14} />
+                    <span>Reabrir Mês</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={14} />
+                    <span>Gravar &amp; Fechar Mês</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* Operational Dashboard Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 border-x border-b border-gray-200 p-6 bg-white rounded-b-lg">
-             {/* Coluna 1 */}
-             <div className="space-y-4">
-                <DataInputRow label="Vendas Mês" value={monthlyData.vendasMes} onChange={v => handleUpdateMonthlyField('vendasMes', v)} isHeader disabled={monthlyData.isFinalized} />
-                <div className="space-y-1">
-                   <DataDisplayRow label="Compras Comida" value={formatEuro(computedComprasComida)} />
-                   <DataDisplayRow label="Compras Papel" value={formatEuro(computedComprasPapel)} />
-                   <DataDisplayRow label="Compras Total Ops" value={formatEuro(computedComprasTotalOps)} />
-                </div>
-                <div className="space-y-1">
-                   <DataDisplayRow label="Consumo Comida" value={formatEuro(computedConsumoComida)} />
-                   <DataDisplayRow label="Consumo Papel" value={formatEuro(computedConsumoPapel)} />
-                   <DataDisplayRow label="Consumo OPS" value={formatEuro(computedConsumoOps)} />
-                </div>
-             </div>
-
-              {/* Coluna 2 */}
-              <div className="space-y-4">
-                 <div className="space-y-1">
-                   <DataInputRow label="Inv. Inicial Comida" value={monthlyData.invInicialComida} onChange={v => handleUpdateMonthlyField('invInicialComida', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Inv. Inicial OPS" value={monthlyData.invInicialOps} onChange={v => handleUpdateMonthlyField('invInicialOps', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Perdas Comida" value={monthlyData.perdasComida} onChange={v => handleUpdateMonthlyField('perdasComida', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Refeições Comida" value={monthlyData.refeicoesComida} onChange={v => handleUpdateMonthlyField('refeicoesComida', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Promo Comida" value={monthlyData.promoComida} onChange={v => handleUpdateMonthlyField('promoComida', v)} disabled={monthlyData.isFinalized} />
-                 </div>
-                 <div className="space-y-1">
-                   <DataInputRow label="Inv. Final Comida" value={monthlyData.invFinalComida} onChange={v => handleUpdateMonthlyField('invFinalComida', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Inv. Final Papel" value={monthlyData.invFinalPapel} onChange={v => handleUpdateMonthlyField('invFinalPapel', v)} disabled={monthlyData.isFinalized} />
-                   <DataInputRow label="Inv. Final OPS" value={monthlyData.invFinalOps} onChange={v => handleUpdateMonthlyField('invFinalOps', v)} disabled={monthlyData.isFinalized} />
-                   <DataDisplayRow label="Compras OPS Havi" value={formatEuro(computedComprasOpsHavi)} />
-                 </div>
+          {/* Highlighted Ratio Cards Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 border-b border-slate-200">
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-medium text-slate-500">% Custo Comida</span>
+              <div className="text-xl font-extrabold text-slate-900 tabular-nums mt-0.5">
+                {formatPercent(pctFoodCost)}
               </div>
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {formatEuro(computedConsumoComida)}
+              </span>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-medium text-slate-500">% Custo Papel</span>
+              <div className="text-xl font-extrabold text-slate-900 tabular-nums mt-0.5">
+                {formatPercent(pctPaperCost)}
+              </div>
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {formatEuro(computedConsumoPapel)}
+              </span>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-medium text-slate-500">Food &amp; Paper Total</span>
+              <div className="text-xl font-extrabold text-amber-700 tabular-nums mt-0.5">
+                {formatPercent(pctCombinedCost)}
+              </div>
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {formatEuro(computedConsumoComida + computedConsumoPapel)}
+              </span>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-medium text-slate-500">% Consumo OPS</span>
+              <div className="text-xl font-extrabold text-slate-900 tabular-nums mt-0.5">
+                {formatPercent(pctOpsCost)}
+              </div>
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {formatEuro(computedConsumoOps)}
+              </span>
+            </div>
+          </div>
 
-             {/* Coluna 3 */}
-             <div className="space-y-4">
-                <DataInputRow label="Inv. Inicial Papel" value={monthlyData.invInicialPapel} onChange={v => handleUpdateMonthlyField('invInicialPapel', v)} disabled={monthlyData.isFinalized} />
-                <div className="space-y-1">
-                  <DataInputRow label="Perdas Papel" value={monthlyData.perdasPapel} onChange={v => handleUpdateMonthlyField('perdasPapel', v)} disabled={monthlyData.isFinalized} />
-                  <DataInputRow label="Refeições Papel" value={monthlyData.refeicoesPapel} onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)} disabled={monthlyData.isFinalized} />
-                  <DataInputRow label="Promo Papel" value={monthlyData.promoPapel} onChange={v => handleUpdateMonthlyField('promoPapel', v)} disabled={monthlyData.isFinalized} />
-                </div>
-                <div className="space-y-1">
-                   <DataDisplayRow label="% Custo Comida" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoComida / monthlyData.vendasMes) * 100) : '0,00%'} />
-                   <DataDisplayRow label="% Custo Papel" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoPapel / monthlyData.vendasMes) * 100) : '0,00%'} />
-                   <DataDisplayRow label="% Consumo OPS" value={monthlyData.vendasMes > 0 ? formatPercent((computedConsumoOps / monthlyData.vendasMes) * 100) : '0,00%'} />
-                   <DataDisplayRow label="Compras OPS MaiaPapper" value={formatEuro(computedComprasOpsMaiaPapper)} />
-                </div>
-             </div>
+          {/* 3-Column Operational Inputs & Computed Outputs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:grid-cols-3 print:gap-4 p-5 sm:p-6 bg-white">
+            {/* Coluna 1 */}
+            <div className="space-y-4">
+              <DataInputRow
+                label="Vendas Líquidas Mês (€)"
+                value={monthlyData.vendasMes}
+                onChange={v => handleUpdateMonthlyField('vendasMes', v)}
+                isHeader
+                disabled={monthlyData.isFinalized}
+              />
+              <div className="space-y-1.5">
+                <DataDisplayRow label="Compras Comida" value={formatEuro(computedComprasComida)} />
+                <DataDisplayRow label="Compras Papel" value={formatEuro(computedComprasPapel)} />
+                <DataDisplayRow label="Compras Total OPS" value={formatEuro(computedComprasTotalOps)} />
+              </div>
+              <div className="space-y-1.5">
+                <DataDisplayRow label="Consumo Comida" value={formatEuro(computedConsumoComida)} />
+                <DataDisplayRow label="Consumo Papel" value={formatEuro(computedConsumoPapel)} />
+                <DataDisplayRow label="Consumo OPS" value={formatEuro(computedConsumoOps)} />
+              </div>
+            </div>
+
+            {/* Coluna 2 */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <DataInputRow
+                  label="Inv. Inicial Comida"
+                  value={monthlyData.invInicialComida}
+                  onChange={v => handleUpdateMonthlyField('invInicialComida', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Inv. Inicial OPS"
+                  value={monthlyData.invInicialOps}
+                  onChange={v => handleUpdateMonthlyField('invInicialOps', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Perdas / Quebras Comida"
+                  value={monthlyData.perdasComida}
+                  onChange={v => handleUpdateMonthlyField('perdasComida', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Refeições Equipa Comida"
+                  value={monthlyData.refeicoesComida}
+                  onChange={v => handleUpdateMonthlyField('refeicoesComida', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Promoções Comida"
+                  value={monthlyData.promoComida}
+                  onChange={v => handleUpdateMonthlyField('promoComida', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <DataInputRow
+                  label="Inv. Final Comida"
+                  value={monthlyData.invFinalComida}
+                  onChange={v => handleUpdateMonthlyField('invFinalComida', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Inv. Final Papel"
+                  value={monthlyData.invFinalPapel}
+                  onChange={v => handleUpdateMonthlyField('invFinalPapel', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Inv. Final OPS"
+                  value={monthlyData.invFinalOps}
+                  onChange={v => handleUpdateMonthlyField('invFinalOps', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataDisplayRow label="Compras OPS HAVI" value={formatEuro(computedComprasOpsHavi)} />
+              </div>
+            </div>
+
+            {/* Coluna 3 */}
+            <div className="space-y-4">
+              <DataInputRow
+                label="Inv. Inicial Papel"
+                value={monthlyData.invInicialPapel}
+                onChange={v => handleUpdateMonthlyField('invInicialPapel', v)}
+                disabled={monthlyData.isFinalized}
+              />
+              <div className="space-y-1.5">
+                <DataInputRow
+                  label="Perdas / Quebras Papel"
+                  value={monthlyData.perdasPapel}
+                  onChange={v => handleUpdateMonthlyField('perdasPapel', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Refeições Papel"
+                  value={monthlyData.refeicoesPapel}
+                  onChange={v => handleUpdateMonthlyField('refeicoesPapel', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+                <DataInputRow
+                  label="Promoções Papel"
+                  value={monthlyData.promoPapel}
+                  onChange={v => handleUpdateMonthlyField('promoPapel', v)}
+                  disabled={monthlyData.isFinalized}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <DataDisplayRow
+                  label="% Custo Comida"
+                  value={formatPercent(pctFoodCost)}
+                />
+                <DataDisplayRow
+                  label="% Custo Papel"
+                  value={formatPercent(pctPaperCost)}
+                />
+                <DataDisplayRow
+                  label="% Consumo OPS"
+                  value={formatPercent(pctOpsCost)}
+                />
+                <DataDisplayRow
+                  label="Compras OPS MaiaPapper"
+                  value={formatEuro(computedComprasOpsMaiaPapper)}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -858,34 +1196,56 @@ export const BillingSummary: React.FC<BillingSummaryProps> = ({ deliveries, cred
   );
 };
 
-const DataInputRow: React.FC<{ label: string, value: number, onChange: (val: number) => void, isHeader?: boolean, disabled?: boolean }> = ({ label, value, onChange, isHeader, disabled }) => {
+const DataInputRow: React.FC<{
+  label: string;
+  value: number;
+  onChange: (val: number) => void;
+  isHeader?: boolean;
+  disabled?: boolean;
+}> = ({ label, value, onChange, isHeader, disabled }) => {
   return (
-    <div className="flex gap-1.5 items-stretch h-7">
-      <div className={`bg-[#b4d493] px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
-        <span className={`text-[10px] font-bold tracking-tight text-gray-700 uppercase truncate`}>{label}</span>
+    <div className="flex gap-2 items-stretch h-8">
+      <div
+        className={`px-3 flex items-center flex-1 rounded-lg border ${
+          isHeader
+            ? 'bg-slate-900 text-white border-slate-900'
+            : 'bg-slate-100/90 text-slate-700 border-slate-200/70'
+        }`}
+      >
+        <span className="text-[11px] font-semibold tracking-tight truncate">{label}</span>
       </div>
-      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end font-black text-xs text-gray-700 overflow-hidden ${disabled ? 'bg-slate-100 text-gray-400' : isHeader ? 'bg-gray-50' : 'bg-white'}`}>
-        <input 
-          type="number" 
-          step="0.01" 
-          value={value || ''} 
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      <div
+        className={`border rounded-lg w-36 flex items-center justify-end font-bold text-xs tabular-nums overflow-hidden ${
+          disabled
+            ? 'bg-slate-100 text-slate-400 border-slate-200'
+            : isHeader
+            ? 'bg-amber-50 border-amber-300 text-slate-950'
+            : 'bg-white border-slate-200 text-slate-900 focus-within:border-slate-900'
+        }`}
+      >
+        <input
+          type="number"
+          step="0.01"
+          value={value || ''}
+          onChange={e => onChange(parseFloat(e.target.value) || 0)}
           disabled={disabled}
-          className="w-full h-full text-right px-3 bg-transparent border-none outline-none focus:ring-0 transition-colors disabled:cursor-not-allowed"
-          placeholder="0.00"
+          className="w-full h-full text-right px-3 bg-transparent border-none outline-none focus:ring-0 transition-colors disabled:cursor-not-allowed tabular-nums"
+          placeholder="0,00"
         />
       </div>
     </div>
   );
 };
 
-const DataDisplayRow: React.FC<{ label: string, value: string }> = ({ label, value }) => {
+const DataDisplayRow: React.FC<{ label: string; value: string }> = ({ label, value }) => {
   return (
-    <div className="flex gap-1.5 items-stretch h-7">
-      <div className={`bg-[#b4d493] px-3 flex items-center flex-1 rounded-sm border border-black/5`}>
-        <span className={`text-[10px] font-bold tracking-tight text-gray-700 uppercase truncate`}>{label}</span>
+    <div className="flex gap-2 items-stretch h-8">
+      <div className="bg-slate-50 px-3 flex items-center flex-1 rounded-lg border border-slate-200/70">
+        <span className="text-[11px] font-semibold tracking-tight text-slate-600 truncate">
+          {label}
+        </span>
       </div>
-      <div className={`border border-gray-200 rounded-sm w-32 flex items-center justify-end px-3 font-black text-xs text-gray-700 bg-gray-50`}>
+      <div className="border border-slate-200/80 rounded-lg w-36 flex items-center justify-end px-3 font-extrabold text-xs text-slate-900 bg-slate-100/70 tabular-nums whitespace-nowrap">
         {value}
       </div>
     </div>

@@ -422,7 +422,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
       <div className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
-            <ClipboardCheck className="text-[#a51c24] stroke-[2.5]" size={22} />
+            <ClipboardCheck className="text-slate-900 stroke-[2.5]" size={22} />
             Tarefas de Gerentes
           </h1>
           <p className="text-xs text-gray-500 mt-1">Checklists e acompanhamento operacional complementar de gerentes por departamento.</p>
@@ -441,7 +441,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                   }}
                   className={`px-3 py-1.5 font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all duration-200 ${
                     isSelected 
-                      ? 'bg-[#2c532c] text-white shadow shadow-blue-500/50 border-2 border-blue-500' 
+                      ? 'bg-slate-900 text-white shadow shadow-blue-500/50 border-2 border-blue-500' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
@@ -461,7 +461,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
           <div className="xl:col-span-1 space-y-4 print:hidden">
             <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-4 shadow-sm">
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b pb-2">
-                <Filter size={14} className="text-[#a51c24]" />
+                <Filter size={14} className="text-slate-900" />
                 Parâmetros da Folha
               </h2>
 
@@ -589,6 +589,20 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                     <button
                       type="button"
                       onClick={async () => {
+                        if (activeMetrics.checked === 0 && !currentComments.trim()) {
+                          alert(
+                            'Não é possível finalizar uma checklist com 0% de tarefas assinaladas sem justificação nos comentários.'
+                          );
+                          return;
+                        }
+                        if (
+                          activeMetrics.percent < 50 &&
+                          !window.confirm(
+                            `Atenção: Apenas ${activeMetrics.percent}% dos itens estão assinalados (${activeMetrics.checked}/${activeMetrics.total}). Deseja mesmo marcar esta checklist como Concluída?`
+                          )
+                        ) {
+                          return;
+                        }
                         setIsCompleted(true);
 
                         const mName = employees.find(e => e.id === selectedManagerId)?.name || 'Gerente';
@@ -615,7 +629,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                         setChecklists(updatedChecklists);
                         await saveManagerChecklists(restaurantId, updatedChecklists);
                       }}
-                      className="w-full py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer bg-[#2c532c] hover:bg-emerald-950 text-white shadow-sm"
+                      className="w-full py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer bg-slate-900 hover:bg-emerald-950 text-white shadow-sm"
                     >
                       <CheckCircle size={14} />
                       Finalizar Checklist
@@ -632,7 +646,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
             {/* Quick Metrics of Active Sheet */}
             <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-sm">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2c532c]">Cumprimento</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700">Cumprimento</h3>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-slate-900 tracking-tight">{activeMetrics.percent}%</span>
                 <span className="text-xs font-medium text-gray-500">({activeMetrics.checked} de {activeMetrics.total} registos)</span>
@@ -685,7 +699,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                   id="action_save_current_checklist"
                   onClick={handleSaveChecklist}
                   disabled={isSaving}
-                  className="px-5 py-2 bg-[#a51c24] hover:bg-[#86161c] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   <Save size={13} />
                   {isSaving ? 'A gravar...' : 'Gravar Checklist'}
@@ -703,7 +717,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                     M
                   </div>
                   <div className="mt-1">
-                    <span className="block text-[10px] font-black tracking-widest text-[#2c532c] uppercase">{settings.restaurantName ? settings.restaurantName.toUpperCase() : 'VIA CATARINA'}</span>
+                    <span className="block text-[10px] font-black tracking-widest text-slate-700 uppercase">{settings.restaurantName ? settings.restaurantName.toUpperCase() : 'VIA CATARINA'}</span>
                     <h2 className="text-2xl font-black uppercase text-slate-950 tracking-tight leading-none mt-1">Lista de Tarefas</h2>
                   </div>
                 </div>
@@ -727,7 +741,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
                 <div className="space-y-1">
                   <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">MÊS</span>
-                  <div className="border border-slate-800 bg-white px-3 py-1.5 font-extrabold text-xs text-[#a51c24] rounded select-none">
+                  <div className="border border-slate-800 bg-white px-3 py-1.5 font-extrabold text-xs text-slate-900 rounded select-none">
                     {formatMonthPortuguese(selectedMonth)}
                   </div>
                 </div>
@@ -736,7 +750,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               {/* Task table list */}
               <div className="border border-slate-900 overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs text-slate-900">
-                  <thead className="bg-[#2c532c] text-white">
+                  <thead className="bg-slate-900 text-white">
                     <tr className="border-b border-slate-950">
                       <th className="px-4 py-2.5 font-black uppercase text-[10px] tracking-wider w-[55%]">TAREFA</th>
                       <th className="px-2 py-2.5 font-black uppercase text-[9px] tracking-wider text-center border-l border-slate-900">SEMANA 1</th>
@@ -848,7 +862,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               {/* Bottom Comments Area */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start border border-slate-900 p-4 bg-slate-50/50">
                 <div className="md:col-span-2 space-y-1">
-                  <span className="block text-[9px] font-black text-[#2c532c] uppercase tracking-widest h-auto">COMENTÁRIOS / OBSERVAÇÕES</span>
+                  <span className="block text-[9px] font-black text-slate-700 uppercase tracking-widest h-auto">COMENTÁRIOS / OBSERVAÇÕES</span>
                   <textarea
                     id="checklist_comments_input"
                     value={currentComments}
@@ -1033,11 +1047,11 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/70 transition-all">
-                          <td className="px-5 py-4 text-[#a51c24] font-black">
+                          <td className="px-5 py-4 text-slate-900 font-black">
                             {formatMonthPortuguese(c.monthYear)}
                           </td>
                           <td className="px-5 py-4 flex items-center gap-2">
-                            <span className="w-7 h-7 bg-indigo-50 text-[#a51c24] font-black uppercase rounded-full flex items-center justify-center text-[10px]">
+                            <span className="w-7 h-7 bg-indigo-50 text-slate-900 font-black uppercase rounded-full flex items-center justify-center text-[10px]">
                               {c.managerName.substring(0, 2)}
                             </span>
                             <div>
@@ -1124,7 +1138,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
           {/* Left Block - Create New Task form */}
           <div className="lg:col-span-1 bg-white p-5 rounded-2xl border border-slate-100 space-y-4 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b pb-2">
-              <Plus size={14} className="text-[#a51c24] stroke-[3]" />
+              <Plus size={14} className="text-slate-900 stroke-[3]" />
               Nova Tarefa de Checklist
             </h3>
 
@@ -1156,7 +1170,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
             <button
               id="admin_action_add_task"
               onClick={handleAddTask}
-              className="w-full py-2.5 bg-[#a51c24] hover:bg-[#86161c] text-white font-black uppercase text-xs tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus size={14} />
               Criar e Registar
@@ -1229,7 +1243,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                 M
               </div>
               <div className="mt-1">
-                <span className="block text-[8px] font-black tracking-widest text-[#2c532c] uppercase">{settings.restaurantName.toUpperCase()}</span>
+                <span className="block text-[8px] font-black tracking-widest text-slate-700 uppercase">{settings.restaurantName.toUpperCase()}</span>
                 <h2 className="text-xl font-black uppercase text-slate-950 tracking-tight leading-none mt-1">Lista de Tarefas</h2>
               </div>
             </div>
@@ -1253,7 +1267,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
             <div className="space-y-0.5">
               <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">MÊS</span>
-              <div className="border border-slate-800 bg-white px-3 py-1 font-extrabold text-xs text-[#a51c24] rounded select-none">
+              <div className="border border-slate-800 bg-white px-3 py-1 font-extrabold text-xs text-slate-900 rounded select-none">
                 {formatMonthPortuguese(printChecklist.monthYear)}
               </div>
             </div>
@@ -1262,7 +1276,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
           {/* Main task logs content */}
           <div className="border border-slate-900">
             <table className="w-full border-collapse text-left text-xs text-slate-900">
-              <thead className="bg-[#2c532c] text-white">
+              <thead className="bg-slate-900 text-white">
                 <tr className="border-b border-slate-950">
                   <th className="px-3 py-2 font-black uppercase text-[9px] tracking-wider w-[55%]">TAREFA</th>
                   <th className="px-1 py-2 font-black uppercase text-[8px] tracking-wider text-center border-l border-slate-900">S1</th>
@@ -1310,7 +1324,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
           {/* Verification validations signature */}
           <div className="grid grid-cols-3 gap-6 border border-slate-900 p-3.5 bg-slate-50/50">
             <div className="col-span-2 space-y-0.5">
-              <span className="block text-[8px] font-black text-[#2c532c] uppercase tracking-widest h-auto">COMENTÁRIOS / OBSERVAÇÕES</span>
+              <span className="block text-[8px] font-black text-slate-700 uppercase tracking-widest h-auto">COMENTÁRIOS / OBSERVAÇÕES</span>
               <div className="w-full h-16 p-2 bg-white border border-slate-800 rounded text-xs text-slate-800 leading-normal overflow-hidden italic">
                 {printChecklist.comments || 'Nenhuns comentários adicionados.'}
               </div>
@@ -1320,7 +1334,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">VALIDADO POR</span>
               {printChecklist.isApproved ? (
                 <div>
-                  <span className="block text-xs font-black text-[#2c532c] leading-none truncate">{printChecklist.approvedBy?.toUpperCase()}</span>
+                  <span className="block text-xs font-black text-slate-700 leading-none truncate">{printChecklist.approvedBy?.toUpperCase()}</span>
                   <span className="block text-[8px] text-gray-400 mt-0.5">
                     {printChecklist.approvedAt ? new Date(printChecklist.approvedAt).toLocaleDateString() : ''}
                   </span>
@@ -1369,7 +1383,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
               {/* Task lists read only table */}
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#2c532c] text-white font-black uppercase tracking-wider text-[9px]">
+                  <thead className="bg-slate-900 text-white font-black uppercase tracking-wider text-[9px]">
                     <tr>
                       <th className="px-5 py-3 w-[60%]">Tarefa</th>
                       <th className="px-3 py-3 text-center border-l border-white/10">W1</th>
@@ -1415,7 +1429,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
 
               {/* Validator Name Input Form */}
               <div className="pt-4 border-t border-slate-150 space-y-2">
-                <label className="block text-[11px] font-black uppercase text-[#a51c24] tracking-wider">
+                <label className="block text-[11px] font-black uppercase text-slate-900 tracking-wider">
                   Nome do Supervisor / Responsável pela Validação:
                 </label>
                 <select 
@@ -1444,7 +1458,7 @@ export const ManagerTasks: React.FC<ManagerTasksProps> = ({
                 type="button"
                 onClick={() => handleValidateModalConfirm(reviewChecklist, reviewValidatorName)}
                 disabled={!reviewValidatorName.trim()}
-                className="px-5 py-2 bg-[#2c532c] hover:bg-emerald-950 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="px-5 py-2 bg-slate-900 hover:bg-emerald-950 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <UserCheck size={14} />
                 Gravar & Validar Checklist
