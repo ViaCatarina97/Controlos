@@ -144,18 +144,29 @@ export async function testConnection() {
   }
 }
 
+let anonymousAuthUnavailable = false;
+let pendingAuthPromise: Promise<string | null> | null = null;
+
 // Ensure the user is authenticated anonymously so rules can verify identity if enabled
 export async function ensureAuthenticated(): Promise<string | null> {
   if (auth.currentUser) {
     return auth.currentUser.uid;
   }
-  try {
-    const cred = await signInAnonymously(auth);
-    return cred.user.uid;
-  } catch (error) {
-    console.warn("Anonymous authentication failed or not enabled in the Firebase Console. Continuing with unauthenticated session.", error);
+  if (anonymousAuthUnavailable) {
     return null;
   }
+  if (!pendingAuthPromise) {
+    pendingAuthPromise = signInAnonymously(auth)
+      .then(cred => cred.user.uid)
+      .catch(() => {
+        anonymousAuthUnavailable = true;
+        return null;
+      })
+      .finally(() => {
+        pendingAuthPromise = null;
+      });
+  }
+  return pendingAuthPromise;
 }
 
 // Tests connection on startup

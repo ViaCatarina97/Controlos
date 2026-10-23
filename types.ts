@@ -13,13 +13,68 @@ export type RestaurantTypology = 'Loja de Rua' | 'Drive' | 'Shopping';
 export type BusinessArea = 'Loja' | 'Drive' | 'Delivery' | 'McCafé';
 export type ShiftType = 'ABERTURA' | 'INTERMEDIO' | 'FECHO' | 'MADRUGADA';
 
+export type FloorPlanZoneId =
+  | 'grills'
+  | 'kitchen'
+  | 'fryers'
+  | 'beverage'
+  | 'cashier'
+  | 'counter'
+  | 'fries'
+  | 'delivery'
+  | 'lobby'
+  | 'drive'
+  | 'mccafe';
+
+export type FloorPlanStageId =
+  | 'iniciador'
+  | 'preparador'
+  | 'finalizador'
+  | 'expedidor'
+  | 'runner'
+  | 'apresentador';
+
+export interface FloorPlanLabels {
+  grillsTitle?: string;
+  grillsSubtitle?: string;
+  kitchenTitle?: string;
+  kitchenSubtitle?: string;
+  fryersTitle?: string;
+  fryersSubtitle?: string;
+  beverageTitle?: string;
+  beverageSubtitle?: string;
+  cashierTitle?: string;
+  cashierSubtitle?: string;
+  counterTitle?: string;
+  counterSubtitle?: string;
+  friesTitle?: string;
+  friesSubtitle?: string;
+  deliveryTitle?: string;
+  deliverySubtitle?: string;
+  lobbyTitle?: string;
+  lobbySubtitle?: string;
+  driveTitle?: string;
+  mccafeTitle?: string;
+  line1Label?: string;
+  line2Label?: string;
+  stageIniciador?: string;
+  stagePreparador?: string;
+  stageFinalizador?: string;
+  stageExpedidor?: string;
+  stageRunner?: string;
+  stageApresentador?: string;
+}
+
 export interface StationConfig {
   id: string;
   label: string;
   designation?: string;
   icon: string;
   defaultSlots: number;
-  area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries' | 'counter'; 
+  area: 'kitchen' | 'delivery' | 'lobby' | 'beverage' | 'drive' | 'mccafe' | 'fries' | 'counter' | 'fryers' | 'cashier'; 
+  zoneOverride?: FloorPlanZoneId;
+  stageOverride?: FloorPlanStageId;
+  lineOverride?: 1 | 2;
   isActive: boolean; 
 }
 
@@ -32,6 +87,7 @@ export interface AppSettings {
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
   customStations: StationConfig[]; 
+  floorPlanLabels?: FloorPlanLabels;
   fundoGavetaCount?: number;
   fundoGavetaValue?: number;
 }

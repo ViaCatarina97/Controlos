@@ -1188,6 +1188,7 @@ const App: React.FC = () => {
                   schedule={currentSchedule}
                   setSchedule={handleUpdateSchedule}
                   settings={activeRestaurant}
+                  onSaveSettings={handleSaveRestaurantSettings}
                   hourlyData={currentSchedule.hourlyProjections?.[selectedShift] || []}
                   onSaveSchedule={handleSaveSchedule}
                   initialShift={selectedShift}

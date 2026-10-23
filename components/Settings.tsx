@@ -1,9 +1,44 @@
-
-import React, { useState, useMemo, useRef } from 'react';
-import { AppSettings, Employee, RoleType, StationConfig, RestaurantTypology, ShiftType, BusinessArea } from '../types';
-import { AVAILABLE_TYPOLOGIES, ROLE_COLORS, ROLE_LABELS, STATIONS, AVAILABLE_SHIFTS, AVAILABLE_AREAS } from '../constants';
-import { 
-  Save, Trash2, Flame, Utensils, Sandwich, CupSoda, Monitor, Coffee, Users, Package, Car, CheckSquare, Square, Edit2, Plus, X, Check, Download, Upload, Share2
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AppSettings,
+  BusinessArea,
+  Employee,
+  FloorPlanLabels,
+  FloorPlanStageId,
+  FloorPlanZoneId,
+  RestaurantTypology,
+  ShiftType,
+  StationConfig,
+} from '../types';
+import {
+  AVAILABLE_AREAS,
+  AVAILABLE_SHIFTS,
+  AVAILABLE_TYPOLOGIES,
+} from '../constants';
+import {
+  COUNTER_STAGE_OPTIONS,
+  FLOOR_PLAN_ZONE_OPTIONS,
+  KITCHEN_STAGE_OPTIONS,
+  resolveCounterStage,
+  resolveFloorPlanLabels,
+  resolveKitchenStage,
+  resolveStationLine,
+  resolveStationZone,
+} from '../utils/floorPlanLayout';
+import { AreaAndStationEditorModal } from './positioning/AreaAndStationEditorModal';
+import { useToast } from './ui/ToastProvider';
+import {
+  Check,
+  CheckSquare,
+  Download,
+  Edit2,
+  Plus,
+  Save,
+  Sliders,
+  Square,
+  Trash2,
+  Upload,
+  X,
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -15,83 +50,88 @@ interface SettingsProps {
   onExportFullData: () => void;
 }
 
-const getStationCategory = (label: string) => {
-    const lower = label.toLowerCase();
-    if (lower.includes('drive')) return { key: 'drive', icon: Car, color: 'bg-slate-200 text-slate-700' };
-    if (lower.includes('mccafé')) return { key: 'mccafe', icon: Coffee, color: 'bg-amber-100 text-amber-800' };
-    if (lower.includes('batata')) return { key: 'fries', icon: Utensils, color: 'bg-yellow-100 text-yellow-700' };
-    if (lower.includes('bebida')) return { key: 'beverage', icon: CupSoda, color: 'bg-pink-100 text-pink-700' };
-    if (lower.includes('batch cooker')) return { key: 'kitchen', icon: Flame, color: 'bg-orange-100 text-orange-700' };
-    if (lower.includes('iniciador') || lower.includes('finalizador')) return { key: 'kitchen', icon: Sandwich, color: 'bg-red-100 text-red-700' };
-    if (lower.includes('expedidor') || lower.includes('caixa')) return { key: 'counter', icon: Monitor, color: 'bg-blue-100 text-blue-700' };
-    if (lower.includes('sala') || lower.includes('rp')) return { key: 'lobby', icon: Users, color: 'bg-blue-100 text-blue-700' };
-    if (lower.includes('delivery')) return { key: 'delivery', icon: Package, color: 'bg-green-100 text-green-700' };
-    return { key: 'other', icon: Users, color: 'bg-gray-100 text-gray-700' };
+const ZONE_TITLE_KEYS: Record<FloorPlanZoneId, keyof FloorPlanLabels> = {
+  grills: 'grillsTitle',
+  kitchen: 'kitchenTitle',
+  fryers: 'fryersTitle',
+  beverage: 'beverageTitle',
+  cashier: 'cashierTitle',
+  counter: 'counterTitle',
+  fries: 'friesTitle',
+  delivery: 'deliveryTitle',
+  lobby: 'lobbyTitle',
+  drive: 'driveTitle',
+  mccafe: 'mccafeTitle',
 };
 
-const AREA_LABELS: Record<string, string> = {
-  kitchen: 'Produção',
-  counter: 'Serviço',
-  beverage: 'Bebidas',
-  fries: 'Batatas',
-  lobby: 'Sala',
-  delivery: 'Delivery',
-  drive: 'Drive-Thru',
-  mccafe: 'McCafé'
-};
-
-export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, employees, setEmployees, onImportFullData, onExportFullData }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'stations'>('stations');
+export const Settings: React.FC<SettingsProps> = ({
+  settings,
+  onSaveSettings,
+  onImportFullData,
+  onExportFullData,
+}) => {
+  const { showToast: toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'stations' | 'general'>('stations');
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [renderTrigger, setRenderTrigger] = useState(0);
 
-  const sortedEmployeeIds = useMemo(() => {
-    return [...employees]
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
-      .map(e => e.id);
-  }, [employees.length, renderTrigger]);
-
-  // Station Modal State
   const [isStationModalOpen, setIsStationModalOpen] = useState(false);
   const [editingStation, setEditingStation] = useState<StationConfig | null>(null);
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
+  const [fullEditorZone, setFullEditorZone] = useState<FloorPlanZoneId | null>(null);
 
-  const groupedStations = useMemo(() => {
-    const groups: Record<string, { label: string, icon: any, color: string, stations: StationConfig[] }> = {};
-    localSettings.customStations.forEach(station => {
-        const cat = getStationCategory(station.label);
-        const area = station.area || cat.key;
-        if (!groups[area]) {
-            groups[area] = { 
-                label: AREA_LABELS[area] || area.charAt(0).toUpperCase() + area.slice(1), 
-                icon: cat.icon, color: cat.color, stations: [] 
-            };
-        }
-        groups[area].stations.push(station);
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
+
+  const resolvedLabels = useMemo(
+    () => resolveFloorPlanLabels(localSettings.floorPlanLabels),
+    [localSettings.floorPlanLabels]
+  );
+
+  const groupedZones = useMemo(() => {
+    return FLOOR_PLAN_ZONE_OPTIONS.map(zoneOpt => {
+      const titleKey = ZONE_TITLE_KEYS[zoneOpt.id];
+      const stationsInZone = (localSettings.customStations || []).filter(
+        st => resolveStationZone(st) === zoneOpt.id
+      );
+      return {
+        zoneId: zoneOpt.id,
+        titleKey,
+        title: resolvedLabels[titleKey] || zoneOpt.label,
+        defaultHint: zoneOpt.label,
+        stations: stationsInZone,
+      };
     });
-    return Object.values(groups);
-  }, [localSettings.customStations]);
+  }, [localSettings.customStations, resolvedLabels]);
+
+  const hasStationChanges = useMemo(() => {
+    return (
+      JSON.stringify(localSettings.customStations) !== JSON.stringify(settings.customStations) ||
+      JSON.stringify(localSettings.floorPlanLabels || {}) !==
+        JSON.stringify(settings.floorPlanLabels || {})
+    );
+  }, [localSettings, settings]);
 
   const toggleShift = (shiftId: ShiftType) => {
     setLocalSettings(prev => {
-        const activeShifts = prev.activeShifts.includes(shiftId)
-            ? prev.activeShifts.filter(s => s !== shiftId)
-            : [...prev.activeShifts, shiftId];
-        const updated = { ...prev, activeShifts };
-        onSaveSettings(updated);
-        return updated;
+      const activeShifts = prev.activeShifts.includes(shiftId)
+        ? prev.activeShifts.filter(s => s !== shiftId)
+        : [...prev.activeShifts, shiftId];
+      const updated = { ...prev, activeShifts };
+      onSaveSettings(updated);
+      return updated;
     });
   };
 
   const toggleArea = (area: BusinessArea) => {
     setLocalSettings(prev => {
-        const businessAreas = prev.businessAreas.includes(area)
-            ? prev.businessAreas.filter(a => a !== area)
-            : [...prev.businessAreas, area];
-        const updated = { ...prev, businessAreas };
-        onSaveSettings(updated);
-        return updated;
+      const businessAreas = prev.businessAreas.includes(area)
+        ? prev.businessAreas.filter(a => a !== area)
+        : [...prev.businessAreas, area];
+      const updated = { ...prev, businessAreas };
+      onSaveSettings(updated);
+      return updated;
     });
   };
 
@@ -99,39 +139,44 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = ev => {
       try {
         const data = JSON.parse(ev.target?.result as string);
         onImportFullData(data);
-      } catch (err) {
-        alert("Ficheiro de dados inválido.");
+        toast('Backup importado com sucesso!', 'success');
+      } catch {
+        toast('Ficheiro JSON inválido.', 'error');
       }
     };
     reader.readAsText(file);
   };
 
-  // Station Handlers
-  const hasStationChanges = useMemo(() => {
-    return JSON.stringify(localSettings.customStations) !== JSON.stringify(settings.customStations);
-  }, [localSettings.customStations, settings.customStations]);
-
   const handleSaveStations = () => {
     onSaveSettings(localSettings);
-    alert("Postos de trabalho guardados com sucesso!");
+    toast('Áreas e postos de trabalho guardados!', 'success');
   };
 
-  const handleOpenStationModal = (station?: StationConfig) => {
+  const handleOpenStationModal = (station?: StationConfig, defaultZone: FloorPlanZoneId = 'grills') => {
     if (station) {
       setEditingStation({ ...station });
     } else {
+      const zoneOpt = FLOOR_PLAN_ZONE_OPTIONS.find(z => z.id === defaultZone)!;
       setEditingStation({
-        id: crypto.randomUUID(),
+        id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         label: '',
         designation: '',
         icon: 'Users',
         defaultSlots: 1,
-        area: 'counter',
-        isActive: true
+        area: zoneOpt.defaultArea,
+        zoneOverride: defaultZone,
+        stageOverride:
+          defaultZone === 'kitchen'
+            ? 'preparador'
+            : defaultZone === 'counter'
+            ? 'apresentador'
+            : undefined,
+        lineOverride: defaultZone === 'kitchen' || defaultZone === 'counter' ? 1 : undefined,
+        isActive: true,
       });
     }
     setIsStationModalOpen(true);
@@ -139,13 +184,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
 
   const handleSaveStation = () => {
     if (!editingStation || !editingStation.label.trim()) return;
-
+    const normalizedStation: StationConfig = {
+      ...editingStation,
+      designation: (editingStation.designation || editingStation.label).trim().toUpperCase(),
+      label: editingStation.label.trim(),
+    };
     setLocalSettings(prev => {
-      const exists = prev.customStations.some(s => s.id === editingStation.id);
+      const exists = prev.customStations.some(s => s.id === normalizedStation.id);
       const updatedStations = exists
-        ? prev.customStations.map(s => s.id === editingStation.id ? editingStation : s)
-        : [...prev.customStations, editingStation];
-      
+        ? prev.customStations.map(s => (s.id === normalizedStation.id ? normalizedStation : s))
+        : [...prev.customStations, normalizedStation];
       return { ...prev, customStations: updatedStations };
     });
     setIsStationModalOpen(false);
@@ -153,229 +201,510 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onSaveSettings, em
   };
 
   const handleDeleteStation = (id: string) => {
-    if (confirm('Tem a certeza que deseja eliminar este posto?')) {
-      setLocalSettings(prev => ({
-        ...prev,
-        customStations: prev.customStations.filter(s => s.id !== id)
-      }));
-    }
+    setLocalSettings(prev => ({
+      ...prev,
+      customStations: prev.customStations.filter(s => s.id !== id),
+    }));
   };
 
+  const editingZone = editingStation ? resolveStationZone(editingStation) : 'grills';
+
   return (
-    <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
-      <div className="flex border-b border-gray-100 bg-gray-50/50 p-1">
-        <button onClick={() => setActiveTab('stations')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'stations' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Postos</button>
-        <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Loja</button>
+    <div className="max-w-6xl mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+      {/* Top Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-1.5 gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab('stations')}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all ${
+            activeTab === 'stations'
+              ? 'bg-white dark:bg-slate-900 text-slate-950 dark:text-white shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          Áreas & Postos do Posicionamento
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('general')}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all ${
+            activeTab === 'general'
+              ? 'bg-white dark:bg-slate-900 text-slate-950 dark:text-white shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          Dados Gerais & Backup da Loja
+        </button>
       </div>
 
-      <div className="p-8 overflow-auto flex-1">
+      <div className="p-5 sm:p-7 overflow-auto flex-1">
         {activeTab === 'general' && (
-          <div className="space-y-8 max-w-4xl mx-auto animate-fade-in pb-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nome da Unidade</label>
-                <input type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700" value={localSettings.restaurantName} onChange={e => { const updated = {...localSettings, restaurantName: e.target.value}; setLocalSettings(updated); onSaveSettings(updated); }} />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tipologia de Loja</label>
-                <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-gray-700" value={localSettings.restaurantType} onChange={e => { const updated = {...localSettings, restaurantType: e.target.value as RestaurantTypology}; setLocalSettings(updated); onSaveSettings(updated); }}>
-                  {AVAILABLE_TYPOLOGIES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Turnos Ativos */}
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        Turnos Operacionais
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        {AVAILABLE_SHIFTS.map(shift => {
-                            const isActive = localSettings.activeShifts.includes(shift.id);
-                            return (
-                                <button 
-                                    key={shift.id} 
-                                    onClick={() => toggleShift(shift.id)}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-sm font-bold ${isActive ? 'bg-slate-900 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}
-                                >
-                                    {isActive ? <CheckSquare size={18} /> : <Square size={18} />}
-                                    {shift.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Áreas de Negócio */}
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        Áreas de Atividade
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        {AVAILABLE_AREAS.map(area => {
-                            const isActive = localSettings.businessAreas.includes(area);
-                            return (
-                                <button 
-                                    key={area} 
-                                    onClick={() => toggleArea(area)}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-sm font-bold ${isActive ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'}`}
-                                >
-                                    {isActive ? <CheckSquare size={18} /> : <Square size={18} />}
-                                    {area}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-          </div>
-        )}
-
-
-
-        {activeTab === 'stations' && (
-          <div className="animate-fade-in pb-12">
-             <div className="flex justify-between items-center mb-6">
-                <div>
-                   <h3 className="text-xl font-black text-gray-800">Postos de Trabalho</h3>
-                   <p className="text-xs text-gray-400">Configure a matriz de postos para o posicionamento.</p>
-                </div>
-                <div className="flex gap-2">
-                   <button
-                     onClick={handleSaveStations}
-                     className={`px-5 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95 duration-150 ${
-                       hasStationChanges 
-                         ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse' 
-                         : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
-                     }`}
-                     disabled={!hasStationChanges}
-                   >
-                     <Save size={18} /> Gravar Postos
-                   </button>
-                   <button 
-                     onClick={() => handleOpenStationModal()}
-                     className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-md flex items-center gap-2 text-sm cursor-pointer active:scale-95"
-                   >
-                     <Plus size={18} /> Novo Posto
-                   </button>
-                </div>
-             </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {groupedStations.map(group => (
-                  <div key={group.label} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                      <div className={`px-4 py-3 border-b flex items-center gap-2 ${group.color} bg-opacity-10`}>
-                        <group.icon size={18} />
-                        <span className="font-black text-xs uppercase tracking-widest">{group.label}</span>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {group.stations.map(station => (
-                          <div key={station.id} className="p-3 flex justify-between items-center hover:bg-gray-50 group">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-gray-700">{station.label}</span>
-                                {station.designation && <span className="text-[10px] text-gray-400 font-mono">{station.designation}</span>}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Slots: {station.defaultSlots}</span>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                   <button onClick={() => handleOpenStationModal(station)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-                                   <button onClick={() => handleDeleteStation(station.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                                </div>
-                              </div>
-                          </div>
-                        ))}
-                      </div>
-                  </div>
-                ))}
-             </div>
-
-             {hasStationChanges && (
-               <div className="mt-8 p-5 bg-green-50 rounded-2xl border border-green-200 flex flex-col sm:flex-row justify-between items-center gap-4 animate-fade-in shadow-inner">
-                 <div className="text-left">
-                   <h4 className="font-bold text-green-800 text-sm">Alterações pendentes nos postos</h4>
-                   <p className="text-xs text-green-600">Tem alterações pendentes na matriz de postos de trabalho. Grave-as para que fiquem disponíveis na aplicação.</p>
-                 </div>
-                 <button 
-                   onClick={handleSaveStations}
-                   className="w-full sm:w-auto px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md transition-all font-bold text-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
-                 >
-                   <Save size={18} /> Gravar Postos de Trabalho
-                 </button>
-               </div>
-             )}
-          </div>
-        )}
-      </div>
-
-      {/* Station Modal */}
-      {isStationModalOpen && editingStation && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-scale-up">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Configurar Posto</h3>
-              <button onClick={() => setIsStationModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
-            </div>
-            
-            <div className="space-y-4">
+          <div className="space-y-7 max-w-4xl mx-auto pb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Nome do Posto</label>
-                <input 
-                  type="text" 
-                  value={editingStation.label} 
-                  onChange={e => setEditingStation({...editingStation, label: e.target.value})} 
-                  className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" 
-                  placeholder="Ex: Iniciador 1"
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Nome da Unidade
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-900 dark:text-white"
+                  value={localSettings.restaurantName}
+                  onChange={e => {
+                    const updated = { ...localSettings, restaurantName: e.target.value };
+                    setLocalSettings(updated);
+                    onSaveSettings(updated);
+                  }}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Tipologia de Loja
+                </label>
+                <select
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-slate-900 dark:text-white"
+                  value={localSettings.restaurantType}
+                  onChange={e => {
+                    const updated = {
+                      ...localSettings,
+                      restaurantType: e.target.value as RestaurantTypology,
+                    };
+                    setLocalSettings(updated);
+                    onSaveSettings(updated);
+                  }}
+                >
+                  {AVAILABLE_TYPOLOGIES.map(t => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-3.5">
+                  Turnos Operacionais Ativos
+                </h4>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {AVAILABLE_SHIFTS.map(shift => {
+                    const isActive = localSettings.activeShifts.includes(shift.id);
+                    return (
+                      <button
+                        key={shift.id}
+                        type="button"
+                        onClick={() => toggleShift(shift.id)}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all text-xs font-extrabold ${
+                          isActive
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
+                        }`}
+                      >
+                        {isActive ? <CheckSquare size={16} /> : <Square size={16} />}
+                        {shift.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-3.5">
+                  Áreas de Negócio Visíveis
+                </h4>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {AVAILABLE_AREAS.map(area => {
+                    const isActive = localSettings.businessAreas.includes(area);
+                    return (
+                      <button
+                        key={area}
+                        type="button"
+                        onClick={() => toggleArea(area)}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all text-xs font-extrabold ${
+                          isActive
+                            ? 'bg-[#DA291C] border-[#DA291C] text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
+                        }`}
+                      >
+                        {isActive ? <CheckSquare size={16} /> : <Square size={16} />}
+                        {area}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Backup Export / Import */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  Cópia de Segurança Completa (JSON)
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Exporte ou restaure as definições, equipa, critérios e histórico desta loja.
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100"
+                >
+                  <Upload className="w-4 h-4" /> Importar JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={onExportFullData}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold bg-slate-900 hover:bg-slate-800 text-white"
+                >
+                  <Download className="w-4 h-4" /> Exportar Backup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'stations' && (
+          <div className="pb-8 space-y-6">
+            <div className="flex flex-wrap justify-between items-center gap-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  Áreas e Postos do Posicionamento
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Edite o nome de cada área diretamente no cabeçalho vermelho ou ajuste siglas, linhas e etapas de qualquer posto.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFullEditorZone(null);
+                    setFullEditorOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 transition-colors"
+                >
+                  <Sliders size={15} className="text-[#DA291C]" />
+                  Editor de Linhas & Etapas
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenStationModal()}
+                  className="bg-slate-900 text-white px-4 py-2.5 rounded-xl font-extrabold hover:bg-slate-800 transition-all flex items-center gap-1.5 text-xs"
+                >
+                  <Plus size={16} /> Novo Posto
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveStations}
+                  disabled={!hasStationChanges}
+                  className={`px-4 py-2.5 rounded-xl font-extrabold transition-all flex items-center gap-1.5 text-xs ${
+                    hasStationChanges
+                      ? 'bg-[#DA291C] hover:bg-red-700 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                  }`}
+                >
+                  <Save size={16} /> Gravar Alterações
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {groupedZones.map(group => (
+                <div
+                  key={group.zoneId}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs flex flex-col"
+                >
+                  {/* Editable Red Zone Header */}
+                  <div className="px-3.5 py-2.5 bg-[#DA291C] text-white flex items-center justify-between gap-2">
+                    <input
+                      type="text"
+                      aria-label={`Nome da área ${group.defaultHint}`}
+                      value={group.title}
+                      onChange={e =>
+                        setLocalSettings(prev => ({
+                          ...prev,
+                          floorPlanLabels: {
+                            ...resolveFloorPlanLabels(prev.floorPlanLabels),
+                            [group.titleKey]: e.target.value,
+                          },
+                        }))
+                      }
+                      className="min-w-0 flex-1 bg-white/10 hover:bg-white/20 focus:bg-white focus:text-slate-950 rounded px-2 py-0.5 text-xs font-black uppercase tracking-wide outline-none transition-colors"
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="bg-[#FFC72C] text-slate-950 text-[10.5px] font-black px-2 py-0.5 rounded-full">
+                        {group.stations.length}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenStationModal(undefined, group.zoneId)}
+                        title={`Adicionar posto em ${group.title}`}
+                        className="p-1 rounded bg-white/15 hover:bg-white/25 text-white"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Stations inside Zone */}
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 flex-1">
+                    {group.stations.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400 font-semibold">
+                        Sem postos configurados
+                      </div>
+                    ) : (
+                      group.stations.map(station => (
+                        <div
+                          key={station.id}
+                          className="px-3.5 py-2.5 flex justify-between items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-900 text-white shrink-0">
+                                {station.designation || station.label}
+                              </span>
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                {station.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                              {station.defaultSlots}v
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStationModal(station)}
+                              className="p-1.5 text-slate-600 hover:text-slate-950 hover:bg-slate-100 rounded-lg"
+                              title="Editar posto"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStation(station.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                              title="Remover posto"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Single Station Modal */}
+      {isStationModalOpen && editingStation && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Configurar Posto
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsStationModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Nome Completo do Posto
+                </label>
+                <input
+                  type="text"
+                  value={editingStation.label}
+                  onChange={e =>
+                    setEditingStation({ ...editingStation, label: e.target.value })
+                  }
+                  className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-semibold text-slate-900 dark:text-white"
+                  placeholder="Ex: Preparador 3"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Sigla / ID</label>
-                  <input 
-                    type="text" 
-                    value={editingStation.designation || ''} 
-                    onChange={e => setEditingStation({...editingStation, designation: e.target.value.toUpperCase()})} 
-                    className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono" 
-                    placeholder="INI 1"
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Sigla no Cartão
+                  </label>
+                  <input
+                    type="text"
+                    value={editingStation.designation || ''}
+                    onChange={e =>
+                      setEditingStation({
+                        ...editingStation,
+                        designation: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-black uppercase text-slate-900 dark:text-white"
+                    placeholder="PREP 3"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Slots Padrão</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    value={editingStation.defaultSlots} 
-                    onChange={e => setEditingStation({...editingStation, defaultSlots: parseInt(e.target.value) || 1})} 
-                    className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Vagas no Posto
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="4"
+                    value={editingStation.defaultSlots}
+                    onChange={e =>
+                      setEditingStation({
+                        ...editingStation,
+                        defaultSlots: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-bold text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Área Operacional</label>
-                <select 
-                  value={editingStation.area} 
-                  onChange={e => setEditingStation({...editingStation, area: e.target.value as any})} 
-                  className="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Área / Bloco no Quadro
+                </label>
+                <select
+                  value={editingZone}
+                  onChange={e => {
+                    const nextZone = e.target.value as FloorPlanZoneId;
+                    const opt = FLOOR_PLAN_ZONE_OPTIONS.find(z => z.id === nextZone)!;
+                    setEditingStation({
+                      ...editingStation,
+                      area: opt.defaultArea,
+                      zoneOverride: nextZone,
+                      stageOverride:
+                        nextZone === 'kitchen'
+                          ? resolveKitchenStage(editingStation)
+                          : nextZone === 'counter'
+                          ? resolveCounterStage(editingStation)
+                          : undefined,
+                      lineOverride:
+                        nextZone === 'kitchen' || nextZone === 'counter'
+                          ? resolveStationLine(editingStation)
+                          : undefined,
+                    });
+                  }}
+                  className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-bold text-slate-900 dark:text-white"
                 >
-                  {Object.entries(AREA_LABELS).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
+                  {FLOOR_PLAN_ZONE_OPTIONS.map(opt => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
                   ))}
-                  <option value="other">Outra Área</option>
                 </select>
               </div>
 
-              <div className="pt-6 flex gap-3">
-                <button onClick={() => setIsStationModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
-                <button onClick={handleSaveStation} className="flex-2 px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2">
-                   <Check size={18} /> Guardar Posto
+              {(editingZone === 'kitchen' || editingZone === 'counter') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Etapa Vertical
+                    </label>
+                    <select
+                      value={
+                        editingZone === 'kitchen'
+                          ? resolveKitchenStage(editingStation)
+                          : resolveCounterStage(editingStation)
+                      }
+                      onChange={e =>
+                        setEditingStation({
+                          ...editingStation,
+                          stageOverride: e.target.value as FloorPlanStageId,
+                        })
+                      }
+                      className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-bold text-slate-900 dark:text-white"
+                    >
+                      {(editingZone === 'kitchen'
+                        ? KITCHEN_STAGE_OPTIONS
+                        : COUNTER_STAGE_OPTIONS
+                      ).map(stOpt => (
+                        <option key={stOpt.id} value={stOpt.id}>
+                          {resolvedLabels[stOpt.labelKey] || stOpt.defaultLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Linha
+                    </label>
+                    <select
+                      value={resolveStationLine(editingStation)}
+                      onChange={e =>
+                        setEditingStation({
+                          ...editingStation,
+                          lineOverride: Number(e.target.value) as 1 | 2,
+                        })
+                      }
+                      className="w-full p-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl outline-none text-sm font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value={1}>{resolvedLabels.line1Label}</option>
+                      <option value={2}>{resolvedLabels.line2Label}</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsStationModalOpen(false)}
+                  className="flex-1 py-2.5 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-all text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveStation}
+                  className="flex-1 py-2.5 bg-slate-900 text-white font-extrabold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 text-xs"
+                >
+                  <Check size={16} /> Aplicar
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      <AreaAndStationEditorModal
+        isOpen={fullEditorOpen}
+        onClose={() => setFullEditorOpen(false)}
+        settings={localSettings}
+        onSaveSettings={updated => {
+          setLocalSettings(updated);
+          onSaveSettings(updated);
+          toast('Áreas, linhas e postos atualizados!', 'success');
+        }}
+        initialZone={fullEditorZone}
+      />
     </div>
   );
 };
