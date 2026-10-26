@@ -74,7 +74,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
     () =>
       stations.filter(s =>
         (allStaffingPostsOpen
-          ? priorityMap.has(s.id)
+          ? s.isActive || priorityMap.has(s.id)
           : s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas)) &&
         (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0)
       ),

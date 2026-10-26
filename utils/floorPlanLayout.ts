@@ -120,12 +120,13 @@ export function buildStationPriorityMap(
 
     const candidateKeys = [ruleKey, ...(ALIAS_KEYS[ruleKey] || [])];
 
+    const compactKey = (value: string) => value.replace(/[^a-z0-9]/g, '');
+    const compactCandidates = candidateKeys.map(compactKey);
     const matched = stations.find(s => {
       if (usedStationIds.has(s.id)) return false;
-      const labelKey = normalizeKey(s.label);
-      const desigKey = normalizeKey(s.designation);
-      const idKey = normalizeKey(s.id);
-      return candidateKeys.some(k => k === labelKey || k === desigKey || k === idKey);
+      const stationKeys = [normalizeKey(s.label), normalizeKey(s.designation), normalizeKey(s.id)];
+      return candidateKeys.some(k => stationKeys.includes(k)) ||
+        compactCandidates.some(k => stationKeys.some(stationKey => compactKey(stationKey) === k));
     });
 
     if (matched) {

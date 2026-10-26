@@ -223,7 +223,7 @@ export const Positioning: React.FC<PositioningProps> = ({
   const slotLimitByStation = useMemo(() => {
     const ordered = sortStationsByPriority(
       stations.filter(s => allStationsOpen
-        ? priorityMap.has(s.id)
+        ? s.isActive || priorityMap.has(s.id)
         : s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)),
       priorityMap
     );
