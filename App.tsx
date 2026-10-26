@@ -29,6 +29,7 @@ import {
   STATIONS,
   INITIAL_RESTAURANTS,
   MOCK_HISTORY,
+  APP_VERSION,
 } from './constants';
 import {
   getRestaurants,
@@ -1147,7 +1148,7 @@ const App: React.FC = () => {
               ) : (
                 <CloudCheck size={14} className="text-emerald-600" />
               )}
-              <span>{isSyncing ? 'A guardar...' : `Sinc.: ${lastSync}`}</span>
+              <span>{isSyncing ? `v${APP_VERSION} · A guardar...` : `v${APP_VERSION} · Sinc.: ${lastSync}`}</span>
             </div>
           </div>
         </header>

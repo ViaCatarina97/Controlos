@@ -164,21 +164,24 @@ export const Positioning: React.FC<PositioningProps> = ({
   };
 
   const openStaffingAdjustment = () => {
-    const existing = schedule.staffingAdjustments?.[selectedShift];
-    setAdjustmentMode(existing?.delta != null && existing.delta < 0 ? 'remove' : 'add');
-    setAdjustmentAmount(Math.max(1, Math.abs(existing?.delta || 1)));
-    setAdjustmentReason(existing?.reason || '');
+    setAdjustmentMode('add');
+    setAdjustmentAmount(1);
+    setAdjustmentReason('');
     setStaffingAdjustmentOpen(true);
   };
 
   const saveStaffingAdjustment = () => {
     const amount = Math.max(1, Math.floor(Number(adjustmentAmount) || 1));
-    const delta = (adjustmentMode === 'add' ? amount : -amount);
+    const operationDelta = adjustmentMode === 'add' ? amount : -amount;
+    const previous = schedule.staffingAdjustments?.[selectedShift];
+    const delta = (previous?.delta || 0) + operationDelta;
+    const actionText = `${adjustmentMode === 'add' ? 'Acrescentado' : 'Retirado'} ${amount}: ${adjustmentReason.trim()}`;
+    const reason = [previous?.reason, actionText].filter(Boolean).join(' | ');
     setSchedule({
       ...schedule,
       staffingAdjustments: {
         ...(schedule.staffingAdjustments || {}),
-        [selectedShift]: { delta, reason: adjustmentReason.trim() },
+        [selectedShift]: { delta, reason },
       },
     });
     setStaffingAdjustmentOpen(false);
@@ -214,7 +217,9 @@ export const Positioning: React.FC<PositioningProps> = ({
   // Cada posto pode ter mais do que uma vaga; a última estação pode ficar parcialmente aberta.
   const slotLimitByStation = useMemo(() => {
     const ordered = sortStationsByPriority(
-      stations.filter(s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)),
+      stations.filter(s => allStationsOpen
+        ? priorityMap.has(s.id)
+        : s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)),
       priorityMap
     );
     let remaining = allStationsOpen
@@ -700,6 +705,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           employees={employees}
           floorPlanLabels={settings.floorPlanLabels}
           slotLimitByStation={slotLimitByStation}
+          allStaffingPostsOpen={allStationsOpen}
           printMode={false}
           onSlotClick={payload => setActiveSlot(payload)}
           onEditZoneClick={
@@ -863,6 +869,7 @@ export const Positioning: React.FC<PositioningProps> = ({
             employees={employees}
             floorPlanLabels={settings.floorPlanLabels}
             slotLimitByStation={slotLimitByStation}
+            allStaffingPostsOpen={allStationsOpen}
             printMode={true}
           />
         </div>

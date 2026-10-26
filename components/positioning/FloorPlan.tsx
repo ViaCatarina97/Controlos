@@ -36,6 +36,7 @@ interface FloorPlanProps {
   floorPlanLabels?: FloorPlanLabels;
   printMode?: boolean;
   slotLimitByStation?: Record<string, number>;
+  allStaffingPostsOpen?: boolean;
   onSlotClick?: (payload: FloorPlanSlotClickPayload) => void;
   onEditZoneClick?: (zoneId: FloorPlanZoneId) => void;
   onAddStationToZone?: (zoneId: FloorPlanZoneId) => void;
@@ -51,6 +52,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
   floorPlanLabels,
   printMode = false,
   slotLimitByStation,
+  allStaffingPostsOpen = false,
   onSlotClick,
   onEditZoneClick,
   onAddStationToZone,
@@ -70,11 +72,13 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
 
   const activeStations = useMemo(
     () =>
-      stations.filter(
-        s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas) &&
-          (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0)
+      stations.filter(s =>
+        (allStaffingPostsOpen
+          ? priorityMap.has(s.id)
+          : s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas)) &&
+        (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0)
       ),
-    [stations, businessAreas, slotLimitByStation]
+    [stations, businessAreas, slotLimitByStation, allStaffingPostsOpen, priorityMap]
   );
 
   const stationsByZone = useMemo(() => {
@@ -447,9 +451,9 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
     );
   };
 
-  const showDelivery = businessAreas.includes('Delivery');
-  const showDrive = businessAreas.includes('Drive') && stationsByZone.drive.length > 0;
-  const showMcCafe = businessAreas.includes('McCafé') && stationsByZone.mccafe.length > 0;
+  const showDelivery = allStaffingPostsOpen || businessAreas.includes('Delivery');
+  const showDrive = (allStaffingPostsOpen || businessAreas.includes('Drive')) && stationsByZone.drive.length > 0;
+  const showMcCafe = (allStaffingPostsOpen || businessAreas.includes('McCafé')) && stationsByZone.mccafe.length > 0;
 
   return (
     <div className={printMode ? 'space-y-2' : 'space-y-3'}>
