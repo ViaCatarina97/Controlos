@@ -7,6 +7,8 @@ export interface Employee {
   role: RoleType;
   isActive: boolean;
   mecanografico?: string;
+  /** Registo provisório mantido no topo até o nome ser definido. */
+  isDraft?: boolean;
 }
 
 export type RestaurantTypology = 'Loja de Rua' | 'Drive' | 'Shopping';

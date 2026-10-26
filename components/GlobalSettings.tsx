@@ -37,7 +37,10 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
           (e.mecanografico || '').toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' }))
+      .sort((a, b) => {
+        if (Boolean(a.isDraft) !== Boolean(b.isDraft)) return a.isDraft ? -1 : 1;
+        return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
+      })
       .map(e => e.id);
   }, [employees, renderTrigger, searchQuery, roleFilter]);
 
@@ -124,6 +127,7 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                     role: 'FUNCIONÁRIO',
                     isActive: true,
                     mecanografico: '',
+                    isDraft: true,
                   },
                   ...prev,
                 ])
@@ -172,7 +176,12 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                           value={emp.name}
                           onChange={e =>
                             setEmployees(prev =>
-                              prev.map(ev => (ev.id === emp.id ? { ...ev, name: e.target.value } : ev))
+                              prev.map(ev => {
+                                if (ev.id !== emp.id) return ev;
+                                const nextName = e.target.value;
+                                const hasRealName = nextName.trim().length > 0 && nextName.trim().toLocaleLowerCase('pt-PT') !== 'novo colaborador';
+                                return { ...ev, name: nextName, isDraft: hasRealName ? false : ev.isDraft ?? true };
+                              })
                             )
                           }
                           onBlur={() => setRenderTrigger(prev => prev + 1)}
