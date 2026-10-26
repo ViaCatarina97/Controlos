@@ -1223,15 +1223,22 @@ const App: React.FC = () => {
                     };
                     handleUpdateSchedule(updated);
                   }}
-                  setHourlyData={data => {
-                    setHourlyData(data);
+                  setHourlyData={data => setHourlyData(data)}
+                  onApplyForecast={(sales, data) => {
                     const updated = {
                       ...currentSchedule,
+                      date: targetDate,
+                      projectedSales: {
+                        ...(currentSchedule.projectedSales || {}),
+                        [selectedShift]: sales,
+                      },
                       hourlyProjections: {
                         ...(currentSchedule.hourlyProjections || {}),
                         [selectedShift]: data,
                       },
                     };
+                    setTargetSales(sales);
+                    setHourlyData(data);
                     handleUpdateSchedule(updated);
                   }}
                   onNavigateToPositioning={() => setActiveTab('positioning')}

@@ -13,6 +13,7 @@ interface HistoryForecastProps {
   targetSales: number;
   setTargetSales: (val: number) => void;
   setHourlyData: (data: HourlyProjection[]) => void;
+  onApplyForecast?: (sales: number, hourlyData: HourlyProjection[]) => void;
   onNavigateToPositioning: () => void;
   isSyncing?: boolean;
   lastSync?: string;
@@ -26,6 +27,7 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
   setTargetDate,
   setTargetSales,
   setHourlyData,
+  onApplyForecast,
   onNavigateToPositioning,
   isSyncing = false,
   lastSync = null,
@@ -171,7 +173,6 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
 
   const handleApplyForecast = () => {
     if (!averageData || !finalPlanning) return;
-    setTargetSales(finalPlanning.sales);
     const hourlyProjections: HourlyProjection[] = TIME_SLOTS_KEYS.map(slotKey => {
       const metrics = averageData.slots[slotKey];
       return {
@@ -186,7 +187,12 @@ export const HistoryForecast: React.FC<HistoryForecastProps> = ({
         }
       };
     });
-    setHourlyData(hourlyProjections);
+    if (onApplyForecast) {
+      onApplyForecast(finalPlanning.sales, hourlyProjections);
+    } else {
+      setTargetSales(finalPlanning.sales);
+      setHourlyData(hourlyProjections);
+    }
     onNavigateToPositioning();
   };
 
