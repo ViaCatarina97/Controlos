@@ -35,6 +35,7 @@ interface FloorPlanProps {
   employees: Employee[];
   floorPlanLabels?: FloorPlanLabels;
   printMode?: boolean;
+  slotLimitByStation?: Record<string, number>;
   onSlotClick?: (payload: FloorPlanSlotClickPayload) => void;
   onEditZoneClick?: (zoneId: FloorPlanZoneId) => void;
   onAddStationToZone?: (zoneId: FloorPlanZoneId) => void;
@@ -49,6 +50,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
   employees,
   floorPlanLabels,
   printMode = false,
+  slotLimitByStation,
   onSlotClick,
   onEditZoneClick,
   onAddStationToZone,
@@ -69,9 +71,10 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
   const activeStations = useMemo(
     () =>
       stations.filter(
-        s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas)
+        s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas) &&
+          (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0)
       ),
-    [stations, businessAreas]
+    [stations, businessAreas, slotLimitByStation]
   );
 
   const stationsByZone = useMemo(() => {
@@ -101,7 +104,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
     let filled = 0;
     let total = 0;
     list.forEach(st => {
-      const slots = Math.max(1, st.defaultSlots || 1);
+      const slots = slotLimitByStation?.[st.id] ?? Math.max(1, st.defaultSlots || 1);
       total += slots;
       const assigned = (assignments[st.id] || []).slice(0, slots).filter(Boolean).length;
       filled += assigned;
@@ -169,7 +172,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
   };
 
   const renderStationCard = (station: StationConfig) => {
-    const slotCount = Math.max(1, station.defaultSlots || 1);
+    const slotCount = slotLimitByStation?.[station.id] ?? Math.max(1, station.defaultSlots || 1);
     const assignedIds = assignments[station.id] || [];
     const traineeIds = trainees[station.id] || [];
     const filledCount = Array.from({ length: slotCount }, (_, i) => assignedIds[i]).filter(Boolean).length;

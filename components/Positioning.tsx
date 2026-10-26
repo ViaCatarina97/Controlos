@@ -140,27 +140,13 @@ export const Positioning: React.FC<PositioningProps> = ({
     [schedule.lockedShifts, selectedShift]
   );
 
-  // Sales calculation (explicit shift sales -> hourly peak fallback)
-  const effectiveSales = useMemo(() => {
-    const manualSales = schedule.projectedSales?.[selectedShift];
-    if (manualSales !== undefined && manualSales > 0) return manualSales;
+  // As vendas planeadas são definidas em «Previsão & Vendas» para esta data/turno.
+  // Aqui são apenas consultadas: nunca introduzidas manualmente nem inferidas de horas de pico.
+  const effectiveSales = Math.max(0, Number(schedule.projectedSales?.[selectedShift] ?? 0) || 0);
 
-    const targetHours =
-      selectedShift === 'FECHO' || selectedShift === 'MADRUGADA'
-        ? ['19h-20h', '20h-21h']
-        : ['12h-13h', '13h-14h'];
-    const matching = hourlyData.filter(d => targetHours.includes(d.hour));
-    if (matching.length > 0) {
-      return Math.max(...matching.map(m => m.totalSales));
-    }
-    return manualSales || 0;
-  }, [schedule.projectedSales, selectedShift, hourlyData]);
-
-  // Required staff from staffing table + manual adjustment
-  const manualAdj = schedule.manualAdjustments?.[selectedShift] || 0;
-
+  // Número de previstos determinado exclusivamente pela tabela Staffing e vendas planeadas.
   const predictedStaffCount = useMemo(() => {
-    if (!staffingTable || staffingTable.length === 0) return Math.max(0, manualAdj);
+    if (!staffingTable || staffingTable.length === 0) return 0;
     const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
     const exactIdx = sorted.findIndex(
       r => effectiveSales >= r.minSales && effectiveSales <= r.maxSales
@@ -172,8 +158,27 @@ export const Positioning: React.FC<PositioningProps> = ({
       });
     }
     const base = idx === -1 ? 0 : sorted[idx].staffCount;
-    return Math.max(0, base + manualAdj);
-  }, [staffingTable, effectiveSales, manualAdj]);
+    return Math.max(0, base);
+  }, [staffingTable, effectiveSales]);
+
+  // Abre apenas os primeiros N lugares pela ordem de prioridade definida em Staffing.
+  // Cada posto pode ter mais do que uma vaga; a última estação pode ficar parcialmente aberta.
+  const slotLimitByStation = useMemo(() => {
+    const ordered = sortStationsByPriority(
+      stations.filter(s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)),
+      priorityMap
+    );
+    let remaining = predictedStaffCount;
+    const limits: Record<string, number> = {};
+    for (const station of ordered) {
+      if (remaining <= 0) break;
+      const capacity = Math.max(1, station.defaultSlots || 1);
+      const openSlots = Math.min(capacity, remaining);
+      limits[station.id] = openSlots;
+      remaining -= openSlots;
+    }
+    return limits;
+  }, [stations, settings.businessAreas, priorityMap, predictedStaffCount]);
 
   const currentShiftAssignments: StationAssignment = useMemo(
     () => schedule.shifts?.[selectedShift] || {},
@@ -241,18 +246,6 @@ export const Positioning: React.FC<PositioningProps> = ({
           ...(schedule.shiftManagers?.[selectedShift] || {}),
           [field]: val,
         },
-      },
-    });
-  };
-
-  const updateSales = (rawVal: string) => {
-    if (isShiftLocked) return;
-    const numeric = Math.max(0, Number(rawVal.replace(/[^\d.]/g, '')) || 0);
-    setSchedule({
-      ...schedule,
-      projectedSales: {
-        ...(schedule.projectedSales || {}),
-        [selectedShift]: numeric,
       },
     });
   };
@@ -332,7 +325,7 @@ export const Positioning: React.FC<PositioningProps> = ({
       priorityMap
     );
 
-    const target = predictedStaffCount > 0 ? predictedStaffCount : Math.min(employees.length, orderedStations.length);
+    const target = predictedStaffCount;
     const managerIds = new Set([leaderId, supportId].filter(Boolean));
     const availableCrew = employees.filter(e => !managerIds.has(e.id));
 
@@ -600,19 +593,10 @@ export const Positioning: React.FC<PositioningProps> = ({
               VENDAS PREVISTAS
             </label>
             <div className="flex items-baseline gap-1">
-              <input
-                type="number"
-                min={0}
-                step={50}
-                disabled={isShiftLocked}
-                value={effectiveSales || ''}
-                placeholder="0"
-                onChange={e => updateSales(e.target.value)}
-                className="w-full bg-transparent text-xs sm:text-sm font-black tabular-nums text-slate-950 dark:text-white focus:outline-none"
-              />
-              <span className="text-xs sm:text-sm font-black text-slate-950 dark:text-white shrink-0">
-                €
+              <span className="w-full text-xs sm:text-sm font-black tabular-nums text-slate-950 dark:text-white">
+                {effectiveSales.toLocaleString('pt-PT')}
               </span>
+              <span className="text-xs sm:text-sm font-black text-slate-950 dark:text-white shrink-0">€</span>
             </div>
           </div>
 
@@ -626,42 +610,7 @@ export const Positioning: React.FC<PositioningProps> = ({
                 {predictedStaffCount}
               </span>
             </div>
-            {!isShiftLocked && (
-              <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-bold">
-                <button
-                  type="button"
-                  title="Ajuste manual -1"
-                  onClick={() =>
-                    setSchedule({
-                      ...schedule,
-                      manualAdjustments: {
-                        ...(schedule.manualAdjustments || {}),
-                        [selectedShift]: manualAdj - 1,
-                      },
-                    })
-                  }
-                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-950"
-                >
-                  -
-                </button>
-                <button
-                  type="button"
-                  title="Ajuste manual +1"
-                  onClick={() =>
-                    setSchedule({
-                      ...schedule,
-                      manualAdjustments: {
-                        ...(schedule.manualAdjustments || {}),
-                        [selectedShift]: manualAdj + 1,
-                      },
-                    })
-                  }
-                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-950 border-l border-slate-200 dark:border-slate-700"
-                >
-                  +
-                </button>
-              </div>
-            )}
+            <span className="text-[9px] font-semibold text-slate-400">via Staffing</span>
           </div>
 
           {/* 5. Posicionados */}
@@ -732,6 +681,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           trainees={currentShiftTrainees}
           employees={employees}
           floorPlanLabels={settings.floorPlanLabels}
+          slotLimitByStation={slotLimitByStation}
           printMode={false}
           onSlotClick={payload => setActiveSlot(payload)}
           onEditZoneClick={
@@ -894,6 +844,7 @@ export const Positioning: React.FC<PositioningProps> = ({
             trainees={currentShiftTrainees}
             employees={employees}
             floorPlanLabels={settings.floorPlanLabels}
+            slotLimitByStation={slotLimitByStation}
             printMode={true}
           />
         </div>
