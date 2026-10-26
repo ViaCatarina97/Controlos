@@ -204,10 +204,15 @@ export const Positioning: React.FC<PositioningProps> = ({
   const staffingBaseCount = useMemo(() => {
     if (!staffingTable || staffingTable.length === 0) return 0;
     const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
-    const exactIdx = sorted.findIndex(r => effectiveSales >= r.minSales && effectiveSales <= r.maxSales);
-    let idx = exactIdx;
-    if (idx === -1) sorted.forEach((r, i) => { if (effectiveSales >= r.minSales) idx = i; });
-    return Math.max(0, idx === -1 ? 0 : sorted[idx].staffCount);
+    const exactMatches = sorted.filter(r => effectiveSales >= r.minSales && effectiveSales <= r.maxSales);
+    const candidates = exactMatches.length
+      ? exactMatches
+      : sorted.filter(r => effectiveSales >= r.minSales);
+    const selectedRule = candidates.reduce<StaffingTableEntry | undefined>(
+      (best, row) => !best || row.staffCount > best.staffCount ? row : best,
+      undefined
+    );
+    return Math.max(0, selectedRule?.staffCount || 0);
   }, [staffingTable, effectiveSales]);
   const staffingAdjustment = schedule.staffingAdjustments?.[selectedShift];
   const predictedStaffCount = Math.max(0, staffingBaseCount + (staffingAdjustment?.delta || 0));

@@ -30,7 +30,8 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
       if (!row.stationLabel || !row.stationLabel.trim()) errors.push(`Linha ${i + 1}: a designação do posto está vazia.`);
       if (i > 0) {
         const prev = sorted[i - 1];
-        if (row.minSales <= prev.maxSales) errors.push(`${label}: o intervalo sobrepõe-se a "${prev.stationLabel}" (${prev.minSales}€–${prev.maxSales}€).`);
+        const isIntentionalZeroOpening = row.minSales === 0 && prev.minSales === 0;
+        if (!isIntentionalZeroOpening && row.minSales <= prev.maxSales) errors.push(`${label}: o intervalo sobrepõe-se a "${prev.stationLabel}" (${prev.minSales}€–${prev.maxSales}€).`);
         if (row.staffCount < prev.staffCount) errors.push(`${label}: tem menos colaboradores (${row.staffCount}) do que o escalão anterior (${prev.staffCount}).`);
       }
     });

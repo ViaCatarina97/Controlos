@@ -95,7 +95,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   customStations: STATIONS
 };
 
-export const APP_VERSION = '5.2.0';
+export const APP_VERSION = '5.2.1';
 
 export const AVAILABLE_TYPOLOGIES: RestaurantTypology[] = ['Loja de Rua', 'Drive', 'Shopping'];
 export const AVAILABLE_AREAS: BusinessArea[] = ['Loja', 'Drive', 'Delivery', 'McCafé'];
@@ -144,7 +144,7 @@ export const MOCK_HISTORY: HistoryEntry[] = [
 export const DEFAULT_STAFFING_TABLE: StaffingTableEntry[] = [
     { id: '1', minSales: 0, maxSales: 0, staffCount: 1, stationLabel: 'Batch Cooker 1' },
     { id: '2', minSales: 0, maxSales: 0, staffCount: 2, stationLabel: 'Expedidor 1' },
-    { id: '3', minSales: 0, maxSales: 109, staffCount: 3, stationLabel: 'Iniciador 1' },
+    { id: '3', minSales: 0, maxSales: 0, staffCount: 3, stationLabel: 'Iniciador 1' },
     { id: '4', minSales: 110, maxSales: 219, staffCount: 4, stationLabel: 'Bebidas 1' },
     { id: '5', minSales: 220, maxSales: 328, staffCount: 5, stationLabel: 'Iniciador 2' },
     { id: '6', minSales: 329, maxSales: 439, staffCount: 6, stationLabel: 'Caixa 1' },
