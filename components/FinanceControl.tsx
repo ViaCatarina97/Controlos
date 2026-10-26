@@ -16,7 +16,7 @@ import {
   Calculator, Coins, CreditCard, Landmark, Plus, Trash2, Edit2, 
   Save, ArrowLeft, Calendar, User, Clock, FileText, Check, AlertTriangle, 
   Sliders, ArrowUpRight, DollarSign, Wallet, ShieldCheck, Printer, CheckCircle,
-  Lock, CheckCheck, Eye
+  Lock, CheckCheck, Eye, Search, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 interface FinanceControlProps {
@@ -570,6 +570,10 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
   // For selecting a custom date or starting counts on standard days
   const [extraDates, setExtraDates] = useState<string[]>([]);
   const [customDateInput, setCustomDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [cofreSearchQuery, setCofreSearchQuery] = useState('');
+  const [cofreViewFilter, setCofreViewFilter] = useState<'open' | 'all' | 'closed'>('open');
+  const [showClosedHistory, setShowClosedHistory] = useState(false);
+  const [newCountTurn, setNewCountTurn] = useState<'Abertura' | 'Tarde' | 'Fecho'>('Abertura');
 
   // Grouped days calculation
   interface DayState {
@@ -631,6 +635,49 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     list.sort((a, b) => b.date.localeCompare(a.date));
     return list;
   }, [cofreCounts, extraDates]);
+
+  const activeVaultDays = groupedDays.filter(day => !day.isClosed);
+  const closedVaultDays = groupedDays.filter(day => day.isClosed);
+  const pendingVaultTurns = activeVaultDays.reduce((total, day) => {
+    const turns = [day.abertura, day.tarde, day.fecho];
+    return total + turns.filter(count => !count || !count.isLocked).length;
+  }, 0);
+  const unresolvedVaultCounts = activeVaultDays
+    .flatMap(day => [day.abertura, day.tarde, day.fecho])
+    .filter((count): count is CofreCount => Boolean(count && count.isLocked && !count.isNotPerformed && getDynamicDiferencaForCount(count) !== 0));
+  const unresolvedVaultDifference = unresolvedVaultCounts.reduce((sum, count) => sum + Math.abs(getDynamicDiferencaForCount(count)), 0);
+
+  const handleVerifyClosedVaultDay = (day: DayState) => {
+    const pass = prompt('Introduza a password de acesso:');
+    if (pass === null) return;
+    if (pass !== 'Imperial96') {
+      alert('Password de acesso incorreta.');
+      return;
+    }
+    const choices: { label: string; data: CofreCount }[] = [];
+    if (day.abertura) choices.push({ label: 'Abertura', data: day.abertura });
+    if (day.tarde) choices.push({ label: 'Intermédio', data: day.tarde });
+    if (day.fecho) choices.push({ label: 'Fecho', data: day.fecho });
+    if (!choices.length) {
+      alert('Não existem contagens para este dia.');
+      return;
+    }
+    let selected = choices[0];
+    if (choices.length > 1) {
+      const options = choices.map((choice, index) => `${index + 1} - ${choice.label}`).join('\\n');
+      const selection = prompt(`Escolha a contagem que deseja abrir:\\n${options}`, '1');
+      if (selection === null) return;
+      const index = Number.parseInt(selection, 10) - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= choices.length) {
+        alert('Opção inválida.');
+        return;
+      }
+      selected = choices[index];
+    }
+    setEditingCofre(selected.data);
+    setIsCofreUnlocked(true);
+    setSafeEditorTab('contagem');
+  };
 
   interface DepositDayState {
     date: string;
@@ -3004,366 +3051,125 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
           {/* Tab 1: CONTAGEM DE COFRE */}
           {activeTab === 'cofre' && (
-            <div className="space-y-6">
-              
-              {/* Selector area to add past or other days for counting */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs gap-3">
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Registo &amp; Conferência de Cofre</h3>
-                  <p className="text-xs text-slate-500">Selecione uma data para iniciar ou consultar as 3 contagens diárias</p>
+                  <p className="mb-1 text-[10px] font-extrabold uppercase tracking-[.14em] text-[#DA291C]">Operação financeira</p>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-900">Contagens de Cofre</h2>
+                  <p className="mt-1 text-xs text-slate-500">Acompanhe os turnos, valide diferenças e retome contagens em curso.</p>
                 </div>
-                
-                <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
-                  <PtDateNavigator
-                    value={customDateInput}
-                    onChange={setCustomDateInput}
-                  />
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                  <PtDateNavigator value={customDateInput} onChange={setCustomDateInput} />
+                  <select value={newCountTurn} onChange={e => setNewCountTurn(e.target.value as typeof newCountTurn)} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-slate-400">
+                    <option value="Abertura">Abertura</option>
+                    <option value="Tarde">Intermédio</option>
+                    <option value="Fecho">Fecho</option>
+                  </select>
                   <button
                     onClick={() => {
                       if (!customDateInput) return;
-                      if (!extraDates.includes(customDateInput)) {
-                        setExtraDates([...extraDates, customDateInput]);
-                      }
-                      alert(`Dia ${customDateInput} disponível na lista de contagens abaixo.`);
+                      setExtraDates(prev => prev.includes(customDateInput) ? prev : [...prev, customDateInput]);
+                      handleAddNewSafeCountForTurn(customDateInput, newCountTurn);
                     }}
-                    className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-2xs cursor-pointer"
-                  >
-                    <Plus size={14} /> Nova contagem
-                  </button>
+                    className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-extrabold text-white shadow-sm transition hover:bg-slate-800"
+                  ><Plus size={15} /> Nova contagem</button>
                 </div>
               </div>
 
-              {isLoading ? (
-                <div className="p-12 text-center text-xs text-gray-400 font-black tracking-widest uppercase">
-                  A carregar dados do banco...
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div><p className="text-[11px] font-bold text-slate-500">Dias em aberto</p><p className="mt-1 text-2xl font-black tracking-tight text-slate-900">{activeVaultDays.length}</p><p className="text-[10px] text-slate-400">Aguardam validação ou fecho</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-lg text-amber-700">◷</span>
                 </div>
-              ) : (
-                <div className="space-y-8">
-                  
-                  {/* SECTION 1: DIAS EM CURSO (ACTIVE DAYS) */}
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
-                      <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                        Contagens Abertas
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        {groupedDays.filter(
-                          d =>
-                            !d.isClosed &&
-                            d.abertura?.isLocked &&
-                            d.tarde?.isLocked &&
-                            d.fecho?.isLocked
-                        ).length > 1 && (
-                          <button
-                            onClick={handleCloseAllValidatedDays}
-                            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider transition-all shadow-sm"
-                          >
-                            <Lock size={11} /> Encerrar{' '}
-                            {
-                              groupedDays.filter(
-                                d =>
-                                  !d.isClosed &&
-                                  d.abertura?.isLocked &&
-                                  d.tarde?.isLocked &&
-                                  d.fecho?.isLocked
-                              ).length
-                            }{' '}
-                            Dias Validados
-                          </button>
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div><p className="text-[11px] font-bold text-slate-500">Turnos por validar</p><p className="mt-1 text-2xl font-black tracking-tight text-slate-900">{pendingVaultTurns}</p><p className="text-[10px] text-slate-400">Por iniciar ou em curso</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-lg text-blue-700">▤</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div><p className="text-[11px] font-bold text-slate-500">Diferenças por rever</p><p className="mt-1 text-2xl font-black tracking-tight text-slate-900">{unresolvedVaultCounts.length}</p><p className="text-[10px] text-slate-400">Total absoluto: {formatEuro(unresolvedVaultDifference)}</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-lg font-black text-[#DA291C]">!</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="px-1 text-[11px] font-extrabold text-slate-500">Filtrar contagens</span>
+                  <label className="relative flex-1 sm:max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={cofreSearchQuery} onChange={e => setCofreSearchQuery(e.target.value)} placeholder="Pesquisar por data…" className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs outline-none placeholder:text-slate-400 focus:border-slate-400"/></label>
+                  <select value={cofreViewFilter} onChange={e => setCofreViewFilter(e.target.value as typeof cofreViewFilter)} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none">
+                    <option value="open">Dias em aberto</option><option value="all">Todos os dias</option><option value="closed">Encerrados</option>
+                  </select>
+                </div>
+                <button onClick={() => { setCofreSearchQuery(''); setCofreViewFilter('open'); }} className="h-9 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50">Limpar filtros</button>
+              </div>
+
+              {isLoading ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-xs font-bold text-slate-400">A carregar contagens…</div>
+              ) : (() => {
+                const query = cofreSearchQuery.trim().toLocaleLowerCase('pt-PT');
+                const matchesQuery = (day: DayState) => !query || day.date.includes(query) || formatDateToDMY(day.date).toLocaleLowerCase('pt-PT').includes(query);
+                const visibleOpen = cofreViewFilter === 'closed' ? [] : activeVaultDays.filter(matchesQuery);
+                const visibleClosed = cofreViewFilter === 'open' ? [] : closedVaultDays.filter(matchesQuery);
+                const turnCards = (day: DayState) => ([
+                  { key: 'abertura', label: 'Abertura', turn: 'Abertura' as const, count: day.abertura },
+                  { key: 'tarde', label: 'Intermédio', turn: 'Tarde' as const, count: day.tarde },
+                  { key: 'fecho', label: 'Fecho', turn: 'Fecho' as const, count: day.fecho },
+                ]);
+                const renderTurnCard = (day: DayState, item: ReturnType<typeof turnCards>[number], isHistory = false) => {
+                  const count = item.count;
+                  const validated = Boolean(count?.isLocked);
+                  const notPerformed = Boolean(count?.isNotPerformed);
+                  const status = notPerformed ? 'Não realizada' : validated ? 'Validada' : count ? 'Em curso' : 'Por iniciar';
+                  const stateClass = notPerformed ? 'border-slate-200 bg-slate-50' : validated ? 'border-emerald-100 bg-emerald-50/60' : count ? 'border-amber-200 bg-amber-50/50' : 'border-dashed border-slate-200 bg-white';
+                  const diff = count && validated && !notPerformed ? getDynamicDiferencaForCount(count) : null;
+                  return (
+                    <button key={item.key} onClick={() => isHistory ? handleVerifyClosedVaultDay(day) : handleAddNewSafeCountForTurn(day.date, item.turn)} className={`group flex min-h-[76px] flex-col justify-center gap-2 rounded-xl border px-3 py-2.5 text-left transition hover:-translate-y-px hover:shadow-sm ${stateClass}`}>
+                      <span className="flex items-center justify-between gap-2"><span className="text-[11px] font-extrabold text-slate-800">{item.label}</span><span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[9px] font-extrabold ${notPerformed ? 'text-slate-500' : validated ? 'text-emerald-700' : count ? 'text-amber-700' : 'text-slate-500'}`}><span className="h-1.5 w-1.5 rounded-full bg-current"/>{status}</span></span>
+                      <span className="flex items-center justify-between gap-2"><span className="text-[11px] font-extrabold tabular-nums text-slate-700">{diff !== null ? <>{formatEuro(diff)} <span className="text-[9px] font-semibold text-slate-400">diferença</span></> : count ? <span className="text-slate-500">Rascunho</span> : <span className="text-slate-400">—</span>}</span><span className="text-[9px] font-extrabold text-slate-500 group-hover:text-slate-900">{validated ? 'Ver contagem →' : count ? 'Continuar →' : 'Iniciar →'}</span></span>
+                    </button>
+                  );
+                };
+                const renderDay = (day: DayState, isHistory = false) => {
+                  const turns = turnCards(day);
+                  const completed = turns.filter(item => item.count?.isLocked).length;
+                  const canClose = completed === 3;
+                  return (
+                    <article key={`${isHistory ? 'closed' : 'open'}-${day.date}`} className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md ${isHistory ? 'border-slate-200' : 'border-slate-200'}`}>
+                      <div className="grid grid-cols-1 items-center gap-3 p-3.5 sm:p-4 lg:grid-cols-[210px_1fr_auto]">
+                        <div className="flex items-center gap-3">
+                          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isHistory ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-700'}`}><Calendar size={18}/></span>
+                          <div><p className="text-[13px] font-black text-slate-800">{new Date(`${day.date}T12:00:00`).toLocaleDateString('pt-PT',{weekday:'long',day:'2-digit',month:'short',year:'numeric'})}</p><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">{isHistory ? 'Dia encerrado' : 'Dia operacional'}</p></div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{turns.map(item => renderTurnCard(day, item, isHistory))}</div>
+                        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 sm:justify-end sm:border-0 sm:pt-0">
+                          <span className={`text-[10px] font-extrabold ${isHistory ? 'text-slate-500' : canClose ? 'text-emerald-700' : 'text-amber-700'}`}>{isHistory ? 'Encerrado' : `${completed} de 3 validadas`}</span>
+                          {isHistory ? (
+                            <div className="flex items-center gap-1.5"><button onClick={() => handleVerifyClosedVaultDay(day)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-[10px] font-extrabold text-blue-700 hover:bg-blue-100"><Eye size={13}/> Consultar</button><button onClick={() => handleTriggerDeleteDayModal(day)} className="grid h-8 w-8 place-items-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600" title="Apagar dia"><Trash2 size={14}/></button></div>
+                          ) : (
+                            <button disabled={!canClose} onClick={() => handleCloseDay(day.date)} className={`h-8 rounded-lg border px-3 text-[10px] font-extrabold transition ${canClose ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'}`}>{canClose ? 'Encerrar dia' : 'Encerrar dia'}</button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                };
+                return (
+                  <div className="space-y-5">
+                    {cofreViewFilter !== 'closed' && (
+                      <section>
+                        <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800">Dias em aberto</h3><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold text-amber-800">{visibleOpen.length} dias ativos</span></div>
+                        {groupedDays.filter(day => !day.isClosed && day.abertura?.isLocked && day.tarde?.isLocked && day.fecho?.isLocked).length > 1 && (
+                          <div className="mb-3 flex justify-end"><button onClick={handleCloseAllValidatedDays} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[10px] font-extrabold text-white hover:bg-slate-800"><Lock size={12}/> Encerrar dias validados</button></div>
                         )}
-                        <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2.5 py-1 rounded-full border border-amber-200 uppercase tracking-wider">
-                          {groupedDays.filter(d => !d.isClosed).length} Dias Ativos
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {groupedDays.filter(d => !d.isClosed).map(day => {
-                        const hasAbertura = !!day.abertura;
-                        const hasTarde = !!day.tarde;
-                        const hasFecho = !!day.fecho;
-
-                        const isAberturaLocked = day.abertura?.isLocked || false;
-                        const isTardeLocked = day.tarde?.isLocked || false;
-                        const isFechoLocked = day.fecho?.isLocked || false;
-
-                        const allThreeDone = hasAbertura && hasTarde && hasFecho && isAberturaLocked && isTardeLocked && isFechoLocked;
-
-                        return (
-                          <div key={`day_row_${day.date}`} className="bg-white rounded-2xl border border-slate-100 hover:shadow-md transition-all p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-                            
-                            {/* Date Column */}
-                            <div className="lg:col-span-3 flex items-center gap-3">
-                              <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-blue-600 shrink-0">
-                                <Calendar size={18} />
-                              </div>
-                              <div>
-                                <span className="text-sm font-extrabold text-slate-800 block">{formatDateToDMY(day.date)}</span>
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                  {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'long' })}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Turns Columns */}
-                            <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              
-                              {/* TURN 1: ABERTURA */}
-                              <button
-                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Abertura')}
-                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasAbertura || day.abertura?.isNotPerformed
-                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
-                                    : !isAberturaLocked
-                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
-                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
-                                }`}
-                              >
-                                <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasAbertura ? 'Abertura' : day.abertura?.isNotPerformed ? '🚫 Abertura Skip' : isAberturaLocked ? '🔒 Abertura Ok' : '📝 Abertura'}
-                                </span>
-                                {!hasAbertura || day.abertura?.isNotPerformed || !isAberturaLocked ? (
-                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
-                                    Não realizada
-                                  </span>
-                                ) : (
-                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.abertura!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatEuro(getDynamicDiferencaForCount(day.abertura!))}
-                                  </span>
-                                )}
-                              </button>
-
-                              {/* TURN 2: INTERMÉDIO (TARDE) */}
-                              <button
-                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Tarde')}
-                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasTarde || day.tarde?.isNotPerformed
-                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
-                                    : !isTardeLocked
-                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
-                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
-                                }`}
-                              >
-                                <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasTarde ? 'Intermédio' : day.tarde?.isNotPerformed ? '🚫 Intermédio Skip' : isTardeLocked ? '🔒 Intermédio Ok' : '📝 Intermédio'}
-                                </span>
-                                {!hasTarde || day.tarde?.isNotPerformed || !isTardeLocked ? (
-                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
-                                    Não realizada
-                                  </span>
-                                ) : (
-                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.tarde!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatEuro(getDynamicDiferencaForCount(day.tarde!))}
-                                  </span>
-                                )}
-                              </button>
-
-                              {/* TURN 3: FECHO */}
-                              <button
-                                onClick={() => handleAddNewSafeCountForTurn(day.date, 'Fecho')}
-                                className={`rounded-xl px-4 py-3 text-left border transition-all ${
-                                  !hasFecho || day.fecho?.isNotPerformed
-                                    ? 'border-dashed border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600'
-                                    : !isFechoLocked
-                                      ? 'border-amber-200 bg-amber-50/40 text-slate-800 hover:bg-amber-50 hover:border-amber-300'
-                                      : 'border-blue-100 bg-blue-50/30 text-blue-850 hover:bg-blue-50 hover:border-blue-200'
-                                }`}
-                              >
-                                <span className="text-xs font-bold block whitespace-nowrap">
-                                  {!hasFecho ? 'Fecho' : day.fecho?.isNotPerformed ? '🚫 Fecho Skip' : isFechoLocked ? '🔒 Fecho Ok' : '📝 Fecho'}
-                                </span>
-                                {!hasFecho || day.fecho?.isNotPerformed || !isFechoLocked ? (
-                                  <span className="text-[10px] text-gray-400 font-extrabold block mt-0.5 uppercase tracking-wider">
-                                    Não realizada
-                                  </span>
-                                ) : (
-                                  <span className={`font-mono text-[10px] font-extrabold block mt-0.5 ${getDynamicDiferencaForCount(day.fecho!) === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatEuro(getDynamicDiferencaForCount(day.fecho!))}
-                                  </span>
-                                )}
-                              </button>
-
-                            </div>
-
-                            {/* Close Day Action Column */}
-                            <div className="lg:col-span-3 lg:text-right flex flex-col gap-2 justify-center">
-                              {allThreeDone ? (
-                                <button
-                                  onClick={() => handleCloseDay(day.date)}
-                                  className="w-full flex items-center justify-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-md shadow-slate-200/60"
-                                >
-                                  🔒 Encerrar Dia
-                                </button>
-                              ) : (
-                                <div className="text-center lg:text-right w-full">
-                                  <button
-                                    disabled
-                                    className="w-full bg-gray-100 border text-gray-400 font-extrabold text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl cursor-not-allowed"
-                                  >
-                                    Encerrar Dia
-                                  </button>
-                                  <span className="text-[9px] text-red-500 font-black uppercase mt-1 block text-center lg:text-right">
-                                    {!hasAbertura || !hasTarde || !hasFecho 
-                                      ? 'Contagem não realizada' 
-                                      : 'Falta validar turnos'}
-                                  </span>
-                                </div>
-                              )}
-
-                              {(hasAbertura || hasTarde || hasFecho) && (
-                                <button
-                                  onClick={() => handleTriggerDeleteDayModal(day)}
-                                  className="self-center lg:self-end inline-flex items-center gap-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 font-semibold text-[10px] py-1 px-2 rounded-lg transition-all"
-                                  title="Eliminar as contagens deste dia (requer palavra-passe)"
-                                >
-                                  <Trash2 size={11} /> Remover registo
-                                </button>
-                              )}
-                            </div>
-
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* SECTION 2: DIAS CONTADOS / ENCERRADOS */}
-                  <div className="space-y-3 pt-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <h3 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                        <CheckCheck size={16} className="text-blue-600" />
-                        Histórico de Contagens
-                      </h3>
-                      <span className="text-[10px] bg-blue-50 text-blue-700 font-black px-2.5 py-1 rounded-full border border-blue-100 uppercase tracking-wider">
-                        {groupedDays.filter(d => d.isClosed).length} Dias Encerrados
-                      </span>
-                    </div>
-
-                    {groupedDays.filter(d => d.isClosed).length === 0 ? (
-                      <div className="p-10 text-center border border-dashed rounded-2xl text-gray-400 font-bold text-xs uppercase tracking-wider">
-                        Ainda não há dias completamente encerrados nesta unidade.
-                      </div>
-                    ) : (
-                      <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-900 border-b text-[10px] font-black uppercase text-white tracking-wider">
-                              <th className="px-6 py-3.5">Data do Dia</th>
-                              <th className="px-6 py-3.5 text-right">Abertura</th>
-                              <th className="px-6 py-3.5 text-right">Intermédio</th>
-                              <th className="px-6 py-3.5 text-right">Fecho</th>
-                              <th className="px-6 py-3.5 text-center">Estado</th>
-                              <th className="px-6 py-3.5 text-center">Ações</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y text-xs font-bold text-gray-700">
-                            {groupedDays.filter(d => d.isClosed).map(day => {
-                              return (
-                                <tr key={`closed_${day.date}`} className="hover:bg-slate-50/50">
-                                  <td className="px-6 py-4">
-                                    <span className="text-slate-800 block text-xs font-extrabold">{formatDateToDMY(day.date)}</span>
-                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-black">
-                                      {new Date(day.date).toLocaleDateString('pt-PT', { weekday: 'short' })}
-                                    </span>
-                                  </td>
-                                  
-                                  <td className="px-6 py-4 text-right font-mono">
-                                    {day.abertura && !day.abertura.isNotPerformed ? (
-                                      <span className={getDynamicDiferencaForCount(day.abertura) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
-                                        {formatEuro(getDynamicDiferencaForCount(day.abertura))}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 text-right font-mono">
-                                    {day.tarde && !day.tarde.isNotPerformed ? (
-                                      <span className={getDynamicDiferencaForCount(day.tarde) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
-                                        {formatEuro(getDynamicDiferencaForCount(day.tarde))}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 text-right font-mono">
-                                    {day.fecho && !day.fecho.isNotPerformed ? (
-                                      <span className={getDynamicDiferencaForCount(day.fecho) === 0 ? 'text-green-600 font-extrabold' : 'text-red-600 font-extrabold'}>
-                                        {formatEuro(getDynamicDiferencaForCount(day.fecho))}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Não realizada</span>
-                                    )}
-                                  </td>
-                                  
-                                  <td className="px-6 py-4 text-center">
-                                    <span className="inline-flex items-center gap-1 text-[9px] bg-slate-100 text-slate-700 font-extrabold uppercase px-2.5 py-0.5 rounded-full border">
-                                      🔒 Fechado
-                                    </span>
-                                  </td>
-
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <button 
-                                        onClick={() => {
-                                          const pass = prompt("Introduza a password de acesso:");
-                                          if (pass === null) return;
-                                          if (pass !== "Imperial96") {
-                                            alert("Password de acesso incorreta.");
-                                            return;
-                                          }
-                                          const choices: { label: string, data: any }[] = [];
-                                          if (day.abertura) choices.push({ label: 'Abertura', data: day.abertura });
-                                          if (day.tarde) choices.push({ label: 'Intermédio', data: day.tarde });
-                                          if (day.fecho) choices.push({ label: 'Fecho', data: day.fecho });
-
-                                          if (choices.length === 0) {
-                                            alert("Não existem contagens para este dia.");
-                                            return;
-                                          }
-                                          if (choices.length === 1) {
-                                            setEditingCofre(choices[0].data);
-                                            setIsCofreUnlocked(true);
-                                            setSafeEditorTab('contagem');
-                                          } else {
-                                            const optionsStr = choices.map((c, i) => `${i + 1} - ${c.label}`).join('\n');
-                                            const selection = prompt(`Escolha a contagem que deseja abrir:\n${optionsStr}`, "1");
-                                            if (selection === null) return;
-                                            const idx = parseInt(selection) - 1;
-                                            if (!isNaN(idx) && idx >= 0 && idx < choices.length) {
-                                              setEditingCofre(choices[idx].data);
-                                              setIsCofreUnlocked(true);
-                                              setSafeEditorTab('contagem');
-                                            } else {
-                                              alert("Opção inválida.");
-                                            }
-                                          }
-                                        }}
-                                        className="text-[10px] uppercase font-black text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100/60 px-2.5 py-1 rounded-lg transition-all"
-                                      >
-                                        Verificar
-                                      </button>
-                                      
-                                      <button
-                                        onClick={() => handleTriggerDeleteDayModal(day)}
-                                        className="p-1 text-red-400 hover:text-red-600 rounded"
-                                        title="Apagar Dia Completo"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                        <div className="space-y-3">{visibleOpen.map(day => renderDay(day))}</div>
+                        {visibleOpen.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-semibold text-slate-400">Não existem dias em aberto para estes filtros.</div>}
+                      </section>
+                    )}
+                    {cofreViewFilter !== 'open' && (
+                      <section>
+                        <button onClick={() => setShowClosedHistory(value => !value)} className="mb-3 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-[11px] font-extrabold text-slate-600 hover:bg-slate-50"><span>Histórico de dias encerrados <span className="ml-1 font-semibold text-slate-400">· {visibleClosed.length} dias</span></span>{(cofreViewFilter === 'closed' || showClosedHistory) ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}</button>
+                        {(cofreViewFilter === 'closed' || showClosedHistory) && <div className="space-y-3">{visibleClosed.map(day => renderDay(day, true))}{visibleClosed.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-white p-7 text-center text-xs text-slate-400">Não há dias encerrados para estes filtros.</div>}</div>}
+                      </section>
                     )}
                   </div>
-
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
