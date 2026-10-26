@@ -72,12 +72,19 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
 
   const activeStations = useMemo(
     () =>
-      stations.filter(s =>
-        (allStaffingPostsOpen
+      stations.filter(s => {
+        const zone = resolveStationZone(s);
+        const platformEnabled = zone === 'drive'
+          ? businessAreas.includes('Drive')
+          : zone === 'mccafe'
+          ? businessAreas.includes('McCafé')
+          : true;
+        const otherwiseVisible = allStaffingPostsOpen
           ? s.isActive || priorityMap.has(s.id)
-          : s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), businessAreas)) &&
-        (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0)
-      ),
+          : s.isActive && isZoneVisibleForBusinessAreas(zone, businessAreas);
+        return platformEnabled && otherwiseVisible &&
+          (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0);
+      }),
     [stations, businessAreas, slotLimitByStation, allStaffingPostsOpen, priorityMap]
   );
 
