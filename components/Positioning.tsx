@@ -28,8 +28,6 @@ import {
   Lock,
   Printer,
   Save,
-  Sliders,
-  Sparkles,
   Unlock,
 } from 'lucide-react';
 
@@ -100,6 +98,10 @@ export const Positioning: React.FC<PositioningProps> = ({
   const [editorInitialTab, setEditorInitialTab] = useState<'areas' | 'stations'>('areas');
 
   const [isSaving, setIsSaving] = useState(false);
+  const [staffingAdjustmentOpen, setStaffingAdjustmentOpen] = useState(false);
+  const [adjustmentMode, setAdjustmentMode] = useState<'add' | 'remove'>('add');
+  const [adjustmentAmount, setAdjustmentAmount] = useState(1);
+  const [adjustmentReason, setAdjustmentReason] = useState('');
 
   const availableShifts: ShiftType[] = useMemo(
     () =>
@@ -161,22 +163,52 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   };
 
-  // Número de previstos determinado exclusivamente pela tabela Staffing e vendas planeadas.
-  const predictedStaffCount = useMemo(() => {
+  const openStaffingAdjustment = () => {
+    const existing = schedule.staffingAdjustments?.[selectedShift];
+    setAdjustmentMode(existing?.delta != null && existing.delta < 0 ? 'remove' : 'add');
+    setAdjustmentAmount(Math.max(1, Math.abs(existing?.delta || 1)));
+    setAdjustmentReason(existing?.reason || '');
+    setStaffingAdjustmentOpen(true);
+  };
+
+  const saveStaffingAdjustment = () => {
+    const amount = Math.max(1, Math.floor(Number(adjustmentAmount) || 1));
+    const delta = (adjustmentMode === 'add' ? amount : -amount);
+    setSchedule({
+      ...schedule,
+      staffingAdjustments: {
+        ...(schedule.staffingAdjustments || {}),
+        [selectedShift]: { delta, reason: adjustmentReason.trim() },
+      },
+    });
+    setStaffingAdjustmentOpen(false);
+    setAdjustmentReason('');
+    toast(`Ajustamento registado: ${delta > 0 ? '+' : ''}${delta} posto(s).`, 'success');
+  };
+
+  const toggleAllStations = () => {
+    if (isShiftLocked) return;
+    setSchedule({
+      ...schedule,
+      allStationsOpen: {
+        ...(schedule.allStationsOpen || {}),
+        [selectedShift]: !allStationsOpen,
+      },
+    });
+  };
+
+  // Previstos baseados na tabela Staffing; ajustamentos manuais são sempre justificados.
+  const staffingBaseCount = useMemo(() => {
     if (!staffingTable || staffingTable.length === 0) return 0;
     const sorted = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
-    const exactIdx = sorted.findIndex(
-      r => effectiveSales >= r.minSales && effectiveSales <= r.maxSales
-    );
+    const exactIdx = sorted.findIndex(r => effectiveSales >= r.minSales && effectiveSales <= r.maxSales);
     let idx = exactIdx;
-    if (idx === -1) {
-      sorted.forEach((r, i) => {
-        if (effectiveSales >= r.minSales) idx = i;
-      });
-    }
-    const base = idx === -1 ? 0 : sorted[idx].staffCount;
-    return Math.max(0, base);
+    if (idx === -1) sorted.forEach((r, i) => { if (effectiveSales >= r.minSales) idx = i; });
+    return Math.max(0, idx === -1 ? 0 : sorted[idx].staffCount);
   }, [staffingTable, effectiveSales]);
+  const staffingAdjustment = schedule.staffingAdjustments?.[selectedShift];
+  const predictedStaffCount = Math.max(0, staffingBaseCount + (staffingAdjustment?.delta || 0));
+  const allStationsOpen = Boolean(schedule.allStationsOpen?.[selectedShift]);
 
   // Abre apenas os primeiros N lugares pela ordem de prioridade definida em Staffing.
   // Cada posto pode ter mais do que uma vaga; a última estação pode ficar parcialmente aberta.
@@ -185,7 +217,9 @@ export const Positioning: React.FC<PositioningProps> = ({
       stations.filter(s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)),
       priorityMap
     );
-    let remaining = predictedStaffCount;
+    let remaining = allStationsOpen
+      ? ordered.reduce((sum, station) => sum + Math.max(1, station.defaultSlots || 1), 0)
+      : predictedStaffCount;
     const limits: Record<string, number> = {};
     for (const station of ordered) {
       if (remaining <= 0) break;
@@ -195,7 +229,7 @@ export const Positioning: React.FC<PositioningProps> = ({
       remaining -= openSlots;
     }
     return limits;
-  }, [stations, settings.businessAreas, priorityMap, predictedStaffCount]);
+  }, [stations, settings.businessAreas, priorityMap, predictedStaffCount, allStationsOpen]);
 
   const currentShiftAssignments: StationAssignment = useMemo(
     () => schedule.shifts?.[selectedShift] || {},
@@ -330,48 +364,6 @@ export const Positioning: React.FC<PositioningProps> = ({
     });
   };
 
-  const handleAutoFillByPriority = () => {
-    if (isShiftLocked) {
-      toast('Desbloqueie o turno antes de preencher automaticamente.', 'info');
-      return;
-    }
-    const orderedStations = sortStationsByPriority(
-      stations.filter(
-        s => s.isActive && isZoneVisibleForBusinessAreas(resolveStationZone(s), settings.businessAreas)
-      ),
-      priorityMap
-    );
-
-    const target = predictedStaffCount;
-    const managerIds = new Set([leaderId, supportId].filter(Boolean));
-    const availableCrew = employees.filter(e => !managerIds.has(e.id));
-
-    const nextShift: StationAssignment = {};
-    let crewIdx = 0;
-
-    for (const st of orderedStations) {
-      if (crewIdx >= target || crewIdx >= availableCrew.length) break;
-      const slots = Math.max(1, st.defaultSlots || 1);
-      const arr: string[] = [];
-      for (let i = 0; i < slots; i++) {
-        if (crewIdx < target && crewIdx < availableCrew.length) {
-          arr.push(availableCrew[crewIdx].id);
-          crewIdx++;
-        }
-      }
-      nextShift[st.id] = arr;
-    }
-
-    setSchedule({
-      ...schedule,
-      shifts: {
-        ...(schedule.shifts || {}),
-        [selectedShift]: nextShift,
-      },
-    });
-    toast(`Posicionados ${crewIdx} colaboradores pela ordem de prioridade dos postos.`, 'success');
-  };
-
   const handleClearShift = () => {
     if (isShiftLocked) return;
     setSchedule({
@@ -448,30 +440,28 @@ export const Positioning: React.FC<PositioningProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {onSaveSettings && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditorInitialZone(null);
-                setEditorInitialStationId(null);
-                setEditorInitialTab('areas');
-                setEditorOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 transition-colors"
-            >
-              <Sliders className="w-3.5 h-3.5 text-[#DA291C]" />
-              Editar Áreas / Postos
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={isShiftLocked}
+            onClick={toggleAllStations}
+            aria-pressed={allStationsOpen}
+            title="Abrir ou fechar todos os postos ativos, independentemente dos previstos"
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold border transition-colors disabled:opacity-50 ${
+              allStationsOpen
+                ? 'bg-[#FFC72C] border-amber-300 text-slate-950'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            Todos os Postos
+          </button>
 
           <button
             type="button"
-            onClick={handleAutoFillByPriority}
-            title="Distribuir automaticamente pelos postos segundo a ordem de prioridade 1..N"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800 transition-colors"
+            disabled={isShiftLocked}
+            onClick={openStaffingAdjustment}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 transition-colors disabled:opacity-50"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            Auto-Preencher
+            Ajustar Postos
           </button>
 
           <button
@@ -565,7 +555,7 @@ export const Positioning: React.FC<PositioningProps> = ({
         {/* Second Row: 5 KPI / Management Boxes */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
           {/* 1. Gerente de Turno */}
-          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-center">
             <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
               GERENTE DE TURNO
             </label>
@@ -585,7 +575,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
 
           {/* 2. Gerente de Apoio */}
-          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-center">
             <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
               GERENTE DE APOIO
             </label>
@@ -605,7 +595,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
 
           {/* 3. Vendas Previstas */}
-          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-center">
             <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
               VENDAS PREVISTAS
             </label>
@@ -629,7 +619,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
 
           {/* 4. Previstos */}
-          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 flex items-center justify-between gap-2">
+          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 flex flex-col items-center justify-center gap-1 text-center">
             <div>
               <span className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
                 PREVISTOS
@@ -642,7 +632,7 @@ export const Positioning: React.FC<PositioningProps> = ({
           </div>
 
           {/* 5. Posicionados */}
-          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 flex items-center justify-between gap-2">
+          <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 flex flex-col items-center justify-center gap-1 text-center">
             <div>
               <span className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
                 POSICIONADOS
@@ -881,6 +871,27 @@ export const Positioning: React.FC<PositioningProps> = ({
       {/* =====================================================================
           4. MODALS: CREW PICKER + AREA & STATION CUSTOMIZER
          ===================================================================== */}
+      {staffingAdjustmentOpen && (
+        <div className="fixed inset-0 z-[70] no-print flex items-center justify-center bg-slate-950/60 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="staffing-adjustment-title" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <h2 id="staffing-adjustment-title" className="text-base font-black text-slate-950 dark:text-white">Ajustar postos previstos</h2>
+            <p className="mt-1 text-xs text-slate-500">Base Staffing: {staffingBaseCount}. Indique a alteração e o motivo; o ajuste fica guardado neste turno.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAdjustmentMode('add')} className={`rounded-lg border px-3 py-2 text-sm font-extrabold ${adjustmentMode === 'add' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600'}`}>Acrescentar</button>
+              <button type="button" onClick={() => setAdjustmentMode('remove')} className={`rounded-lg border px-3 py-2 text-sm font-extrabold ${adjustmentMode === 'remove' ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 text-slate-600'}`}>Retirar</button>
+            </div>
+            <label className="mt-4 block text-xs font-bold text-slate-600 dark:text-slate-300">Número de postos</label>
+            <input type="number" min={1} step={1} value={adjustmentAmount} onChange={e => setAdjustmentAmount(Math.max(1, Number(e.target.value) || 1))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+            <label className="mt-3 block text-xs font-bold text-slate-600 dark:text-slate-300">Motivo (obrigatório)</label>
+            <textarea autoFocus rows={3} value={adjustmentReason} onChange={e => setAdjustmentReason(e.target.value)} placeholder="Ex.: evento especial, formação, ausência..." className="mt-1 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setStaffingAdjustmentOpen(false)} className="rounded-lg px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Cancelar</button>
+              <button type="button" disabled={!adjustmentReason.trim()} onClick={saveStaffingAdjustment} className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-40">Aplicar ajuste</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <StationAssignmentModal
         isOpen={Boolean(activeSlot)}
         onClose={() => setActiveSlot(null)}

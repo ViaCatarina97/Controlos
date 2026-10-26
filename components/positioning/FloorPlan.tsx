@@ -191,14 +191,14 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
       >
         {/* Station Card Header */}
         <div
-          className={`flex items-center justify-between gap-1.5 ${
+          className={`relative flex items-center justify-center gap-1.5 ${
             isFilled ? 'bg-[#DA291C] text-white' : 'bg-[#6B7280] text-white'
           } ${printMode ? 'px-1.5 py-0.5' : 'px-2 py-1'}`}
         >
-          <div className="min-w-0 flex items-center gap-1.5 flex-1">
+          <div className="min-w-0 flex items-center justify-center gap-1.5 flex-1 text-center">
             {priorityRank !== undefined && (
               <span
-                className={`shrink-0 rounded font-black tabular-nums text-center bg-white ${
+                className={`absolute left-1.5 top-1/2 -translate-y-1/2 shrink-0 rounded font-black tabular-nums text-center bg-white ${
                   isFilled ? 'text-[#DA291C]' : 'text-slate-800'
                 } ${
                   printMode
@@ -221,7 +221,7 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
           </div>
 
           <span
-            className={`shrink-0 bg-[#FFC72C] text-slate-950 font-black rounded px-1.5 py-0.5 leading-none tabular-nums ${
+            className={`absolute right-1.5 top-1/2 -translate-y-1/2 shrink-0 bg-[#FFC72C] text-slate-950 font-black rounded px-1.5 py-0.5 leading-none tabular-nums ${
               printMode ? 'text-[8px]' : 'text-[10px]'
             }`}
           >

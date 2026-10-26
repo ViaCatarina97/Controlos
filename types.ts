@@ -156,6 +156,12 @@ export interface DailySchedule {
   staffingHours?: {
     [key in ShiftType]?: '12h-13h' | '13h-14h' | '19h-20h' | '20h-21h';
   };
+  staffingAdjustments?: {
+    [key in ShiftType]?: { delta: number; reason: string };
+  };
+  allStationsOpen?: {
+    [key in ShiftType]?: boolean;
+  };
   manualAdjustments?: {
     [key in ShiftType]?: number;
   };
