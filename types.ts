@@ -152,6 +152,10 @@ export interface DailySchedule {
   projectedSales?: {
     [key in ShiftType]?: number;
   };
+  /** Hora de referência (vendas projetadas) usada para determinar o quadro previsto por turno. */
+  staffingHours?: {
+    [key in ShiftType]?: '12h-13h' | '13h-14h' | '19h-20h' | '20h-21h';
+  };
   manualAdjustments?: {
     [key in ShiftType]?: number;
   };

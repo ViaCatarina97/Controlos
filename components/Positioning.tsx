@@ -140,9 +140,26 @@ export const Positioning: React.FC<PositioningProps> = ({
     [schedule.lockedShifts, selectedShift]
   );
 
-  // As vendas planeadas são definidas em «Previsão & Vendas» para esta data/turno.
-  // Aqui são apenas consultadas: nunca introduzidas manualmente nem inferidas de horas de pico.
-  const effectiveSales = Math.max(0, Number(schedule.projectedSales?.[selectedShift] ?? 0) || 0);
+  // O gerente escolhe a hora operacional de referência. O valor vem da previsão horária
+  // calculada a partir dos dias históricos selecionados em «Previsão & Vendas».
+  const staffingHourOptions = selectedShift === 'FECHO' || selectedShift === 'MADRUGADA'
+    ? (['19h-20h', '20h-21h'] as const)
+    : (['12h-13h', '13h-14h'] as const);
+  const defaultStaffingHour = staffingHourOptions[0];
+  const staffingHour = schedule.staffingHours?.[selectedShift] || defaultStaffingHour;
+  const selectedHourProjection = (schedule.hourlyProjections?.[selectedShift] || [])
+    .find(item => item.hour === staffingHour);
+  const effectiveSales = Math.max(0, Number(
+    selectedHourProjection?.totalSales ?? schedule.projectedSales?.[selectedShift] ?? 0
+  ) || 0);
+
+  const updateStaffingHour = (hour: typeof staffingHourOptions[number]) => {
+    if (isShiftLocked) return;
+    setSchedule({
+      ...schedule,
+      staffingHours: { ...(schedule.staffingHours || {}), [selectedShift]: hour },
+    });
+  };
 
   // Número de previstos determinado exclusivamente pela tabela Staffing e vendas planeadas.
   const predictedStaffCount = useMemo(() => {
@@ -592,11 +609,22 @@ export const Positioning: React.FC<PositioningProps> = ({
             <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
               VENDAS PREVISTAS
             </label>
-            <div className="flex items-baseline gap-1">
-              <span className="w-full text-xs sm:text-sm font-black tabular-nums text-slate-950 dark:text-white">
-                {effectiveSales.toLocaleString('pt-PT')}
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-xs sm:text-sm font-black tabular-nums text-slate-950 dark:text-white">
+                {effectiveSales.toLocaleString('pt-PT')} €
               </span>
-              <span className="text-xs sm:text-sm font-black text-slate-950 dark:text-white shrink-0">€</span>
+              <select
+                aria-label="Hora de referência para Staffing"
+                title="Escolha a hora usada para calcular os previstos"
+                value={staffingHour}
+                disabled={isShiftLocked}
+                onChange={e => updateStaffingHour(e.target.value as typeof staffingHourOptions[number])}
+                className="max-w-[82px] rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {staffingHourOptions.map(hour => (
+                  <option key={hour} value={hour}>{hour.slice(0, 3)}</option>
+                ))}
+              </select>
             </div>
           </div>
 
