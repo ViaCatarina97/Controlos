@@ -541,9 +541,19 @@ const App: React.FC = () => {
   };
 
   const handleSaveRestaurantSettings = (updated: AppSettings) => {
-    setAllRestaurants(prev =>
-      prev.map(r => (r.restaurantId === updated.restaurantId ? updated : r))
-    );
+    // Persist local-first immediately; a later cloud refresh must not restore stale settings.
+    setAllRestaurants(prev => {
+      const next = prev.map(r => (r.restaurantId === updated.restaurantId ? updated : r));
+      const exists = next.some(r => r.restaurantId === updated.restaurantId);
+      const complete = exists ? next : [...next, updated];
+      localStorage.setItem('app_all_restaurants', JSON.stringify(complete));
+      return complete;
+    });
+    // Save explicitly as well as through the dirty-slice sync effect. The service
+    // falls back to localStorage when Firestore is unavailable.
+    void saveRestaurant(updated).catch(error => {
+      console.error('Falha ao guardar definições da loja:', error);
+    });
   };
 
   const [scheduleToSave, setScheduleToSave] = useState<DailySchedule | null>(null);
