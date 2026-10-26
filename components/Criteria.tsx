@@ -9,6 +9,7 @@ interface CriteriaProps {
 
 export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTable }) => {
   const [localTable, setLocalTable] = useState<StaffingTableEntry[]>([]);
+  const [showValidationConfirm, setShowValidationConfirm] = useState(false);
 
   // Initialize and synchronise with parent changes
   useEffect(() => {
@@ -38,15 +39,16 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
     return errors;
   }, [localTable]);
 
-  const handleSave = () => {
-    if (validationErrors.length > 0) {
-      alert('Corrija os seguintes problemas antes de gravar:\n\n• ' + validationErrors.join('\n• '));
+  const handleSave = (confirmed = false) => {
+    if (validationErrors.length > 0 && !confirmed) {
+      setShowValidationConfirm(true);
       return;
     }
-    // Sort table by minSales to maintain structured progression
-    const sorted = [...localTable].sort((a, b) => a.minSales - b.minSales);
+    // Sort by sales threshold while preserving every row, including rows with known issues.
+    const sorted = [...localTable].sort((a, b) => a.minSales - b.minSales || a.staffCount - b.staffCount);
     setStaffingTable(sorted);
-    alert('Tabela de Postos (Staffing) gravada com sucesso!');
+    setShowValidationConfirm(false);
+    alert('Tabela de Postos (Staffing) gravada com sucesso.');
   };
 
   const handleReset = () => {
@@ -262,6 +264,27 @@ export const Criteria: React.FC<CriteriaProps> = ({ staffingTable, setStaffingTa
           )}
         </div>
       </div>
+
+      {showValidationConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="staffing-validation-title" className="w-full max-w-xl rounded-2xl border border-amber-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 shrink-0 text-amber-600" size={22} />
+              <div>
+                <h3 id="staffing-validation-title" className="text-base font-black text-slate-900">A tabela tem inconsistências</h3>
+                <p className="mt-1 text-sm text-slate-600">Pode voltar e corrigir ou gravar mesmo assim. Os intervalos e postos serão guardados, mas as inconsistências continuarão assinaladas.</p>
+              </div>
+            </div>
+            <ul className="mt-4 max-h-48 list-disc space-y-1 overflow-y-auto rounded-xl bg-amber-50 p-4 pl-8 text-sm font-medium text-amber-950">
+              {validationErrors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}
+            </ul>
+            <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+              <button type="button" onClick={() => setShowValidationConfirm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Voltar à edição</button>
+              <button type="button" onClick={() => handleSave(true)} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-extrabold text-white hover:bg-green-800">Gravar na mesma</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
