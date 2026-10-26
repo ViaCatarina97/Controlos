@@ -79,9 +79,10 @@ export const FloorPlan: React.FC<FloorPlanProps> = ({
           : zone === 'mccafe'
           ? businessAreas.includes('McCafé')
           : true;
-        const otherwiseVisible = allStaffingPostsOpen
-          ? s.isActive || priorityMap.has(s.id)
-          : s.isActive && isZoneVisibleForBusinessAreas(zone, businessAreas);
+        // Staffing's ordered list is the source of truth for which posts can be opened;
+        // isActive is an area-editor visibility hint and must not skip a ranked post.
+        const otherwiseVisible = priorityMap.has(s.id) &&
+          (allStaffingPostsOpen || isZoneVisibleForBusinessAreas(zone, businessAreas));
         return platformEnabled && otherwiseVisible &&
           (slotLimitByStation === undefined || (slotLimitByStation[s.id] || 0) > 0);
       }),

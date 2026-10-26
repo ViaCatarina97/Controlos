@@ -96,9 +96,9 @@ export function buildStationPriorityMap(
   staffingTable: StaffingTableEntry[]
 ): Map<string, number> {
   const priorityMap = new Map<string, number>();
-  const sortedRules = [...staffingTable].sort(
-    (a, b) => a.minSales - b.minSales || a.maxSales - b.maxSales || a.staffCount - b.staffCount
-  );
+  // Staffing renders the table ordered by minSales. Mirror that exact progression here;
+  // keep stable source order for equal thresholds (especially the three 0€ opening posts).
+  const sortedRules = [...staffingTable].sort((a, b) => a.minSales - b.minSales);
 
   const usedStationIds = new Set<string>();
 
