@@ -452,7 +452,7 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
               Torre de Controlo da Unidade
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-              Visão Executiva &amp; Módulos
+              Visão Executiva &amp; Módulos para Menu Principal
             </h2>
           </div>
           {loadingKpis && (
