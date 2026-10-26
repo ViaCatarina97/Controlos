@@ -1946,9 +1946,9 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       
       {/* Detail Editors Overlay or View */}
       {editingCofre ? (
-        <div className="space-y-6 print:p-0">
-          {/* Editor Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 gap-4 print:hidden">
+        <div className="space-y-5 print:p-0">
+          {/* Editor Header — apresentação visual; mantém campos, valores e handlers existentes */}
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between print:hidden">
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setEditingCofre(null)}
@@ -1957,11 +1957,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                 <ArrowLeft size={18} />
               </button>
               <div>
-                <h3 className="text-xl font-extrabold text-slate-800 uppercase tracking-tighter flex items-center gap-2">
-                  Registar Contagem de Cofre {editingCofre.isLocked && <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border">🔒 Validado & Bloqueado</span>}
+                <h3 className="flex flex-wrap items-center gap-2 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+                  Contagem de Cofre
+                  {editingCofre.isLocked && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide text-emerald-800">Validada e bloqueada</span>}
                 </h3>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-                  McDonald's Via Catarina
+                <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                  {getWeekdayName(editingCofre.date)}, {formatDateToDMY(editingCofre.date)} · Turno de {editingCofre.turn} · {settings.restaurantName}
                 </p>
               </div>
             </div>
@@ -1987,7 +1988,11 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
           )}
 
           {/* Form Meta Setup */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 print:bg-white print:border-0 print:grid-cols-5 print:p-2">
+          <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5 print:grid-cols-5 print:border-0 print:bg-white print:p-2">
+            <div className="col-span-full flex items-center justify-between border-b border-slate-200 pb-2 print:hidden">
+              <div><h4 className="text-xs font-black text-slate-800">Dados do turno</h4><p className="mt-0.5 text-[10px] text-slate-500">Confirme data, turno e responsável antes da contagem.</p></div>
+              <span className={`rounded-full px-2.5 py-1 text-[9px] font-extrabold ${editingCofre.isNotPerformed ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-800'}`}>{editingCofre.isNotPerformed ? 'Não realizada' : editingCofre.isLocked ? 'Validada' : 'Em preenchimento'}</span>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data</label>
               <div className="relative">
@@ -2131,7 +2136,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
+            <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
                 
                 {/* CARD 1: FUNDO DE GERENTE (AZUL ESCURO) */}
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
