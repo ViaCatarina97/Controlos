@@ -232,7 +232,16 @@ export async function getRestaurants(): Promise<AppSettings[]> {
     async () => {
       const q = collection(db, 'restaurants');
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data() as AppSettings);
+      let list = snap.docs.map(d => d.data() as AppSettings);
+      // Local edits stay authoritative until Firestore confirms their write.
+      const localList: AppSettings[] = JSON.parse(localStorage.getItem('app_all_restaurants') || '[]');
+      const dirtyLocal = localList.filter(item =>
+        localStorage.getItem(`app_restaurant_settings_dirty_${item.restaurantId}`) === 'true'
+      );
+      if (dirtyLocal.length) {
+        list = list.filter(item => !dirtyLocal.some(local => local.restaurantId === item.restaurantId));
+        list.push(...dirtyLocal);
+      }
       localStorage.setItem('app_all_restaurants', JSON.stringify(list));
       return list;
     },
@@ -277,25 +286,30 @@ export async function getRestaurant(restaurantId: string): Promise<AppSettings |
 }
 
 export async function saveRestaurant(restaurant: AppSettings): Promise<void> {
-  await ensureAuthenticated();
   const path = `restaurants/${restaurant.restaurantId}`;
+  const dirtyKey = `app_restaurant_settings_dirty_${restaurant.restaurantId}`;
+  const saveLocally = () => {
+    const saved = localStorage.getItem('app_all_restaurants');
+    let list: AppSettings[] = saved ? JSON.parse(saved) : [];
+    list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
+    list.push(restaurant);
+    localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+    localStorage.setItem(dirtyKey, 'true');
+  };
+  // Write-through local cache first so an older cloud snapshot cannot replace the edit.
+  saveLocally();
+  await ensureAuthenticated();
   return runFirestoreWrite(
     async () => {
       await setDoc(doc(db, 'restaurants', restaurant.restaurantId), restaurant);
-      // Mirror locally
       const saved = localStorage.getItem('app_all_restaurants');
       let list: AppSettings[] = saved ? JSON.parse(saved) : [];
       list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
       list.push(restaurant);
       localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+      localStorage.removeItem(dirtyKey);
     },
-    () => {
-      const saved = localStorage.getItem('app_all_restaurants');
-      let list: AppSettings[] = saved ? JSON.parse(saved) : [];
-      list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
-      list.push(restaurant);
-      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
-    },
+    saveLocally,
     OperationType.WRITE,
     path
   );
