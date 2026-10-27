@@ -51,10 +51,13 @@
         }
         body.printing-deposit-slip .deposit-slip-sheet {
           box-sizing: border-box !important;
-          width: 100% !important;
+          /* O zoom reduz o formulário completo antes da paginação. A largura
+             e altura compensadas mantêm o desenho a ocupar uma página A4. */
+          zoom: 0.8 !important;
+          width: 125% !important;
           max-width: none !important;
-          height: 202mm !important;
-          min-height: 202mm !important;
+          height: 252.5mm !important;
+          min-height: 252.5mm !important;
           margin: 0 !important;
           padding: 5mm !important;
           border-width: 1mm !important;
