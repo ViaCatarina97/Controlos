@@ -32,14 +32,80 @@
         body.printing-deposit-slip #finance-control-root > *:not(.deposit-slip-print) {
           display: none !important;
         }
+        body.printing-deposit-slip,
+        body.printing-deposit-slip #root,
+        body.printing-deposit-slip #finance-control-root {
+          page: landscape-print !important;
+        }
         body.printing-deposit-slip #finance-control-root > .deposit-slip-print {
           display: block !important;
+          page: landscape-print !important;
           position: static !important;
           inset: auto !important;
           width: 100% !important;
           min-height: 0 !important;
+          height: auto !important;
           margin: 0 !important;
           padding: 0 !important;
+          overflow: visible !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet {
+          box-sizing: border-box !important;
+          width: 100% !important;
+          max-width: none !important;
+          height: 202mm !important;
+          min-height: 202mm !important;
+          margin: 0 !important;
+          padding: 5mm !important;
+          border-width: 1mm !important;
+          border-radius: 2mm !important;
+          box-shadow: none !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          gap: 2.5mm !important;
+          overflow: hidden !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet > :not([hidden]) ~ :not([hidden]) {
+          margin-top: 0 !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .border-2 {
+          border-width: 0.35mm !important;
+          border-radius: 1.5mm !important;
+          padding: 2.2mm !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .grid.grid-cols-12 {
+          gap: 3mm !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet table th,
+        body.printing-deposit-slip .deposit-slip-sheet table td {
+          padding: 0.8mm 1.5mm !important;
+          line-height: 1.05 !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet table tr.h-7 {
+          height: 4.5mm !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet table {
+          font-size: 7pt !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet table th {
+          font-size: 6.5pt !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .text-2xl {
+          font-size: 17pt !important;
+          line-height: 1.1 !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .text-sm {
+          font-size: 8pt !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .text-base {
+          font-size: 9pt !important;
+        }
+        body.printing-deposit-slip .deposit-slip-sheet .text-\[8px\],
+        body.printing-deposit-slip .deposit-slip-sheet .text-\[7px\] {
+          font-size: 6pt !important;
         }
         html, body, #root {
           -webkit-print-color-adjust: exact !important;

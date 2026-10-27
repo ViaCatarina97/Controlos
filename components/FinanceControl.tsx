@@ -5516,7 +5516,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
       {printDepositData && (
         <div className="deposit-slip-print hidden print:block print-container print-landscape absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
           {/* Slip 1: Original */}
-          <div className="border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
+          <div className="deposit-slip-sheet border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
             {/* Header */}
             <div className="flex justify-between items-center border-b-4 border-slate-900 pb-5">
               <div>
