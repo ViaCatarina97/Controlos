@@ -27,6 +27,20 @@
       }
 
       @media print {
+        /* A impressão bancária tem de apresentar apenas a guia específica,
+           nunca a listagem de folhas que está por trás do botão. */
+        body.printing-deposit-slip #finance-control-root > *:not(.deposit-slip-print) {
+          display: none !important;
+        }
+        body.printing-deposit-slip #finance-control-root > .deposit-slip-print {
+          display: block !important;
+          position: static !important;
+          inset: auto !important;
+          width: 100% !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
         html, body, #root {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;

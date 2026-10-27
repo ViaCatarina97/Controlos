@@ -328,6 +328,18 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
     title?: string;
   } | null>(null);
 
+  const printDepositSlip = (data: { date: string; managerName: string; amount: number; title?: string }) => {
+    setPrintDepositData(data);
+    document.body.classList.add('printing-deposit-slip');
+    const cleanup = () => {
+      document.body.classList.remove('printing-deposit-slip');
+      setPrintDepositData(null);
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    window.setTimeout(() => window.print(), 250);
+  };
+
   // Subtabs within Safe Count Editor: 'detalhes' | 'faturas'
   const [safeEditorTab, setSafeEditorTab] = useState<'contagem' | 'faturas'>('contagem');
 
@@ -3309,7 +3321,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                           <div className="sm:text-right"><p className="text-[9px] font-bold text-slate-400">TOTAL DO DIA</p><p className="text-[14px] font-black tabular-nums text-slate-900">{formatEuro(totalDay)}</p><span className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[8px] font-extrabold ${closed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>{closed ? 'Dia encerrado' : `${Number(openingLocked) + Number(closingLocked)} de 2 validadas`}</span></div>
                           <div className="flex items-center gap-1">
                             {!closed && <button type="button" disabled={!complete} onClick={() => handleCloseDayDeposits(day.date, day)} className={`grid h-8 w-8 place-items-center rounded-lg border ${complete ? 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300'}`} title={complete ? 'Validar dia' : 'Valide abertura e fecho para encerrar'}><CheckCircle size={14}/></button>}
-                            {(day.abertura || day.fecho) && <button type="button" onClick={() => { const printManagerObj = day.fecho || day.abertura; const managerName = employees.find(e => e.id === printManagerObj?.managerId)?.name || ''; setPrintDepositData({ date: day.date, managerName, amount: totalDay, title: 'DEPOSIT DES VALORES E NUMERÁRIO' }); setTimeout(() => window.print(), 150); }} className="grid h-8 w-8 place-items-center rounded-lg border border-blue-100 text-blue-700 hover:bg-blue-50" title="Imprimir guia"><Printer size={14}/></button>}
+                            {(day.abertura || day.fecho) && <button type="button" onClick={() => { const printManagerObj = day.fecho || day.abertura; const managerName = employees.find(e => e.id === printManagerObj?.managerId)?.name || ''; printDepositSlip({ date: day.date, managerName, amount: totalDay, title: 'DEPOSIT DES VALORES E NUMERÁRIO' }); }} className="grid h-8 w-8 place-items-center rounded-lg border border-blue-100 text-blue-700 hover:bg-blue-50" title="Imprimir guia"><Printer size={14}/></button>}
                             {closed && <button type="button" onClick={() => handleConfirmDeleteDayDeposits(day)} className="grid h-8 w-8 place-items-center rounded-lg border border-rose-100 text-rose-600 hover:bg-rose-50" title="Eliminar dia"><Trash2 size={14}/></button>}
                           </div>
                         </div>
@@ -5051,17 +5063,12 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
                                           <Edit2 size={13} />
                                         </button>
                                         <button 
-                                          onClick={() => {
-                                            setPrintDepositData({
-                                              date: coin.date,
-                                              managerName: coin.managerName,
-                                              amount: coin.amount,
-                                              title: 'DEPOSIT DES VALORES E NUMERÁRIO'
-                                            });
-                                            setTimeout(() => {
-                                              window.print();
-                                            }, 150);
-                                          }}
+                                          onClick={() => printDepositSlip({
+                                            date: coin.date,
+                                            managerName: coin.managerName,
+                                            amount: coin.amount,
+                                            title: 'DEPOSIT DES VALORES E NUMERÁRIO'
+                                          })}
                                           className="p-1 px-2 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition-all"
                                           title="Imprimir Guia de Depósito"
                                         >
@@ -5507,7 +5514,7 @@ export const FinanceControl: React.FC<FinanceControlProps> = ({
 
       {/* PRINTABLE MILLENNIUM BCP DEPOSIT SLIP OVERLAY */}
       {printDepositData && (
-        <div className="hidden print:block print-container print-landscape absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
+        <div className="deposit-slip-print hidden print:block print-container print-landscape absolute inset-0 bg-white min-h-screen text-slate-900 font-sans p-8 space-y-12 z-[99999]">
           {/* Slip 1: Original */}
           <div className="border-4 border-slate-900 p-8 rounded-2xl space-y-8 relative max-w-4xl mx-auto shadow-md">
             {/* Header */}
