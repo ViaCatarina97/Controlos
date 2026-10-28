@@ -619,6 +619,7 @@ export interface ObjectiveGoal {
   target: number;
   possiblePoints: number;
   checkpoints: Record<string, ObjectiveCheckpoint>;
+  correctiveActions?: ObjectiveCorrectiveAction[];
 }
 
 export interface FoodCostEntry {
@@ -669,4 +670,15 @@ export interface ObjectiveCriteriaSettings {
   id: 'criteria';
   criteria: ObjectiveCriterion[];
   updatedAt: string;
+}
+
+export type CorrectiveActionStatus = 'Por iniciar' | 'Em curso' | 'Concluída';
+
+export interface ObjectiveCorrectiveAction {
+  id: string;
+  description: string;
+  responsible: string;
+  dueDate: string;
+  status: CorrectiveActionStatus;
+  createdAt: string;
 }

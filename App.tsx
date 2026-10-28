@@ -886,6 +886,7 @@ const App: React.FC = () => {
       : activeModule === 'objectives'
       ? [
           { id: 'objectives_overview', label: 'Visão Geral', short: 'Visão', icon: LayoutDashboard },
+          { id: 'objectives_corrective_actions', label: 'Ações Corretivas', short: 'Ações', icon: ClipboardCheck },
           { id: 'objectives_setup', label: 'Objetivos', short: 'Objetivos', icon: Target },
           { id: 'objectives_settings', label: 'Definições', short: 'Definições', icon: SettingsIcon },
           { id: 'objectives_history', label: 'Histórico', short: 'Histórico', icon: History },
