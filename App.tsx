@@ -887,6 +887,7 @@ const App: React.FC = () => {
       ? [
           { id: 'objectives_overview', label: 'Visão Geral', short: 'Visão', icon: LayoutDashboard },
           { id: 'objectives_setup', label: 'Objetivos', short: 'Objetivos', icon: Target },
+          { id: 'objectives_settings', label: 'Definições', short: 'Definições', icon: SettingsIcon },
           { id: 'objectives_history', label: 'Histórico', short: 'Histórico', icon: History },
           { id: 'objectives_manager_performance', label: 'Desempenho por Gerente', short: 'Gerentes', icon: TrendingUp },
           { id: 'objectives_food_cost', label: 'Custo Comida', short: 'Custo Comida', icon: Calculator },

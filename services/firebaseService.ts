@@ -10,7 +10,7 @@ import {
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
   CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
   ManagerTask, ManagerTaskChecklist, AgendaEvent, CleaningPlanWeek, CleaningTemplateConfig,
-  ExtraordinaryCleaningTask, ObjectiveMonth
+  ExtraordinaryCleaningTask, ObjectiveMonth, ObjectiveCriteriaSettings
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1928,6 +1928,39 @@ export async function saveObjectiveMonth(restaurantId: string, month: ObjectiveM
       const current = JSON.parse(localStorage.getItem(key) || '[]') as ObjectiveMonth[];
       localStorage.setItem(key, JSON.stringify([...current.filter(m => m.month !== month.month), month].sort((a, b) => b.month.localeCompare(a.month))));
     },
+    OperationType.WRITE,
+    path
+  );
+}
+
+export async function getObjectiveCriteria(restaurantId: string): Promise<ObjectiveCriteriaSettings | null> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_settings/criteria`;
+  return runFirestoreOp<ObjectiveCriteriaSettings | null>(
+    async () => {
+      const snap = await getDoc(doc(db, 'restaurants', restaurantId, 'objective_settings', 'criteria'));
+      const data = snap.exists() ? snap.data() as ObjectiveCriteriaSettings : null;
+      if (data) localStorage.setItem(`app_objective_criteria_${restaurantId}`, JSON.stringify(data));
+      return data;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_objective_criteria_${restaurantId}`);
+      return saved ? JSON.parse(saved) as ObjectiveCriteriaSettings : null;
+    },
+    OperationType.GET,
+    path
+  );
+}
+
+export async function saveObjectiveCriteria(restaurantId: string, settings: ObjectiveCriteriaSettings): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_settings/criteria`;
+  return runFirestoreWrite(
+    async () => {
+      await setDoc(doc(db, 'restaurants', restaurantId, 'objective_settings', 'criteria'), sanitizeForFirestore(settings));
+      localStorage.setItem(`app_objective_criteria_${restaurantId}`, JSON.stringify(settings));
+    },
+    () => { localStorage.setItem(`app_objective_criteria_${restaurantId}`, JSON.stringify(settings)); },
     OperationType.WRITE,
     path
   );

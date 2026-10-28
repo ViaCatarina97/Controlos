@@ -656,3 +656,17 @@ export interface ObjectiveMonth {
   submittedAt?: string;
   updatedAt: string;
 }
+
+export interface ObjectiveCriterion {
+  id: string;
+  metric: string;
+  direction: 'lower' | 'higher';
+  superadoDelta: number;
+  nearDelta: number;
+}
+
+export interface ObjectiveCriteriaSettings {
+  id: 'criteria';
+  criteria: ObjectiveCriterion[];
+  updatedAt: string;
+}
