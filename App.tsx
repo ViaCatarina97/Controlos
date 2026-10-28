@@ -13,6 +13,7 @@ import { ManagerTasks } from './components/ManagerTasks';
 import { DigitalAgenda } from './components/DigitalAgenda';
 import { TodayReminderModal } from './components/TodayReminderModal';
 import { CleaningPlanModule } from './components/cleaning/CleaningPlanModule';
+import ObjectivesControl from './components/ObjectivesControl';
 import {
   AppSettings,
   Employee,
@@ -884,7 +885,8 @@ const App: React.FC = () => {
         ]
       : activeModule === 'objectives'
       ? [
-          { id: 'objectives_overview', label: 'Visão Geral', short: 'Visão Geral', icon: LayoutDashboard },
+          { id: 'objectives_overview', label: 'Visão Geral', short: 'Visão', icon: LayoutDashboard },
+          { id: 'objectives_setup', label: 'Objetivos', short: 'Objetivos', icon: Target },
           { id: 'objectives_history', label: 'Histórico', short: 'Histórico', icon: History },
           { id: 'objectives_manager_performance', label: 'Desempenho por Gerente', short: 'Gerentes', icon: TrendingUp },
           { id: 'objectives_food_cost', label: 'Custo Comida', short: 'Custo Comida', icon: Calculator },
@@ -1343,25 +1345,12 @@ const App: React.FC = () => {
             />
           )}
 
-          {activeModule === 'objectives' && activeTab.startsWith('objectives_') && (
-            <section className="min-h-[55vh] rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-amber-50 p-3 text-amber-700">
-                  <Target size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-extrabold tracking-tight text-slate-900">
-                    {moduleTabs.find(tab => tab.id === activeTab)?.label || 'Objetivos'}
-                  </h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-                    A estrutura desta secção está criada. O conteúdo, os indicadores e as regras serão definidos consigo numa próxima etapa.
-                  </p>
-                  <span className="mt-5 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
-                    Em preparação
-                  </span>
-                </div>
-              </div>
-            </section>
+          {activeModule === 'objectives' && (
+            <ObjectivesControl
+              restaurantId={activeRestaurant.restaurantId}
+              employees={currentEmployees}
+              activeSubTab={activeTab}
+            />
           )}
         </div>
       </main>

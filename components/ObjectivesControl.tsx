@@ -1,0 +1,224 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
+import { Employee, ObjectiveMonth, ObjectiveGoal, ObjectiveCheckpoint, FoodCostEntry } from '../types';
+import { getObjectiveMonths, saveObjectiveMonth } from '../services/firebaseService';
+import { Target, Plus, Save, Send, History, TrendingUp, Upload, FileSpreadsheet, Utensils, CalendarDays, CheckCircle2, Clock3, AlertTriangle, Trash2, Download } from 'lucide-react';
+
+interface ObjectivesControlProps {
+  restaurantId: string;
+  employees: Employee[];
+  activeSubTab: string;
+}
+
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const STATUS_OPTIONS: ObjectiveCheckpoint['status'][] = ['Superado','Atingido','Próximo','Não Atingido'];
+const money = (v: number) => Number(v || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const monthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+function checkpointsForMonth(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const first = new Date(year, monthNumber - 1, 1);
+  const last = new Date(year, monthNumber, 0);
+  const cursor = new Date(first);
+  cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+  const weeks: { id: string; label: string; start: string; end: string }[] = [];
+  let index = 1;
+  while (cursor <= last) {
+    const weekStart = new Date(cursor);
+    const weekEnd = new Date(cursor); weekEnd.setDate(weekEnd.getDate() + 6);
+    const visibleStart = weekStart < first ? first : weekStart;
+    const visibleEnd = weekEnd > last ? last : weekEnd;
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    weeks.push({ id: `week-${index}`, label: `Semana ${index} · ${visibleStart.getDate()}–${visibleEnd.getDate()}`, start: iso(visibleStart), end: iso(visibleEnd) });
+    cursor.setDate(cursor.getDate() + 7);
+    index++;
+  }
+  const fortnight = { id: 'fortnight', label: 'Quinzena · dia 15', start: `${month}-01`, end: `${month}-15` };
+  const monthly = { id: 'month', label: 'Mês · fecho', start: `${month}-01`, end: `${month}-${String(last.getDate()).padStart(2,'0')}` };
+  return [...weeks.slice(0, 2), fortnight, ...weeks.slice(2), monthly];
+}
+
+const statusPoints = (status: ObjectiveCheckpoint['status'] | undefined, available: number) => {
+  if (status === 'Superado') return available;
+  if (status === 'Atingido') return available * .75;
+  if (status === 'Próximo') return available * .5;
+  return 0;
+};
+
+const statusTone = (status?: string) => status === 'Superado' ? 'bg-blue-50 text-blue-700' : status === 'Atingido' ? 'bg-emerald-50 text-emerald-700' : status === 'Próximo' ? 'bg-amber-50 text-amber-700' : status === 'Não Atingido' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500';
+
+const blankFoodCost = (date: string): FoodCostEntry => ({
+  id: newId(), date, productSales: 0,
+  foodOpening: 0, foodPurchases: 0, foodTransfers: 0, foodPromos: 0, foodLosses: 0, foodMeals: 0, foodFinalInventory: 0, foodTheoretical: 0, foodWithoutComposition: 0, foodActualPnl: 0,
+  paperOpening: 0, paperPurchases: 0, paperTransfers: 0, paperPromos: 0, paperLosses: 0, paperMeals: 0, paperFinalInventory: 0, paperTheoretical: 0, paperWithoutComposition: 0, paperActualPnl: 0,
+});
+
+const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, employees, activeSubTab }) => {
+  const [months, setMonths] = useState<ObjectiveMonth[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(monthKey());
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [performanceFrom, setPerformanceFrom] = useState(`${new Date().getFullYear()}-01`);
+  const [performanceTo, setPerformanceTo] = useState(monthKey());
+  const [managerFilter, setManagerFilter] = useState('');
+  const [reportFiles, setReportFiles] = useState<File[]>([]);
+  const [reportPreviews, setReportPreviews] = useState<{ name: string; sheets: string[]; sample: string[][]; note?: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    getObjectiveMonths(restaurantId).then(rows => { if (mounted) setMonths(rows); }).catch(() => { if (mounted) setNotice('Não foi possível sincronizar os objetivos.'); }).finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, [restaurantId]);
+
+  const checkpointOptions = useMemo(() => checkpointsForMonth(selectedMonth), [selectedMonth]);
+  useEffect(() => {
+    if (!checkpointOptions.some(p => p.id === selectedCheckpoint)) setSelectedCheckpoint(checkpointOptions[0]?.id || '');
+  }, [checkpointOptions, selectedCheckpoint]);
+
+  const monthData = useMemo(() => months.find(m => m.month === selectedMonth), [months, selectedMonth]);
+  const draft = monthData?.status !== 'submitted';
+  const goals = monthData?.goals || [];
+  const foodRows = monthData?.foodCost || [];
+  const saveDraft = async (updated: ObjectiveMonth) => {
+    setSaving(true); setNotice('');
+    try {
+      const saved = { ...updated, updatedAt: new Date().toISOString() };
+      await saveObjectiveMonth(restaurantId, saved);
+      setMonths(prev => [...prev.filter(m => m.month !== saved.month), saved].sort((a,b) => b.month.localeCompare(a.month)));
+      setNotice('Alterações guardadas e sincronizadas.');
+    } catch { setNotice('Não foi possível guardar. Verifique a ligação e tente novamente.'); }
+    finally { setSaving(false); window.setTimeout(() => setNotice(''), 3500); }
+  };
+  const updateLocalMonth = (updated: ObjectiveMonth) => {
+    setMonths(prev => [...prev.filter(m => m.month !== updated.month), updated].sort((a,b) => b.month.localeCompare(a.month)));
+  };
+  const baseMonth = (): ObjectiveMonth => monthData || { id: selectedMonth, month: selectedMonth, status: 'draft', goals: [], foodCost: [], updatedAt: new Date().toISOString() };
+  const patchGoal = (id: string, patch: Partial<ObjectiveGoal>) => {
+    const base = baseMonth();
+    updateLocalMonth({ ...base, goals: base.goals.map(g => g.id === id ? { ...g, ...patch } : g) });
+  };
+  const addGoal = () => {
+    const base = baseMonth();
+    const goal: ObjectiveGoal = { id: newId(), owner: '', metric: '', target: 0, possiblePoints: 0, checkpoints: {} };
+    updateLocalMonth({ ...base, goals: [...base.goals, goal] });
+  };
+  const addFoodRow = () => {
+    const base = baseMonth();
+    updateLocalMonth({ ...base, foodCost: [...base.foodCost, blankFoodCost(`${selectedMonth}-01`)] });
+  };
+  const patchFood = (id: string, patch: Partial<FoodCostEntry>) => {
+    const base = baseMonth();
+    updateLocalMonth({ ...base, foodCost: base.foodCost.map(row => row.id === id ? { ...row, ...patch } : row) });
+  };
+  const submitMonth = async () => {
+    if (!window.confirm(`Submeter os objetivos de ${MONTH_NAMES[Number(selectedMonth.slice(5))-1]} ${selectedMonth.slice(0,4)} para o Histórico? Após submeter, o mês fica apenas para consulta.`)) return;
+    await saveDraft({ id: selectedMonth, month: selectedMonth, status: 'submitted', submittedAt: new Date().toISOString(), goals, foodCost: foodRows, updatedAt: new Date().toISOString() });
+  };
+
+  const submittedMonths = useMemo(() => months.filter(m => m.status === 'submitted').sort((a,b) => b.month.localeCompare(a.month)), [months]);
+  const rangeMonths = useMemo(() => submittedMonths.filter(m => m.month >= performanceFrom && m.month <= performanceTo), [submittedMonths, performanceFrom, performanceTo]);
+  const managers = useMemo(() => Array.from(new Set([...employees.map(e => e.name), ...goals.map(g => g.owner).filter(Boolean)])), [employees, goals]);
+  const selectedPeriodGoals = goals;
+  const statusCounts = useMemo(() => {
+    const cp = goals.flatMap(g => g.checkpoints[selectedCheckpoint] ? [g.checkpoints[selectedCheckpoint].status] : []);
+    return { total: goals.length, recorded: cp.length, reached: cp.filter(s => s === 'Atingido' || s === 'Superado').length };
+  }, [goals, selectedCheckpoint]);
+
+  const updateCheckpoint = (goal: ObjectiveGoal, field: keyof ObjectiveCheckpoint, value: string | number) => {
+    const current = goal.checkpoints[selectedCheckpoint] || { result: '', status: '' as ObjectiveCheckpoint['status'] };
+    const checkpoint = { ...current, [field]: value } as ObjectiveCheckpoint;
+    checkpoint.points = statusPoints(checkpoint.status, Number(goal.possiblePoints || 0));
+    patchGoal(goal.id, { checkpoints: { ...goal.checkpoints, [selectedCheckpoint]: checkpoint } });
+  };
+
+  const handleReportFiles = async (files: File[]) => {
+    setReportFiles(files);
+    const previews = await Promise.all(files.map(async file => {
+      if (/\.pdf$/i.test(file.name)) return { name: file.name, sheets: [], sample: [], note: 'PDF selecionado; leitura e mapeamento serão configurados depois.' };
+      try {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = firstSheet ? XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: false }) as unknown[][] : [];
+        return { name: file.name, sheets: workbook.SheetNames, sample: rows.slice(0, 5).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)) };
+      } catch {
+        return { name: file.name, sheets: [], sample: [], note: 'Não foi possível pré-visualizar este ficheiro.' };
+      }
+    }));
+    setReportPreviews(previews);
+  };
+  const inputClass = 'w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+  const monthPicker = <input aria-label="Mês" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800" />;
+
+  if (loading) return <div className="rounded-2xl border bg-white p-10 text-center text-sm text-slate-500">A carregar objetivos…</div>;
+
+  return <div className="space-y-5">
+    {notice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notice}</div>}
+
+    {activeSubTab === 'objectives_overview' && <>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Visão Geral Mensal</h3><p className="text-sm text-slate-500">Objetivos, resultados e validações ao longo do mês.</p></div>{monthPicker}</div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Kpi label="Objetivos do mês" value={String(goals.length)} icon={<Target size={18}/>} />
+        <Kpi label="Resultados validados" value={`${statusCounts.recorded} / ${statusCounts.total}`} icon={<CheckCircle2 size={18}/>} />
+        <Kpi label="Atingidos ou superados" value={statusCounts.recorded ? `${Math.round(statusCounts.reached/statusCounts.recorded*100)}%` : '—'} icon={<TrendingUp size={18}/>} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarDays size={17}/> Evolução semanal e mensal</div><label className="text-xs font-semibold text-slate-500">Resumo KPI<select value={selectedCheckpoint} onChange={e => setSelectedCheckpoint(e.target.value)} className="ml-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">{checkpointOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label></div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1500px] w-full text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th rowSpan={2} className="p-3">Responsável</th><th rowSpan={2} className="p-3">Objetivo</th><th rowSpan={2} className="p-3">Meta mensal</th>{checkpointOptions.map(cp=><th key={cp.id} colSpan={3} className="border-l border-slate-200 p-3 text-center">{cp.label}</th>)}</tr><tr>{checkpointOptions.flatMap(cp=>[<th key={`${cp.id}-result`} className="border-l border-slate-200 p-2">Resultado</th>,<th key={`${cp.id}-status`} className="p-2">Estado</th>,<th key={`${cp.id}-points`} className="p-2">Pontos</th>])}</tr></thead><tbody>{goals.map(g => <tr key={g.id} className="border-t border-slate-100"><td className="p-3 font-semibold">{g.owner||'—'}</td><td className="p-3">{g.metric||'—'}</td><td className="p-3">{g.target ?? '—'}</td>{checkpointOptions.flatMap(cp=>{const value=g.checkpoints[cp.id];return [<td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2">{value?.result??'—'}</td>,<td key={`${g.id}-${cp.id}-status`} className="p-2"><span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status||'—'}</span></td>,<td key={`${g.id}-${cp.id}-points`} className="p-2">{value?.points??'—'} / {g.possiblePoints}</td>];})}</tr>)}{goals.length===0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={3+checkpointOptions.length*3}/>}</tbody></table></div>
+      <div className="flex flex-wrap justify-end gap-2"><button disabled={!draft||!goals.length||saving} onClick={submitMonth} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Send size={15}/> Submeter mês para Histórico</button></div>
+    </>}
+
+    {activeSubTab === 'objectives_setup' && <>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Defina responsável, indicador e meta mensal; atualize o resultado na semana, quinzena e fecho.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
+      {!draft && <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-900">Este mês foi submetido e está em modo de consulta. Selecione outro mês para criar um novo registo.</div>}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Atualizar resultado:</span><select value={selectedCheckpoint} onChange={e=>setSelectedCheckpoint(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">{checkpointOptions.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select><span className="text-xs text-slate-500">A lista de semanas ajusta-se ao calendário do mês.</span></div>
+      <div className="space-y-3">{goals.map((g,i)=>{ const cp=g.checkpoints[selectedCheckpoint]||{result:'',status:''}; return <article key={g.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="grid gap-3 lg:grid-cols-[1.25fr_1fr_.7fr_.7fr_auto]"><label className="text-xs font-bold text-slate-500">Responsável<select disabled={!draft} value={g.owner} onChange={e=>patchGoal(g.id,{owner:e.target.value})} className={`${inputClass} mt-1`}><option value="">Selecionar gerente</option>{managers.map(m=><option key={m} value={m}>{m}</option>)}</select></label><label className="text-xs font-bold text-slate-500">Tema / Indicador<input disabled={!draft} value={g.metric} onChange={e=>patchGoal(g.id,{metric:e.target.value})} placeholder="Ex.: Custo Comida" className={`${inputClass} mt-1`}/></label><label className="text-xs font-bold text-slate-500">Meta mensal<input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} className={`${inputClass} mt-1`}/></label><label className="text-xs font-bold text-slate-500">Pontos possíveis<input disabled={!draft} type="number" value={g.possiblePoints} onChange={e=>patchGoal(g.id,{possiblePoints:Number(e.target.value)})} className={`${inputClass} mt-1`}/></label><button disabled={!draft||saving} onClick={()=>saveDraft({...monthData!,id:selectedMonth,month:selectedMonth,goals:goals.filter(x=>x.id!==g.id),foodCost:foodRows,updatedAt:new Date().toISOString()})} className="self-end rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo ${i+1}`}><Trash2 size={17}/></button></div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_1.2fr]"><label className="text-xs font-bold text-slate-500">Resultado<input disabled={!draft} type="number" value={cp.result ?? ''} onChange={e=>updateCheckpoint(g,'result',e.target.value===''?'':Number(e.target.value))} className={`${inputClass} mt-1`} placeholder="Validar resultado"/></label><label className="text-xs font-bold text-slate-500">Classificação<select disabled={!draft} value={cp.status||''} onChange={e=>updateCheckpoint(g,'status',e.target.value)} className={`${inputClass} mt-1`}><option value="">Selecionar estado</option>{STATUS_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}</select></label><div className="flex items-end text-xs text-slate-500">Pontos nesta validação: <strong className="ml-1 text-slate-900">{cp.points ?? statusPoints(cp.status,Number(g.possiblePoints||0))} / {g.possiblePoints||0}</strong></div></div></article>;})}{goals.length===0&&<div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><Target className="mx-auto mb-2 text-slate-400"/><p className="font-bold text-slate-700">Sem objetivos definidos para este mês</p><p className="mt-1 text-sm text-slate-500">Adicione os objetivos mensais e atribua-os aos gerentes responsáveis.</p></div>}</div>
+      <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar e sincronizar'}</button></div>
+    </>}
+
+    {activeSubTab === 'objectives_history' && <>
+      <div><h3 className="text-xl font-extrabold text-slate-900">Histórico Submetido</h3><p className="text-sm text-slate-500">Os meses submetidos na Visão Geral ficam arquivados para consulta.</p></div>
+      <div className="overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Mês</th><th className="p-3">Objetivos</th><th className="p-3">Responsáveis</th><th className="p-3">Submetido em</th><th className="p-3">Ação</th></tr></thead><tbody>{submittedMonths.map(m=><tr key={m.month} className="border-t"><td className="p-3 font-bold">{MONTH_NAMES[Number(m.month.slice(5))-1]} {m.month.slice(0,4)}</td><td className="p-3">{m.goals.length}</td><td className="p-3">{Array.from(new Set(m.goals.map(g=>g.owner).filter(Boolean))).join(', ')||'—'}</td><td className="p-3">{m.submittedAt?new Date(m.submittedAt).toLocaleDateString('pt-PT'):'—'}</td><td className="p-3"><button onClick={()=>{setSelectedMonth(m.month);setNotice(`A consultar ${MONTH_NAMES[Number(m.month.slice(5))-1]} ${m.month.slice(0,4)}.`);window.setTimeout(()=>setNotice(''),2500);}} className="rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-slate-50">Consultar</button></td></tr>)}{!submittedMonths.length&&<EmptyRow colSpan={5} text="Ainda não há meses submetidos."/>}</tbody></table></div>
+      {monthData?.status==='submitted'&&<div className="rounded-2xl border bg-white p-4"><h4 className="mb-3 font-extrabold">Consulta: {MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)}</h4><div className="overflow-x-auto"><table className="min-w-[700px] w-full text-sm"><thead className="bg-slate-50 text-xs uppercase"><tr><th className="p-2 text-left">Gerente</th><th className="p-2 text-left">Objetivo</th><th className="p-2">Meta</th>{checkpointOptions.map(c=><th key={c.id} className="p-2">{c.label}</th>)}</tr></thead><tbody>{monthData.goals.map(g=><tr key={g.id} className="border-t"><td className="p-2">{g.owner}</td><td className="p-2">{g.metric}</td><td className="p-2 text-center">{g.target}</td>{checkpointOptions.map(c=><td key={c.id} className="p-2 text-center">{g.checkpoints[c.id]?.result??'—'}<div className="text-[10px] text-slate-500">{g.checkpoints[c.id]?.status||''}</div></td>)}</tr>)}</tbody></table></div></div>}
+    </>}
+
+    {activeSubTab === 'objectives_manager_performance' && <>
+      <div><h3 className="text-xl font-extrabold text-slate-900">Desempenho por Gerente</h3><p className="text-sm text-slate-500">Consulte objetivos atribuídos e resultados de meses submetidos.</p></div>
+      <div className="flex flex-wrap gap-3 rounded-2xl border bg-white p-4"><label className="text-xs font-bold text-slate-500">Gerente<select value={managerFilter} onChange={e=>setManagerFilter(e.target.value)} className={`${inputClass} mt-1 min-w-52`}><option value="">Todos os gerentes</option>{Array.from(new Set([...employees.map(e=>e.name),...submittedMonths.flatMap(m=>m.goals.map(g=>g.owner))].filter(Boolean))).map(n=><option key={n} value={n}>{n}</option>)}</select></label><label className="text-xs font-bold text-slate-500">De<input type="month" value={performanceFrom} onChange={e=>setPerformanceFrom(e.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-xs font-bold text-slate-500">Até<input type="month" value={performanceTo} onChange={e=>setPerformanceTo(e.target.value)} className={`${inputClass} mt-1`}/></label></div>
+      <div className="overflow-x-auto rounded-2xl border bg-white"><table className="min-w-[760px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Mês</th><th className="p-3">Gerente</th><th className="p-3">Objetivo</th><th className="p-3">Meta</th><th className="p-3">Resultado mês</th><th className="p-3">Classificação</th></tr></thead><tbody>{rangeMonths.flatMap(m=>m.goals.filter(g=>!managerFilter||g.owner===managerFilter).map(g=><tr key={`${m.month}-${g.id}`} className="border-t"><td className="p-3">{MONTH_NAMES[Number(m.month.slice(5))-1]} {m.month.slice(0,4)}</td><td className="p-3 font-semibold">{g.owner||'—'}</td><td className="p-3">{g.metric||'—'}</td><td className="p-3">{g.target}</td><td className="p-3">{g.checkpoints.month?.result??'—'}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${statusTone(g.checkpoints.month?.status)}`}>{g.checkpoints.month?.status||'Por validar'}</span></td></tr>))}{!rangeMonths.length&&<EmptyRow colSpan={6} text="Não existem meses submetidos neste período."/>}</tbody></table></div>
+    </>}
+
+    {activeSubTab === 'objectives_food_cost' && <>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Custo Comida e Papel</h3><p className="text-sm text-slate-500">Estrutura baseada na tabela partilhada. Os campos calculados seguem as fórmulas da folha.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addFoodRow} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar semana</button></div></div>
+      {!draft&&<div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">Mês submetido: consulta apenas.</div>}
+      <div className="overflow-x-auto rounded-2xl border bg-white"><table className="min-w-[2200px] w-full border-collapse text-xs"><thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th rowSpan={2} className="border p-2">Data</th><th rowSpan={2} className="border p-2">Vendas Produto</th><th colSpan={14} className="border bg-amber-50 p-2">FOOD</th><th colSpan={14} className="border bg-sky-50 p-2">PAPER</th></tr><tr>{['Stock Inicial','Compras','Transferências','Promos','Perdas','Refeições','Inventário Final','Food Teórico','S/Composição','Valor Estimado','% Estimado','Alimentos P&L','% Real P&L','Desvio'].map(h=><th key={`f${h}`} className="border p-2">{h}</th>)}{['Stock Inicial','Compras','Transferências','Promos','Perdas','Refeições','Inventário Final','Paper Teórico','S/Composição','Valor Estimado','% Estimado','Papel P&L','% Real P&L','Desvio'].map(h=><th key={`p${h}`} className="border p-2">{h}</th>)}</tr></thead><tbody>{foodRows.map(row=><FoodCostTableRow key={row.id} row={row} disabled={!draft} inputClass={inputClass} onChange={patch=>patchFood(row.id,patch)}/>)}{!foodRows.length&&<tr><td colSpan={30} className="p-8 text-center text-slate-500">Ainda sem registos. Adicione uma linha para começar; os valores podem depois ser alimentados pelo relatório configurado.</td></tr>}</tbody></table></div>
+      <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar custo comida e papel'}</button></div>
+    </>}
+
+    {activeSubTab === 'objectives_reports' && <>
+      <div><h3 className="text-xl font-extrabold text-slate-900">Relatórios</h3><p className="text-sm text-slate-500">Carregue o ficheiro. O mapeamento e a importação automática serão configurados numa etapa seguinte.</p></div>
+      <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center"><Upload className="mx-auto mb-3 text-slate-500" size={28}/><p className="font-extrabold text-slate-800">Carregar relatório</p><p className="mt-1 text-sm text-slate-500">Excel, CSV ou PDF. A seleção fica nesta sessão; ainda não envia dados para a folha ou para a base de dados.</p><label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white"><FileSpreadsheet size={16}/> Selecionar ficheiros<input type="file" multiple accept=".xlsx,.xls,.csv,.pdf" className="sr-only" onChange={e=>void handleReportFiles(Array.from(e.target.files||[]))}/></label></div>
+      {reportFiles.length>0&&<div className="space-y-3">{reportPreviews.map((preview,i)=><div key={`${preview.name}-${i}`} className="rounded-2xl border bg-white p-4"><div className="flex items-center gap-2"><FileSpreadsheet size={15} className="text-emerald-700"/><strong className="truncate text-sm">{preview.name}</strong><span className="ml-auto text-xs text-slate-500">{(reportFiles[i]?.size||0)/1024|0} KB</span></div>{preview.note?<p className="mt-2 text-sm text-slate-500">{preview.note}</p>:<><p className="mt-2 text-xs text-slate-500">Folhas detetadas: {preview.sheets.join(', ')||'—'}. Pré-visualização das primeiras linhas; ainda sem importação automática.</p>{preview.sample.length>0&&<div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><tbody>{preview.sample.map((row,r)=><tr key={r} className="border-t">{row.map((cell,c)=><td key={c} className="max-w-56 truncate px-2 py-1.5">{cell}</td>)}</tr>)}</tbody></table></div>}</>}</div>)}</div>}
+    </>}
+  </div>;
+};
+
+const Kpi: React.FC<{label:string;value:string;icon:React.ReactNode}> = ({label,value,icon}) => <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between text-slate-500"><span className="text-xs font-bold uppercase">{label}</span>{icon}</div><div className="mt-2 text-2xl font-black text-slate-900">{value}</div></div>;
+const EmptyRow: React.FC<{colSpan:number;text:string}> = ({colSpan,text})=><tr><td colSpan={colSpan} className="p-8 text-center text-slate-500">{text}</td></tr>;
+
+const FoodCostTableRow: React.FC<{row:FoodCostEntry;disabled:boolean;inputClass:string;onChange:(patch:Partial<FoodCostEntry>)=>void}> = ({row,disabled,inputClass,onChange}) => {
+  const number = (key: keyof FoodCostEntry, value: string) => onChange({[key]: value === '' ? 0 : Number(value)} as Partial<FoodCostEntry>);
+  const foodEstimate = Number(row.foodTheoretical||0)+Number(row.foodWithoutComposition||0);
+  const foodActual = Number(row.foodOpening||0)+Number(row.foodPurchases||0)+Number(row.foodTransfers||0)-Number(row.foodPromos||0)-Number(row.foodLosses||0)-Number(row.foodMeals||0)-Number(row.foodFinalInventory||0);
+  const paperEstimate = Number(row.paperTheoretical||0)+Number(row.paperWithoutComposition||0);
+  const paperActual = Number(row.paperOpening||0)+Number(row.paperPurchases||0)-Number(row.paperPromos||0)-Number(row.paperLosses||0)-Number(row.paperMeals||0)-Number(row.paperFinalInventory||0);
+  const fKeys: (keyof FoodCostEntry)[]=['foodOpening','foodPurchases','foodTransfers','foodPromos','foodLosses','foodMeals','foodFinalInventory','foodTheoretical','foodWithoutComposition'];
+  const pKeys: (keyof FoodCostEntry)[]=['paperOpening','paperPurchases','paperTransfers','paperPromos','paperLosses','paperMeals','paperFinalInventory','paperTheoretical','paperWithoutComposition'];
+  const field=(key:keyof FoodCostEntry)=> <td key={key} className="border p-1"><input disabled={disabled} type="number" step="0.01" value={Number(row[key]||0)} onChange={e=>number(key,e.target.value)} className="w-24 rounded border border-slate-200 px-1.5 py-1 text-right disabled:bg-slate-50"/></td>;
+  const computed=(value:number)=> <td className="border bg-slate-50 p-2 text-right font-semibold">{money(value)}</td>;
+  const percent=(value:number)=> <td className="border bg-slate-50 p-2 text-right">{Number(row.productSales)?`${(value/Number(row.productSales)*100).toFixed(2)}%`:'—'}</td>;
+  return <tr><td className="border p-1"><input disabled={disabled} type="date" value={row.date} onChange={e=>onChange({date:e.target.value})} className="w-32 rounded border px-1.5 py-1"/></td><td className="border p-1"><input disabled={disabled} type="number" step="0.01" value={row.productSales} onChange={e=>number('productSales',e.target.value)} className="w-24 rounded border px-1.5 py-1 text-right"/></td>{fKeys.slice(0,7).map(field)}{field('foodTheoretical')}{field('foodWithoutComposition')}{computed(foodEstimate)}{percent(foodEstimate)}{computed(foodActual)}{percent(foodActual)}{computed(foodEstimate-foodActual)}{pKeys.slice(0,7).map(field)}{field('paperTheoretical')}{field('paperWithoutComposition')}{computed(paperEstimate)}{percent(paperEstimate)}{computed(paperActual)}{percent(paperActual)}{computed(paperEstimate-paperActual)}</tr>;
+};
+
+export default ObjectivesControl;

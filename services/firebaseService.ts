@@ -10,7 +10,7 @@ import {
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
   CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
   ManagerTask, ManagerTaskChecklist, AgendaEvent, CleaningPlanWeek, CleaningTemplateConfig,
-  ExtraordinaryCleaningTask
+  ExtraordinaryCleaningTask, ObjectiveMonth
 } from '../types';
 import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -1892,3 +1892,43 @@ export async function deleteExtraordinaryCleaning(
 
 
 
+
+// --- MONTHLY OBJECTIVES & FOOD COST ---
+export async function getObjectiveMonths(restaurantId: string): Promise<ObjectiveMonth[]> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_months`;
+  return runFirestoreOp<ObjectiveMonth[]>(
+    async () => {
+      const snap = await getDocs(collection(db, 'restaurants', restaurantId, 'objective_months'));
+      const list = snap.docs.map(d => d.data() as ObjectiveMonth).sort((a, b) => b.month.localeCompare(a.month));
+      localStorage.setItem(`app_objective_months_${restaurantId}`, JSON.stringify(list));
+      return list;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_objective_months_${restaurantId}`);
+      return saved ? JSON.parse(saved) as ObjectiveMonth[] : [];
+    },
+    OperationType.LIST,
+    path
+  );
+}
+
+export async function saveObjectiveMonth(restaurantId: string, month: ObjectiveMonth): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_months/${month.month}`;
+  return runFirestoreWrite(
+    async () => {
+      await setDoc(doc(db, 'restaurants', restaurantId, 'objective_months', month.month), sanitizeForFirestore(month));
+      const key = `app_objective_months_${restaurantId}`;
+      const current = JSON.parse(localStorage.getItem(key) || '[]') as ObjectiveMonth[];
+      localStorage.setItem(key, JSON.stringify([...current.filter(m => m.month !== month.month), month].sort((a, b) => b.month.localeCompare(a.month))));
+    },
+    () => {
+      const key = `app_objective_months_${restaurantId}`;
+      const current = JSON.parse(localStorage.getItem(key) || '[]') as ObjectiveMonth[];
+      localStorage.setItem(key, JSON.stringify([...current.filter(m => m.month !== month.month), month].sort((a, b) => b.month.localeCompare(a.month))));
+    },
+    OperationType.WRITE,
+    path
+  );
+}

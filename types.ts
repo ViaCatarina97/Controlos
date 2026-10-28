@@ -602,3 +602,57 @@ export interface ExtraordinaryCleaningTask {
 }
 
 
+
+export type ObjectiveResultStatus = 'Superado' | 'Atingido' | 'Próximo' | 'Não Atingido';
+
+export interface ObjectiveCheckpoint {
+  result: number | '';
+  status?: ObjectiveResultStatus | '';
+  points?: number;
+  updatedAt?: string;
+}
+
+export interface ObjectiveGoal {
+  id: string;
+  owner: string;
+  metric: string;
+  target: number;
+  possiblePoints: number;
+  checkpoints: Record<string, ObjectiveCheckpoint>;
+}
+
+export interface FoodCostEntry {
+  id: string;
+  date: string;
+  productSales: number;
+  foodOpening: number;
+  foodPurchases: number;
+  foodTransfers: number;
+  foodPromos: number;
+  foodLosses: number;
+  foodMeals: number;
+  foodFinalInventory: number;
+  foodTheoretical: number;
+  foodWithoutComposition: number;
+  foodActualPnl: number;
+  paperOpening: number;
+  paperPurchases: number;
+  paperTransfers: number;
+  paperPromos: number;
+  paperLosses: number;
+  paperMeals: number;
+  paperFinalInventory: number;
+  paperTheoretical: number;
+  paperWithoutComposition: number;
+  paperActualPnl: number;
+}
+
+export interface ObjectiveMonth {
+  id: string;
+  month: string; // YYYY-MM
+  status: 'draft' | 'submitted';
+  goals: ObjectiveGoal[];
+  foodCost: FoodCostEntry[];
+  submittedAt?: string;
+  updatedAt: string;
+}
