@@ -54,6 +54,17 @@ const statusPoints = (status: ObjectiveCheckpoint['status'] | undefined, availab
   return 0;
 };
 
+const hasRecordedResult = (checkpoint?: ObjectiveCheckpoint) =>
+  checkpoint?.result !== undefined && checkpoint.result !== '' && Number.isFinite(Number(checkpoint.result));
+
+const formatPercent = (value?: number) => value === undefined ? '—' : `${Math.round(value)}%`;
+
+const statusCardTone = (status: ObjectiveCheckpoint['status']) =>
+  status === 'Superado' ? 'border-sky-200 bg-sky-50' :
+  status === 'Atingido' ? 'border-green-200 bg-green-50' :
+  status === 'Próximo' ? 'border-amber-200 bg-amber-50' :
+  'border-rose-200 bg-rose-50';
+
 const classifyResult = (result: number | '', target: number, criterion?: ObjectiveCriterion): ObjectiveCheckpoint['status'] => {
   if (result === '' || !Number.isFinite(Number(result)) || !criterion) return '';
   const value = Number(result);
@@ -84,7 +95,6 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const [criteriaSettings, setCriteriaSettings] = useState<ObjectiveCriteriaSettings>({ id: 'criteria', criteria: [], updatedAt: new Date().toISOString() });
   const [savedCriteriaSettings, setSavedCriteriaSettings] = useState<ObjectiveCriteriaSettings>({ id: 'criteria', criteria: [], updatedAt: new Date().toISOString() });
   const [selectedMonth, setSelectedMonth] = useState(monthKey());
-  const [selectedCheckpoint, setSelectedCheckpoint] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
@@ -112,9 +122,6 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   }, [restaurantId]);
 
   const checkpointOptions = useMemo(() => checkpointsForMonth(selectedMonth), [selectedMonth]);
-  useEffect(() => {
-    if (!checkpointOptions.some(p => p.id === selectedCheckpoint)) setSelectedCheckpoint(checkpointOptions[0]?.id || '');
-  }, [checkpointOptions, selectedCheckpoint]);
 
   const monthData = useMemo(() => months.find(m => m.month === selectedMonth), [months, selectedMonth]);
   const draft = monthData?.status !== 'submitted';
@@ -214,10 +221,31 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const submittedMonths = useMemo(() => months.filter(m => m.status === 'submitted').sort((a,b) => b.month.localeCompare(a.month)), [months]);
   const rangeMonths = useMemo(() => submittedMonths.filter(m => m.month >= performanceFrom && m.month <= performanceTo), [submittedMonths, performanceFrom, performanceTo]);
   const managers = useMemo(() => Array.from(new Set([...employees.map(e => e.name), ...goals.map(g => g.owner).filter(Boolean)])), [employees, goals]);
-  const statusCounts = useMemo(() => {
-    const resolved = goals.map(g => resolveCheckpoint(g, selectedCheckpoint)).filter(cp => cp?.status);
-    return { total: goals.length, recorded: resolved.length, reached: resolved.filter(cp => cp?.status === 'Atingido' || cp?.status === 'Superado').length };
-  }, [goals, selectedCheckpoint, savedCriteriaSettings, monthData?.status]);
+  const weeklyCheckpointOptions = checkpointOptions.filter(cp => /^week-\d+$/.test(cp.id));
+  const today = new Date();
+  const latestWeekNumberToConsider = selectedMonth === monthKey(today) ? Math.ceil(today.getDate() / 7) : Number.POSITIVE_INFINITY;
+  const summaryCheckpoint = weeklyCheckpointOptions
+    .filter(cp => Number(cp.id.slice('week-'.length)) <= latestWeekNumberToConsider)
+    .filter(cp => goals.some(goal => hasRecordedResult(resolveCheckpoint(goal, cp.id))))
+    .at(-1);
+  const getPointsPercentage = (checkpointId: string) => {
+    const hasAnyResult = goals.some(goal => hasRecordedResult(resolveCheckpoint(goal, checkpointId)));
+    const pointsPossible = goals.reduce((sum, goal) => sum + Number(goal.possiblePoints || 0), 0);
+    if (!hasAnyResult || pointsPossible <= 0) return undefined;
+    const pointsEarned = goals.reduce((sum, goal) => {
+      const checkpoint = resolveCheckpoint(goal, checkpointId);
+      return sum + (checkpoint?.status ? statusPoints(checkpoint.status, Number(goal.possiblePoints || 0)) : 0);
+    }, 0);
+    return pointsEarned / pointsPossible * 100;
+  };
+  const resultAsOfPercentage = summaryCheckpoint ? getPointsPercentage(summaryCheckpoint.id) : undefined;
+  const summaryClassified = summaryCheckpoint
+    ? goals.map(goal => ({ goal, checkpoint: resolveCheckpoint(goal, summaryCheckpoint.id) })).filter(row => row.checkpoint?.status)
+    : [];
+  const summarySegments = STATUS_OPTIONS.map(status => {
+    const count = summaryClassified.filter(row => row.checkpoint?.status === status).length;
+    return { status, count, total: summaryClassified.length, percentage: summaryClassified.length ? count / summaryClassified.length * 100 : undefined };
+  });
 
   const updateCheckpoint = (goal: ObjectiveGoal, checkpointId: string, result: number | '') => {
     const criterion = findCriterion(goal.metric);
@@ -231,7 +259,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
     patchGoal(goal.id, { checkpoints: { ...goal.checkpoints, [checkpointId]: checkpoint } });
   };
   const latestCheckpointFor = (goal: ObjectiveGoal) => {
-    const entries = Object.entries(goal.checkpoints).filter(([, value]) => value.result !== '' && value.result !== undefined);
+    const entries = Object.entries(goal.checkpoints).filter(([, value]) => hasRecordedResult(value));
     const dated = entries.filter(([, value]) => value.updatedAt).sort((a, b) => (a[1].updatedAt || '').localeCompare(b[1].updatedAt || ''));
     const checkpointId = dated.length ? dated[dated.length - 1][0] : [...checkpointOptions].reverse().find(cp => goal.checkpoints[cp.id]?.result !== '' && goal.checkpoints[cp.id]?.result !== undefined)?.id;
     return checkpointId ? { id: checkpointId, value: resolveCheckpoint(goal, checkpointId) } : undefined;
@@ -274,20 +302,43 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
     {notice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notice}</div>}
 
     {activeSubTab === 'objectives_overview' && <section id="objectives-overview-print" className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Visão Geral Mensal</h3><p className="text-sm text-slate-500">Objetivos, resultados e validações ao longo do mês.</p><p className="hidden text-xs text-slate-500 print:block">{MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)} · Resumo da validação: {checkpointOptions.find(cp=>cp.id===selectedCheckpoint)?.label}</p></div><div className="flex items-center gap-2 print:hidden">{monthPicker}<button type="button" onClick={printOverview} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Printer size={16}/> Imprimir</button></div></div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Objetivos do mês" value={String(goals.length)} icon={<Target size={18}/>} />
-        <Kpi label="Resultados validados" value={`${statusCounts.recorded} / ${statusCounts.total}`} icon={<CheckCircle2 size={18}/>} />
-        <Kpi label="Atingidos ou superados" value={statusCounts.recorded ? `${Math.round(statusCounts.reached/statusCounts.recorded*100)}%` : '—'} icon={<TrendingUp size={18}/>} />
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Visão Geral Mensal</h3><p className="text-sm text-slate-500">Objetivos, resultados e validações ao longo do mês.</p><p className="hidden text-xs text-slate-500 print:block">{MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)} · Resultado à data: {summaryCheckpoint?.label || 'sem resultados semanais'}</p></div><div className="flex items-center gap-2 print:hidden">{monthPicker}<button type="button" onClick={printOverview} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Printer size={16}/> Imprimir</button></div></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Kpi label={`Resultado à data${summaryCheckpoint ? ` · ${summaryCheckpoint.label}` : ''}`} value={formatPercent(resultAsOfPercentage)} icon={<Target size={18}/>} />
+        {summarySegments.map(({ status, count, total, percentage }) => {
+          const label = status === 'Superado' ? 'Superados' : status === 'Atingido' ? 'Atingidos' : status === 'Próximo' ? 'Próximos' : 'Não Atingidos';
+          const icon = status === 'Superado' ? <TrendingUp size={18}/> : status === 'Atingido' ? <CheckCircle2 size={18}/> : status === 'Próximo' ? <Clock3 size={18}/> : <AlertTriangle size={18}/>;
+          return <Kpi key={status} label={label} value={`${count}/${total} | ${formatPercent(percentage)}`} icon={icon} className={statusCardTone(status)} />;
+        })}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 print:hidden"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarDays size={17}/> Evolução semanal e mensal</div><label className="text-xs font-semibold text-slate-500">Resumo KPI<select value={selectedCheckpoint} onChange={e => setSelectedCheckpoint(e.target.value)} className="ml-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">{checkpointOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label></div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1500px] w-full text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th rowSpan={2} className="p-3">Responsável</th><th rowSpan={2} className="p-3">Tema</th><th rowSpan={2} className="p-3">Objetivo</th><th rowSpan={2} className="p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} colSpan={2} className="border-l border-slate-200 p-3 text-center">{cp.label}</th>)}</tr><tr>{checkpointOptions.flatMap(cp=>[<th key={`${cp.id}-result`} className="border-l border-slate-200 p-2">Resultado</th>,<th key={`${cp.id}-status`} className="p-2">Estado</th>])}</tr></thead><tbody>{goals.map(g => <tr key={g.id} className="border-t border-slate-100"><td className="p-3 font-semibold">{g.owner||'—'}</td><td className="p-3">{g.metric||'—'}</td><td className="p-3">{g.target ?? '—'}</td><td className="p-3">{g.possiblePoints ?? '—'}</td>{checkpointOptions.flatMap(cp=>{const value=resolveCheckpoint(g,cp.id);return [<td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2">{value?.result??'—'}</td>,<td key={`${g.id}-${cp.id}-status`} className="p-2"><span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status||'—'}</span></td>];})}</tr>)}{goals.length===0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4+checkpointOptions.length*2}/>}</tbody></table></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 print:hidden"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarDays size={17}/> Evolução semanal e mensal</div><p className="text-xs font-semibold text-slate-500">Resumo pela última semana com resultados{selectedMonth === monthKey(today) ? ', até à semana atual' : ''}: <span className="text-slate-800">{summaryCheckpoint?.label || 'sem dados semanais'}</span></p></div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1500px] w-full text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th rowSpan={2} className="p-3">Responsável</th><th rowSpan={2} className="p-3">Tema</th><th rowSpan={2} className="p-3">Objetivo</th><th rowSpan={2} className="p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} colSpan={2} className="border-l border-slate-200 p-3 text-center">{cp.label}</th>)}</tr><tr>{checkpointOptions.flatMap(cp=>[<th key={`${cp.id}-result`} className="border-l border-slate-200 p-2">Resultado</th>,<th key={`${cp.id}-status`} className="p-2">Estado</th>])}</tr></thead><tbody>{goals.map(g => <tr key={g.id} className="border-t border-slate-100"><td className="p-3 font-semibold">{g.owner||'—'}</td><td className="p-3">{g.metric||'—'}</td><td className="p-3">{g.target ?? '—'}</td><td className="p-3">{g.possiblePoints ?? '—'}</td>{checkpointOptions.flatMap(cp=>{
+        const value=resolveCheckpoint(g,cp.id);
+        const weekMatch = cp.id.match(/^week-(\d+)$/);
+        const previous = weekMatch && Number(weekMatch[1]) > 1 ? resolveCheckpoint(g,`week-${Number(weekMatch[1])-1}`) : undefined;
+        const direction = findCriterion(g.metric)?.direction;
+        let trend: 'improved' | 'worsened' | 'same' | undefined;
+        if (weekMatch && hasRecordedResult(value) && hasRecordedResult(previous) && direction) {
+          const currentResult = Number(value?.result);
+          const previousResult = Number(previous?.result);
+          trend = currentResult === previousResult ? 'same' : (direction === 'higher' ? currentResult > previousResult : currentResult < previousResult) ? 'improved' : 'worsened';
+        }
+        const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
+        const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
+        return [<td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2"><div className="flex flex-wrap items-center gap-1.5"><span>{value?.result??'—'}</span>{trendText&&<span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /,'')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div></td>,<td key={`${g.id}-${cp.id}-status`} className="p-2"><span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status||'—'}</span></td>];
+      })}</tr>)}{goals.length===0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4+checkpointOptions.length*2}/>}</tbody><tfoot><tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700"><td colSpan={4} className="p-3 text-right">Resultado semanal · pontos obtidos / possíveis</td>{checkpointOptions.map(cp=><td key={`${cp.id}-percentage`} colSpan={2} className="border-l border-slate-200 p-3 text-center">{/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}</td>)}</tr></tfoot></table></div>
       <div className="flex flex-wrap justify-end gap-2 print:hidden"><button disabled={!draft||!goals.length||saving} onClick={submitMonth} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Send size={15}/> Submeter mês para Histórico</button></div>
     </section>}
 
-    {activeSubTab === 'objectives_corrective_actions' && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Ações Corretivas · {MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)}</h3><p className="text-sm text-slate-500">As ações pertencem ao mês. Os objetivos a trabalhar são sinalizados pelo resultado mais recente e mantêm-se aqui enquanto houver ações em aberto.</p></div>{monthPicker}</div>
-      {!draft&&<div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">Este mês foi submetido. As ações estão disponíveis apenas para consulta.</div>}
+    {activeSubTab === 'objectives_setup' && <>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Cada linha é um objetivo. Introduza apenas os resultados semanais, da quinzena e do mês; a classificação calculada é consultada na Visão Geral.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
+      {!draft && <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-900">Este mês foi submetido e está em modo de consulta.</div>}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Semanas e validações:</span><span className="text-xs text-slate-500">As semanas são organizadas em blocos de sete dias; a Semana 5 só aparece quando o mês ultrapassa 28 dias. A Quinzena fica logo após a semana que inclui o dia 15.</span></div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1250px] w-full border-collapse text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="sticky left-0 z-10 min-w-32 border-b bg-slate-50 p-3 text-left">Responsável</th><th className="min-w-36 border-b p-3 text-left">Tema</th><th className="min-w-28 border-b p-3">Objetivo</th><th className="min-w-24 border-b p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} className="min-w-28 border-b border-l border-slate-200 p-3">{cp.label}</th>)}<th className="border-b p-3">Ações</th></tr></thead><tbody>{goals.map((g,i)=><tr key={g.id} className="border-t border-slate-100"><td className="sticky left-0 z-[1] border-r bg-white p-2"><select disabled={!draft} value={g.owner} onChange={e=>patchGoal(g.id,{owner:e.target.value})} className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs disabled:bg-slate-50"><option value="">Selecionar</option>{managers.map(m=><option key={m} value={m}>{m}</option>)}</select></td><td className="p-2"><input disabled={!draft} value={g.metric} onChange={e=>patchGoal(g.id,{metric:e.target.value})} placeholder={`Tema ${i+1}`} className="w-36 rounded-lg border border-slate-200 px-2 py-2 text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.possiblePoints} onChange={e=>patchGoal(g.id,{possiblePoints:Number(e.target.value)})} className="w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>{checkpointOptions.map(cp=>{const value=resolveCheckpoint(g,cp.id);return <td key={`${g.id}-${cp.id}`} className="border-l border-slate-100 p-2"><input disabled={!draft} type="number" step="0.01" value={value?.result??''} onChange={e=>updateCheckpoint(g,cp.id,e.target.value===''?'':Number(e.target.value))} aria-label={`${g.metric||`Tema ${i+1}`} · ${cp.label} · resultado`} placeholder="Resultado" className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>})}<td className="p-2"><button disabled={!draft||saving} onClick={()=>saveDraft({...baseMonth(),goals:goals.filter(x=>x.id!==g.id)})} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo ${i+1}`}><Trash2 size={16}/></button></td></tr>)}{goals.length===0&&<tr><td colSpan={5+checkpointOptions.length} className="p-8 text-center text-slate-500">Ainda não há objetivos para este mês. Adicione uma linha para começar.</td></tr>}</tbody></table></div>
+      <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar e sincronizar'}</button></div>
+
+      <section className="space-y-5 border-t border-slate-200 pt-6">
+      <div><h3 className="text-xl font-extrabold text-slate-900">Ações Corretivas</h3><p className="text-sm text-slate-500">As ações pertencem ao mês selecionado. Os temas a trabalhar são sinalizados pelo resultado mais recente e mantêm-se aqui enquanto houver ações em aberto.</p></div>
       <section className="space-y-4"><div className="flex items-center gap-2"><Clock3 size={18} className="text-amber-600"/><h4 className="text-lg font-extrabold text-slate-900">Ações em aberto</h4></div>
         <div className="space-y-4">{goalsNeedingCorrectiveAction.map(goal=>{const latest=latestCheckpointFor(goal);const result=latest?.value;const form=actionDrafts[goal.id]||{description:'',responsible:'',dueDate:''};const openActions=(goal.correctiveActions||[]).filter(action=>action.status!=='Concluída');return <article key={goal.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-wide text-slate-500">{goal.owner||'Responsável por atribuir'}</div><h5 className="mt-1 text-base font-extrabold text-slate-900">{goal.metric||'Tema por definir'}</h5><p className="mt-1 text-sm text-slate-600">Último resultado{latest?` (${checkpointOptions.find(cp=>cp.id===latest.id)?.label})`:''}: <strong>{result?.result??'—'}</strong> · Objetivo <strong>{goal.target}</strong></p></div>{result?.status&&<span className={statusTone(result.status)}>{result.status}</span>}</div>
           <div className="mt-4 space-y-2">{openActions.map(action=><div key={action.id} className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[1.5fr_1fr_.8fr_1fr_auto] md:items-center"><textarea disabled={!draft} rows={2} value={action.description} onChange={e=>patchCorrectiveAction(goal,action.id,{description:e.target.value})} className="w-full resize-y rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm disabled:bg-slate-100" aria-label="Medida corretiva"/><select disabled={!draft} value={action.responsible} onChange={e=>patchCorrectiveAction(goal,action.id,{responsible:e.target.value})} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm disabled:bg-slate-100"><option value="">Responsável</option>{managers.map(name=><option key={name} value={name}>{name}</option>)}</select><input disabled={!draft} type="date" value={action.dueDate} onChange={e=>patchCorrectiveAction(goal,action.id,{dueDate:e.target.value})} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm disabled:bg-slate-100" aria-label="Prazo"/><select disabled={!draft} value={action.status} onChange={e=>patchCorrectiveAction(goal,action.id,{status:e.target.value as CorrectiveActionStatus})} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm disabled:bg-slate-100"><option>Por iniciar</option><option>Em curso</option><option>Concluída</option></select><button disabled={!draft} onClick={()=>removeCorrectiveAction(goal,action.id)} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label="Remover medida"><Trash2 size={16}/></button></div>)}{openActions.length===0&&<p className="text-xs text-slate-500">Ainda sem medidas em aberto para este tema.</p>}</div>
@@ -296,14 +347,8 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       </section>
       <section className="space-y-3"><div className="flex items-center gap-2"><History size={18} className="text-slate-500"/><h4 className="text-lg font-extrabold text-slate-900">Ações fechadas · Histórico</h4></div><div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[720px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Tema</th><th className="p-3">Medida corretiva</th><th className="p-3">Responsável</th><th className="p-3">Prazo</th><th className="p-3">Concluída em</th></tr></thead><tbody>{closedCorrectiveActions.map(({goal,action})=><tr key={action.id} className="border-t"><td className="p-3 font-semibold">{goal.metric||'—'}</td><td className="p-3">{action.description}</td><td className="p-3">{action.responsible||'—'}</td><td className="p-3">{action.dueDate?new Date(`${action.dueDate}T12:00:00`).toLocaleDateString('pt-PT'):'—'}</td><td className="p-3">{action.completedAt?new Date(action.completedAt).toLocaleDateString('pt-PT'):'—'}</td></tr>)}{closedCorrectiveActions.length===0&&<EmptyRow colSpan={5} text="Ainda não há ações fechadas neste mês."/>}</tbody></table></div></section>
       <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar ações corretivas'}</button></div>
-    </>}
+          </section>
 
-    {activeSubTab === 'objectives_setup' && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Cada linha é um objetivo. Introduza apenas os resultados semanais, da quinzena e do mês; a classificação calculada é consultada na Visão Geral.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
-      {!draft && <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-900">Este mês foi submetido e está em modo de consulta.</div>}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Semanas e validações:</span><span className="text-xs text-slate-500">As semanas são organizadas em blocos de sete dias; a Semana 5 só aparece quando o mês ultrapassa 28 dias. A Quinzena fica logo após a semana que inclui o dia 15.</span></div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1250px] w-full border-collapse text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="sticky left-0 z-10 min-w-32 border-b bg-slate-50 p-3 text-left">Responsável</th><th className="min-w-36 border-b p-3 text-left">Tema</th><th className="min-w-28 border-b p-3">Objetivo</th><th className="min-w-24 border-b p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} className="min-w-28 border-b border-l border-slate-200 p-3">{cp.label}</th>)}<th className="border-b p-3">Ações</th></tr></thead><tbody>{goals.map((g,i)=><tr key={g.id} className="border-t border-slate-100"><td className="sticky left-0 z-[1] border-r bg-white p-2"><select disabled={!draft} value={g.owner} onChange={e=>patchGoal(g.id,{owner:e.target.value})} className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs disabled:bg-slate-50"><option value="">Selecionar</option>{managers.map(m=><option key={m} value={m}>{m}</option>)}</select></td><td className="p-2"><input disabled={!draft} value={g.metric} onChange={e=>patchGoal(g.id,{metric:e.target.value})} placeholder={`Tema ${i+1}`} className="w-36 rounded-lg border border-slate-200 px-2 py-2 text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.possiblePoints} onChange={e=>patchGoal(g.id,{possiblePoints:Number(e.target.value)})} className="w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>{checkpointOptions.map(cp=>{const value=resolveCheckpoint(g,cp.id);return <td key={`${g.id}-${cp.id}`} className="border-l border-slate-100 p-2"><input disabled={!draft} type="number" step="0.01" value={value?.result??''} onChange={e=>updateCheckpoint(g,cp.id,e.target.value===''?'':Number(e.target.value))} aria-label={`${g.metric||`Tema ${i+1}`} · ${cp.label} · resultado`} placeholder="Resultado" className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>})}<td className="p-2"><button disabled={!draft||saving} onClick={()=>saveDraft({...baseMonth(),goals:goals.filter(x=>x.id!==g.id)})} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo ${i+1}`}><Trash2 size={16}/></button></td></tr>)}{goals.length===0&&<tr><td colSpan={5+checkpointOptions.length} className="p-8 text-center text-slate-500">Ainda não há objetivos para este mês. Adicione uma linha para começar.</td></tr>}</tbody></table></div>
-      <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar e sincronizar'}</button></div>
     </>}
 
     {activeSubTab === 'objectives_history' && <>
@@ -346,7 +391,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   </div>;
 };
 
-const Kpi: React.FC<{label:string;value:string;icon:React.ReactNode}> = ({label,value,icon}) => <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between text-slate-500"><span className="text-xs font-bold uppercase">{label}</span>{icon}</div><div className="mt-2 text-2xl font-black text-slate-900">{value}</div></div>;
+const Kpi: React.FC<{label:string;value:string;icon:React.ReactNode;className?:string}> = ({label,value,icon,className = 'border-slate-200 bg-white'}) => <div className={`rounded-2xl border p-4 ${className}`}><div className="flex items-center justify-between text-slate-500"><span className="text-xs font-bold uppercase">{label}</span>{icon}</div><div className="mt-2 text-2xl font-black text-slate-900">{value}</div></div>;
 const EmptyRow: React.FC<{colSpan:number;text:string}> = ({colSpan,text})=><tr><td colSpan={colSpan} className="p-8 text-center text-slate-500">{text}</td></tr>;
 
 const FoodCostTableRow: React.FC<{row:FoodCostEntry;disabled:boolean;inputClass:string;onChange:(patch:Partial<FoodCostEntry>)=>void}> = ({row,disabled,inputClass,onChange}) => {
