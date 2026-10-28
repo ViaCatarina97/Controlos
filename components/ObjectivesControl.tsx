@@ -17,19 +17,34 @@ const monthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.get
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 
 function checkpointsForMonth(month: string) {
-  const [, monthNumber] = month.split('-').map(Number);
-  const lastDay = new Date(Number(month.slice(0,4)), monthNumber, 0).getDate();
-  const weeks = Array.from({ length: 5 }, (_, index) => ({
-    id: `week-${index + 1}`,
-    label: `Semana ${index + 1}`,
+  const [year, monthNumber] = month.split('-').map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const weekCount = Math.ceil(lastDay / 7);
+  const weeks = Array.from({ length: weekCount }, (_, index) => {
+    const startDay = index * 7 + 1;
+    const endDay = Math.min(startDay + 6, lastDay);
+    return {
+      id: `week-${index + 1}`,
+      label: `Semana ${index + 1}`,
+      start: `${month}-${String(startDay).padStart(2, '0')}`,
+      end: `${month}-${String(endDay).padStart(2, '0')}`,
+    };
+  });
+  const fortnight = {
+    id: 'fortnight',
+    label: 'Quinzena',
     start: `${month}-01`,
-    end: `${month}-${String(Math.min(index * 7 + 7, lastDay)).padStart(2,'0')}`,
-  }));
-  return [
-    ...weeks,
-    { id: 'fortnight', label: 'Quinzena', start: `${month}-01`, end: `${month}-${String(Math.min(15,lastDay)).padStart(2,'0')}` },
-    { id: 'month', label: 'Mês', start: `${month}-01`, end: `${month}-${String(lastDay).padStart(2,'0')}` },
-  ];
+    end: `${month}-${String(Math.min(15, lastDay)).padStart(2, '0')}`,
+  };
+  const monthly = {
+    id: 'month',
+    label: 'Mês',
+    start: `${month}-01`,
+    end: `${month}-${String(lastDay).padStart(2, '0')}`,
+  };
+  const weekContaining15 = weeks.findIndex(week => week.start <= `${month}-15` && week.end >= `${month}-15`);
+  const insertionIndex = weekContaining15 >= 0 ? weekContaining15 + 1 : weeks.length;
+  return [...weeks.slice(0, insertionIndex), fortnight, ...weeks.slice(insertionIndex), monthly];
 }
 
 const statusPoints = (status: ObjectiveCheckpoint['status'] | undefined, available: number) => {
@@ -260,9 +275,9 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
     </>}
 
     {activeSubTab === 'objectives_setup' && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Cada linha é um objetivo. Introduza apenas os resultados da Semana 1 à Semana 5, quinzena e mês; a classificação calculada é consultada na Visão Geral.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Cada linha é um objetivo. Introduza apenas os resultados semanais, da quinzena e do mês; a classificação calculada é consultada na Visão Geral.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
       {!draft && <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-900">Este mês foi submetido e está em modo de consulta.</div>}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Semanas e validações:</span><span className="text-xs text-slate-500">Cada objetivo tem campos fixos para Semana 1, Semana 2, Semana 3, Semana 4, Semana 5, Quinzena e Mês.</span></div>
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Semanas e validações:</span><span className="text-xs text-slate-500">As semanas são organizadas em blocos de sete dias; a Semana 5 só aparece quando o mês ultrapassa 28 dias. A Quinzena fica logo após a semana que inclui o dia 15.</span></div>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1250px] w-full border-collapse text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="sticky left-0 z-10 min-w-32 border-b bg-slate-50 p-3 text-left">Responsável</th><th className="min-w-36 border-b p-3 text-left">Objetivo</th><th className="min-w-28 border-b p-3">Meta mensal</th><th className="min-w-24 border-b p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} className="min-w-28 border-b border-l border-slate-200 p-3">{cp.label}</th>)}<th className="border-b p-3">Ações</th></tr></thead><tbody>{goals.map((g,i)=><tr key={g.id} className="border-t border-slate-100"><td className="sticky left-0 z-[1] border-r bg-white p-2"><select disabled={!draft} value={g.owner} onChange={e=>patchGoal(g.id,{owner:e.target.value})} className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs disabled:bg-slate-50"><option value="">Selecionar</option>{managers.map(m=><option key={m} value={m}>{m}</option>)}</select></td><td className="p-2"><input disabled={!draft} value={g.metric} onChange={e=>patchGoal(g.id,{metric:e.target.value})} placeholder={`Objetivo ${i+1}`} className="w-36 rounded-lg border border-slate-200 px-2 py-2 text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.possiblePoints} onChange={e=>patchGoal(g.id,{possiblePoints:Number(e.target.value)})} className="w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>{checkpointOptions.map(cp=>{const value=resolveCheckpoint(g,cp.id);return <td key={`${g.id}-${cp.id}`} className="border-l border-slate-100 p-2"><input disabled={!draft} type="number" step="0.01" value={value?.result??''} onChange={e=>updateCheckpoint(g,cp.id,e.target.value===''?'':Number(e.target.value))} aria-label={`${g.metric||`Objetivo ${i+1}`} · ${cp.label} · resultado`} placeholder="Resultado" className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>})}<td className="p-2"><button disabled={!draft||saving} onClick={()=>saveDraft({...baseMonth(),goals:goals.filter(x=>x.id!==g.id)})} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo ${i+1}`}><Trash2 size={16}/></button></td></tr>)}{goals.length===0&&<tr><td colSpan={5+checkpointOptions.length} className="p-8 text-center text-slate-500">Ainda não há objetivos para este mês. Adicione uma linha para começar.</td></tr>}</tbody></table></div>
       <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar e sincronizar'}</button></div>
     </>}
