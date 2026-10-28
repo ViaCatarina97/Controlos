@@ -82,6 +82,7 @@ import {
   PanelLeftOpen,
   Sun,
   Moon,
+  Target,
 } from 'lucide-react';
 
 type ModuleType =
@@ -90,7 +91,8 @@ type ModuleType =
   | 'billing'
   | 'manager_tasks'
   | 'agenda'
-  | 'cleaning_plan';
+  | 'cleaning_plan'
+  | 'objectives';
 
 const ADMIN_PASSWORD = 'Imperial96';
 
@@ -118,6 +120,10 @@ const MODULE_META: Record<ModuleType, { title: string; subtitle: string }> = {
   cleaning_plan: {
     title: 'Plano de Limpeza & Higiene',
     subtitle: 'Mapa semanal por turnos, zelador, responsáveis de área e conformidade',
+  },
+  objectives: {
+    title: 'Objetivos',
+    subtitle: 'Acompanhamento de objetivos operacionais e financeiros',
   },
 };
 
@@ -503,6 +509,7 @@ const App: React.FC = () => {
     else if (module === 'manager_tasks') setActiveTab('checklist');
     else if (module === 'agenda') setActiveTab('agenda_calendar');
     else if (module === 'cleaning_plan') setActiveTab('cleaning_plan');
+    else if (module === 'objectives') setActiveTab('objectives_overview');
   };
 
   const handleSaveAgendaEvent = async (event: AgendaEvent) => {
@@ -874,6 +881,14 @@ const App: React.FC = () => {
           { id: 'sales_history', label: 'Previsão & Vendas', short: 'Vendas', icon: TrendingUp },
           { id: 'schedule_history', label: 'Histórico Turnos', short: 'Histórico', icon: History },
           { id: 'settings', label: 'Definições Loja', short: 'Config.', icon: SettingsIcon },
+        ]
+      : activeModule === 'objectives'
+      ? [
+          { id: 'objectives_overview', label: 'Visão Geral', short: 'Visão Geral', icon: LayoutDashboard },
+          { id: 'objectives_history', label: 'Histórico', short: 'Histórico', icon: History },
+          { id: 'objectives_manager_performance', label: 'Desempenho por Gerente', short: 'Gerentes', icon: TrendingUp },
+          { id: 'objectives_food_cost', label: 'Custo Comida', short: 'Custo Comida', icon: Calculator },
+          { id: 'objectives_reports', label: 'Relatórios', short: 'Relatórios', icon: FileText },
         ]
       : activeModule === 'billing'
       ? [
@@ -1326,6 +1341,27 @@ const App: React.FC = () => {
               restaurantId={activeRestaurant.restaurantId}
               employees={currentEmployees}
             />
+          )}
+
+          {activeModule === 'objectives' && activeTab.startsWith('objectives_') && (
+            <section className="min-h-[55vh] rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="rounded-2xl bg-amber-50 p-3 text-amber-700">
+                  <Target size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold tracking-tight text-slate-900">
+                    {moduleTabs.find(tab => tab.id === activeTab)?.label || 'Objetivos'}
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                    A estrutura desta secção está criada. O conteúdo, os indicadores e as regras serão definidos consigo numa próxima etapa.
+                  </p>
+                  <span className="mt-5 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
+                    Em preparação
+                  </span>
+                </div>
+              </div>
+            </section>
           )}
         </div>
       </main>

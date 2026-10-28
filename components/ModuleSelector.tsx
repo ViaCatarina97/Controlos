@@ -41,6 +41,7 @@ import {
   RefreshCw,
   Moon,
   Sun,
+  Target,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts';
 
@@ -50,7 +51,8 @@ type ModuleKey =
   | 'billing'
   | 'manager_tasks'
   | 'agenda'
-  | 'cleaning_plan';
+  | 'cleaning_plan'
+  | 'objectives';
 
 interface ModuleSelectorProps {
   restaurant: AppSettings;
@@ -795,6 +797,14 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                 icon: Sparkles,
                 accent: 'bg-teal-50 text-teal-700',
                 meta: 'Controlo semanal por área e turno',
+              },
+              {
+                key: 'objectives' as ModuleKey,
+                title: 'Objetivos',
+                desc: 'Visão geral, histórico, desempenho por gerente, custo comida e relatórios.',
+                icon: Target,
+                accent: 'bg-amber-50 text-amber-700',
+                meta: 'Acompanhamento de objetivos',
               },
             ].map(card => {
               const Icon = card.icon;

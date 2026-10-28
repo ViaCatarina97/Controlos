@@ -95,7 +95,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   customStations: STATIONS
 };
 
-export const APP_VERSION = '5.3.7';
+export const APP_VERSION = '5.3.8';
 
 export const AVAILABLE_TYPOLOGIES: RestaurantTypology[] = ['Loja de Rua', 'Drive', 'Shopping'];
 export const AVAILABLE_AREAS: BusinessArea[] = ['Loja', 'Drive', 'Delivery', 'McCafé'];
