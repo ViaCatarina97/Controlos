@@ -681,4 +681,5 @@ export interface ObjectiveCorrectiveAction {
   dueDate: string;
   status: CorrectiveActionStatus;
   createdAt: string;
+  completedAt?: string;
 }

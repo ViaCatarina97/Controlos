@@ -189,3 +189,76 @@
 html.dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
+
+/* Objetivos: etiquetas de classificação com dimensões e contraste consistentes. */
+.objective-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 0.28rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.objective-status-superado { color: #075985; background: #e0f2fe; border-color: #7dd3fc; }
+.objective-status-atingido { color: #166534; background: #dcfce7; border-color: #86efac; }
+.objective-status-proximo { color: #854d0e; background: #fef9c3; border-color: #fde047; }
+.objective-status-nao-atingido { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+.objective-status-pendente { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
+
+@page objectives-overview { size: A4 landscape; margin: 8mm; }
+@media print {
+  body.printing-objectives-overview { background: #fff !important; }
+  body.printing-objectives-overview #objectives-overview-print {
+    page: objectives-overview;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    color: #111827 !important;
+    background: #fff !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print .overflow-x-auto {
+    overflow: visible !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print th,
+  body.printing-objectives-overview #objectives-overview-print td {
+    padding: 2mm 1mm !important;
+    overflow-wrap: anywhere !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #111827 !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print thead { display: table-header-group; }
+  body.printing-objectives-overview #objectives-overview-print tr { break-inside: avoid; }
+  body.printing-objectives-overview #objectives-overview-print .objective-status-badge {
+    padding: 1mm 1.5mm !important;
+    font-size: 6.5pt !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  body.printing-objectives-overview #quota-warning-banner,
+  body.printing-objectives-overview .fixed,
+  body.printing-objectives-overview #objectives-overview-print button,
+  body.printing-objectives-overview #objectives-overview-print input,
+  body.printing-objectives-overview #objectives-overview-print select { display: none !important; }
+  body.printing-objectives-overview #objectives-overview-print .grid { gap: 2mm !important; }
+  body.printing-objectives-overview #objectives-overview-print h3 { font-size: 15pt !important; }
+  body.printing-objectives-overview #objectives-overview-print .rounded-2xl { box-shadow: none !important; }
+}
