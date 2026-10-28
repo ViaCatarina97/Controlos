@@ -211,6 +211,28 @@ html.dark ::-webkit-scrollbar-thumb {
 .objective-status-nao-atingido { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
 .objective-status-pendente { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
 
+.objective-overview-primary-column {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+.objective-overview-current-week-group,
+.objective-overview-current-week-cell {
+  background-color: #fffbeb !important;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.objective-overview-current-week-group {
+  border-left: 2px solid #d97706 !important;
+  border-right: 2px solid #d97706 !important;
+}
+.objective-overview-current-week-start {
+  border-left: 2px solid #d97706 !important;
+}
+.objective-overview-current-week-end {
+  border-right: 2px solid #d97706 !important;
+}
+
 @page objectives-overview { size: A4 landscape; margin: 8mm; }
 @media print {
   body.printing-objectives-overview { background: #fff !important; }
@@ -258,7 +280,51 @@ html.dark ::-webkit-scrollbar-thumb {
   body.printing-objectives-overview #objectives-overview-print button,
   body.printing-objectives-overview #objectives-overview-print input,
   body.printing-objectives-overview #objectives-overview-print select { display: none !important; }
+  body.printing-objectives-overview #objectives-overview-print > * + * { margin-top: 3mm !important; }
+  body.printing-objectives-overview #objectives-overview-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 2mm !important;
+    width: 100% !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div {
+    min-width: 0 !important;
+    padding: 1.5mm 2mm !important;
+    border-radius: 2mm !important;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:first-child { min-width: 0 !important; align-items: flex-start !important; gap: 1mm !important; }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:first-child > span {
+    min-width: 0 !important;
+    font-size: 6.2pt !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:last-child {
+    margin-top: 1mm !important;
+    font-size: 9pt !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis svg { width: 9px !important; height: 9px !important; flex: 0 0 auto !important; }
   body.printing-objectives-overview #objectives-overview-print .grid { gap: 2mm !important; }
   body.printing-objectives-overview #objectives-overview-print h3 { font-size: 15pt !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-primary-column { font-weight: 700 !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-group,
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-cell {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    background-color: #fffbeb !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-group,
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-start {
+    border-left: 2px solid #d97706 !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-group,
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-current-week-end {
+    border-right: 2px solid #d97706 !important;
+  }
   body.printing-objectives-overview #objectives-overview-print .rounded-2xl { box-shadow: none !important; }
 }

@@ -223,6 +223,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const managers = useMemo(() => Array.from(new Set([...employees.map(e => e.name), ...goals.map(g => g.owner).filter(Boolean)])), [employees, goals]);
   const weeklyCheckpointOptions = checkpointOptions.filter(cp => /^week-\d+$/.test(cp.id));
   const today = new Date();
+  const currentWeekId = selectedMonth === monthKey(today) ? `week-${Math.ceil(today.getDate() / 7)}` : '';
   const latestWeekNumberToConsider = selectedMonth === monthKey(today) ? Math.ceil(today.getDate() / 7) : Number.POSITIVE_INFINITY;
   const summaryCheckpoint = weeklyCheckpointOptions
     .filter(cp => Number(cp.id.slice('week-'.length)) <= latestWeekNumberToConsider)
@@ -303,7 +304,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
 
     {activeSubTab === 'objectives_overview' && <section id="objectives-overview-print" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Visão Geral Mensal</h3><p className="text-sm text-slate-500">Objetivos, resultados e validações ao longo do mês.</p><p className="hidden text-xs text-slate-500 print:block">{MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)} · Resultado à data: {summaryCheckpoint?.label || 'sem resultados semanais'}</p></div><div className="flex items-center gap-2 print:hidden">{monthPicker}<button type="button" onClick={printOverview} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Printer size={16}/> Imprimir</button></div></div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div id="objectives-overview-kpis" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label={`Resultado à data${summaryCheckpoint ? ` · ${summaryCheckpoint.label}` : ''}`} value={formatPercent(resultAsOfPercentage)} icon={<Target size={18}/>} />
         {summarySegments.map(({ status, count, total, percentage }) => {
           const label = status === 'Superado' ? 'Superados' : status === 'Atingido' ? 'Atingidos' : status === 'Próximo' ? 'Próximos' : 'Não Atingidos';
@@ -312,21 +313,71 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
         })}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 print:hidden"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarDays size={17}/> Evolução semanal e mensal</div><p className="text-xs font-semibold text-slate-500">Resumo pela última semana com resultados{selectedMonth === monthKey(today) ? ', até à semana atual' : ''}: <span className="text-slate-800">{summaryCheckpoint?.label || 'sem dados semanais'}</span></p></div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1500px] w-full text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th rowSpan={2} className="p-3">Responsável</th><th rowSpan={2} className="p-3">Tema</th><th rowSpan={2} className="p-3">Objetivo</th><th rowSpan={2} className="p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} colSpan={2} className="border-l border-slate-200 p-3 text-center">{cp.label}</th>)}</tr><tr>{checkpointOptions.flatMap(cp=>[<th key={`${cp.id}-result`} className="border-l border-slate-200 p-2">Resultado</th>,<th key={`${cp.id}-status`} className="p-2">Estado</th>])}</tr></thead><tbody>{goals.map(g => <tr key={g.id} className="border-t border-slate-100"><td className="p-3 font-semibold">{g.owner||'—'}</td><td className="p-3">{g.metric||'—'}</td><td className="p-3">{g.target ?? '—'}</td><td className="p-3">{g.possiblePoints ?? '—'}</td>{checkpointOptions.flatMap(cp=>{
-        const value=resolveCheckpoint(g,cp.id);
-        const weekMatch = cp.id.match(/^week-(\d+)$/);
-        const previous = weekMatch && Number(weekMatch[1]) > 1 ? resolveCheckpoint(g,`week-${Number(weekMatch[1])-1}`) : undefined;
-        const direction = findCriterion(g.metric)?.direction;
-        let trend: 'improved' | 'worsened' | 'same' | undefined;
-        if (weekMatch && hasRecordedResult(value) && hasRecordedResult(previous) && direction) {
-          const currentResult = Number(value?.result);
-          const previousResult = Number(previous?.result);
-          trend = currentResult === previousResult ? 'same' : (direction === 'higher' ? currentResult > previousResult : currentResult < previousResult) ? 'improved' : 'worsened';
-        }
-        const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
-        const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
-        return [<td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2"><div className="flex flex-wrap items-center gap-1.5"><span>{value?.result??'—'}</span>{trendText&&<span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /,'')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div></td>,<td key={`${g.id}-${cp.id}-status`} className="p-2"><span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status||'—'}</span></td>];
-      })}</tr>)}{goals.length===0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4+checkpointOptions.length*2}/>}</tbody><tfoot><tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700"><td colSpan={4} className="p-3 text-right">Resultado semanal · pontos obtidos / possíveis</td>{checkpointOptions.map(cp=><td key={`${cp.id}-percentage`} colSpan={2} className="border-l border-slate-200 p-3 text-center">{/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}</td>)}</tr></tfoot></table></div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table id="objectives-overview-table" className="min-w-[1500px] w-full text-left text-xs">
+          <thead className="bg-slate-50 uppercase text-slate-500">
+            <tr>
+              <th rowSpan={2} className="objective-overview-primary-column p-3">Responsável</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3">Tema</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3">Objetivo</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3">Pontos possíveis</th>
+              {checkpointOptions.map(cp => {
+                const isCurrentWeek = cp.id === currentWeekId;
+                return <th key={cp.id} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${isCurrentWeek ? 'objective-overview-current-week-group' : ''}`}>
+                  {cp.label}{isCurrentWeek && <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-900">Atual</span>}
+                </th>;
+              })}
+            </tr>
+            <tr>{checkpointOptions.flatMap(cp => {
+              const isCurrentWeek = cp.id === currentWeekId;
+              return [
+                <th key={`${cp.id}-result`} className={`border-l border-slate-200 p-2 ${isCurrentWeek ? 'objective-overview-current-week-group objective-overview-current-week-start' : ''}`}>Resultado</th>,
+                <th key={`${cp.id}-status`} className={`p-2 ${isCurrentWeek ? 'objective-overview-current-week-group objective-overview-current-week-end' : ''}`}>Estado</th>,
+              ];
+            })}</tr>
+          </thead>
+          <tbody>
+            {goals.map(g => <tr key={g.id} className="border-t border-slate-100">
+              <td className="objective-overview-primary-column p-3">{g.owner || '—'}</td>
+              <td className="objective-overview-primary-column p-3">{g.metric || '—'}</td>
+              <td className="objective-overview-primary-column p-3">{g.target ?? '—'}</td>
+              <td className="objective-overview-primary-column p-3">{g.possiblePoints ?? '—'}</td>
+              {checkpointOptions.flatMap(cp => {
+                const value = resolveCheckpoint(g, cp.id);
+                const weekMatch = cp.id.match(/^week-(\d+)$/);
+                const isCurrentWeek = cp.id === currentWeekId;
+                const previous = weekMatch && Number(weekMatch[1]) > 1 ? resolveCheckpoint(g, `week-${Number(weekMatch[1]) - 1}`) : undefined;
+                const direction = findCriterion(g.metric)?.direction;
+                let trend: 'improved' | 'worsened' | 'same' | undefined;
+                if (weekMatch && hasRecordedResult(value) && hasRecordedResult(previous) && direction) {
+                  const currentResult = Number(value?.result);
+                  const previousResult = Number(previous?.result);
+                  trend = currentResult === previousResult ? 'same' : (direction === 'higher' ? currentResult > previousResult : currentResult < previousResult) ? 'improved' : 'worsened';
+                }
+                const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
+                const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
+                return [
+                  <td key={`${g.id}-${cp.id}-result`} className={`border-l border-slate-100 p-2 ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-start' : ''}`}>
+                    <div className="flex flex-wrap items-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
+                  </td>,
+                  <td key={`${g.id}-${cp.id}-status`} className={`p-2 ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-end' : ''}`}>
+                    <span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
+                  </td>,
+                ];
+              })}
+            </tr>)}
+            {goals.length === 0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4 + checkpointOptions.length * 2} />}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700">
+              <td colSpan={4} className="objective-overview-primary-column p-3 text-right">Resultado semanal · pontos obtidos / possíveis</td>
+              {checkpointOptions.map(cp => <td key={`${cp.id}-percentage`} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${cp.id === currentWeekId ? 'objective-overview-current-week-group objective-overview-current-week-start objective-overview-current-week-end' : ''}`}>
+                {/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}
+              </td>)}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
       <div className="flex flex-wrap justify-end gap-2 print:hidden"><button disabled={!draft||!goals.length||saving} onClick={submitMonth} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Send size={15}/> Submeter mês para Histórico</button></div>
     </section>}
 
