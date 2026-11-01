@@ -712,6 +712,16 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 print:hidden"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarDays size={17}/> Evolução semanal e mensal</div><p className="text-xs font-semibold text-slate-500">Resumo pela última semana com resultados{selectedMonth === monthKey(today) ? ', até à semana atual' : ''}: <span className="text-slate-800">{summaryCheckpoint?.label || 'sem dados semanais'}</span></p></div>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table id="objectives-overview-table" className="min-w-[1500px] w-full text-left text-xs">
+          <colgroup>
+            <col className="objective-overview-col-owner" />
+            <col className="objective-overview-col-theme" />
+            <col className="objective-overview-col-target" />
+            <col className="objective-overview-col-points" />
+            {overviewCheckpoints.flatMap(cp => [
+              <col key={`${cp.id}-col-result`} className="objective-overview-col-result" />,
+              <col key={`${cp.id}-col-status`} className="objective-overview-col-status" />,
+            ])}
+          </colgroup>
           <thead className="bg-slate-50 uppercase text-slate-500">
             <tr className="font-bold text-slate-800">
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Responsável</th>
@@ -723,7 +733,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
               )}
             </tr>
             <tr>{overviewCheckpoints.flatMap(cp => [
-              <th key={`${cp.id}-result`} className="border-l border-slate-200 p-2 text-center"><span className="print:hidden">Objetivo e resultado</span><span className="hidden print:inline">Obj. / Result.</span></th>,
+              <th key={`${cp.id}-result`} className="border-l border-slate-200 p-2 text-center"><span className="print:hidden">Resultado</span><span className="hidden print:inline">Res.</span></th>,
               <th key={`${cp.id}-status`} className="p-2 text-center">Estado</th>,
             ])}</tr>
           </thead>

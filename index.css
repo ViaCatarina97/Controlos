@@ -463,13 +463,14 @@ html.dark ::-webkit-scrollbar-thumb {
     overflow-wrap: anywhere !important;
   }
   body.printing-objectives-overview #objectives-overview-table td > div {
-    flex-direction: row !important;
+    flex-direction: column !important;
     flex-wrap: nowrap !important;
-    gap: 1.2mm !important;
+    justify-content: center !important;
+    gap: 0.4mm !important;
   }
   body.printing-objectives-overview #objectives-overview-table td > div > span { white-space: nowrap !important; }
   body.printing-objectives-overview #objectives-overview-table thead th {
-    padding: 1.8mm 0.9mm !important;
+    padding: 1.4mm 0.6mm !important;
     background: #0f172a !important;
     color: #f8fafc !important;
     border-color: #334155 !important;
@@ -480,8 +481,9 @@ html.dark ::-webkit-scrollbar-thumb {
     hyphens: none !important;
     overflow-wrap: normal !important;
   }
+  body.printing-objectives-overview #objectives-overview-table thead tr:first-child th { font-size: 6.2pt !important; }
   body.printing-objectives-overview #objectives-overview-table thead tr:nth-child(2) th {
-    padding: 1.2mm 0.7mm !important;
+    padding: 1mm 0.4mm !important;
     background: #1e293b !important;
     font-size: 6.2pt !important;
     letter-spacing: 0.01em !important;
@@ -502,21 +504,26 @@ html.dark ::-webkit-scrollbar-thumb {
     border-radius: 0 !important;
     background: transparent !important;
     color: #b45309 !important;
-    font-size: 7.6pt !important;
+    font-size: 6.4pt !important;
+    line-height: 1.1 !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
   }
   body.printing-objectives-overview #objectives-overview-table .objective-overview-target::after {
     content: '·';
-    margin-left: 0.8mm;
+    margin-left: 0.5mm;
     color: #94a3b8 !important;
     font-weight: 700 !important;
   }
   body.printing-objectives-overview #objectives-overview-table .objective-status-badge {
-    padding: 0.5mm 1.4mm !important;
-    font-size: 6.4pt !important;
+    display: inline-block !important;
+    max-width: 100% !important;
+    padding: 0.3mm 0.6mm !important;
+    font-size: 5.3pt !important;
+    line-height: 1.2 !important;
     border-width: 0.25mm !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
@@ -527,10 +534,20 @@ html.dark ::-webkit-scrollbar-thumb {
     font-size: 8.5pt !important;
     font-weight: 900 !important;
   }
-  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(1) { width: 9% !important; }
-  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(2) { width: 12% !important; }
-  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(3) { width: 5% !important; }
-  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(4) { width: 6% !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-owner { width: 20mm !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-theme { width: 22mm !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-target { width: 13.5mm !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-points { width: 14.2mm !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-result { width: 10.4mm !important; }
+  body.printing-objectives-overview #objectives-overview-table col.objective-overview-col-status { width: 20.1mm !important; }
+  /* Corpo: tipografia compacta e sem transbordar das células */
+  body.printing-objectives-overview #objectives-overview-table tbody td {
+    padding: 1.6mm 0.5mm !important;
+    font-size: 6.8pt !important;
+    line-height: 1.1 !important;
+    overflow: hidden !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table tbody td > div > span { font-size: 6.6pt !important; line-height: 1.1 !important; }
 
   /* Rodapé */
   body.printing-objectives-overview #objectives-overview-print-footer {
