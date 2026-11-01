@@ -681,10 +681,10 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
         <table id="objectives-overview-table" className="min-w-[1500px] w-full text-left text-xs">
           <thead className="bg-slate-50 uppercase text-slate-500">
             <tr>
-              <th rowSpan={2} className="objective-overview-primary-column p-3">Responsável</th>
-              <th rowSpan={2} className="objective-overview-primary-column p-3">Tema</th>
-              <th rowSpan={2} className="objective-overview-primary-column p-3">Objetivo</th>
-              <th rowSpan={2} className="objective-overview-primary-column p-3">Pontos possíveis</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3 font-bold">Responsável</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3 font-bold">Tema</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Objetivo</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Pontos possíveis</th>
               {overviewCheckpoints.map(cp => {
                 const isCurrentWeek = cp.id === currentWeekId;
                 return <th key={cp.id} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${isCurrentWeek ? 'objective-overview-current-week-group' : ''}`}>
@@ -702,10 +702,10 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
           </thead>
           <tbody>
             {goals.map(g => <tr key={g.id} className="border-t border-slate-100">
-              <td className="objective-overview-primary-column p-3">{g.owner || '—'}</td>
-              <td className="objective-overview-primary-column p-3">{g.metric || '—'}</td>
-              <td className="objective-overview-primary-column p-3">{g.target ?? '—'}</td>
-              <td className="objective-overview-primary-column p-3">{g.possiblePoints ?? '—'}</td>
+              <td className="objective-overview-primary-column p-3 font-bold">{g.owner || '—'}</td>
+              <td className="objective-overview-primary-column p-3 font-bold">{g.metric || '—'}</td>
+              <td className="objective-overview-primary-column p-3 text-center font-bold">{g.target ?? '—'}</td>
+              <td className="objective-overview-primary-column p-3 text-center font-bold">{g.possiblePoints ?? '—'}</td>
               {overviewCheckpoints.flatMap(cp => {
                 const value = resolveCheckpoint(g, cp.id);
                 const weekMatch = cp.id.match(/^week-(\d+)$/);
@@ -721,10 +721,10 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
                 const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
                 return [
-                  <td key={`${g.id}-${cp.id}-result`} className={`border-l border-slate-100 p-2 ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-start' : ''}`}>
-                    <div className="flex flex-wrap items-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
+                  <td key={`${g.id}-${cp.id}-result`} className={`border-l border-slate-100 p-2 text-center ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-start' : ''}`}>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
                   </td>,
-                  <td key={`${g.id}-${cp.id}-status`} className={`p-2 ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-end' : ''}`}>
+                  <td key={`${g.id}-${cp.id}-status`} className={`p-2 text-center ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-end' : ''}`}>
                     <span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
                   </td>,
                 ];
