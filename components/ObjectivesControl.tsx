@@ -55,6 +55,39 @@ const parseReportNumber = (value: unknown): number | undefined => {
   return negative ? -Math.abs(parsed) : parsed;
 };
 
+// Nos relatórios de operações as células estão fundidas, pelo que o valor pode
+// começar algumas colunas depois do início do bloco Food/Paper.
+const firstNumberFrom = (row: unknown[], start: number, end: number) => {
+  for (let index = Math.max(0, start); index < Math.min(end, row.length); index += 1) {
+    const parsed = parseReportNumber(row[index]);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
+};
+
+const reportDateFromSheet = (rows: unknown[][]) => {
+  const asIsoDate = (value: unknown) => {
+    const match = String(value ?? '').trim().match(/^([0-3]?\d)[/.-](0?[1-9]|1[0-2])[/.-](20\d{2})$/);
+    return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : '';
+  };
+  const top = rows.slice(0, 15);
+  for (const row of top) {
+    const labelIndex = row.findIndex(cell => /data/i.test(String(cell ?? '')));
+    if (labelIndex < 0) continue;
+    for (const cell of row.slice(labelIndex + 1)) {
+      const date = asIsoDate(cell);
+      if (date) return date;
+    }
+  }
+  for (const row of top) {
+    for (const cell of row) {
+      const date = asIsoDate(cell);
+      if (date) return date;
+    }
+  }
+  return '';
+};
+
 const reportDateFromName = (name: string) => {
   const iso = name.match(/(20\d{2})[-_. ](0?[1-9]|1[0-2])[-_. ]([0-3]?\d)/);
   const local = name.match(/([0-3]?\d)[-_. ](0?[1-9]|1[0-2])[-_. ](20\d{2})/);
@@ -76,6 +109,9 @@ function mapFoodCostReportRows(rows: unknown[][]) {
   const foodColumn = headers.indexOf('food');
   const paperColumn = headers.indexOf('paper');
   if (foodColumn < 0 || paperColumn < 0) return undefined;
+  const headerLength = rows[headerIndex].length;
+  const foodRangeEnd = paperColumn > foodColumn ? paperColumn : headerLength;
+  const paperRangeEnd = paperColumn > foodColumn ? headerLength : foodColumn;
   const dataRows = rows.slice(headerIndex + 1);
   const labelColumn = dataRows
     .map(row => row.findIndex((cell, index) => index < foodColumn && String(cell ?? '').trim() !== '' && parseReportNumber(cell) === undefined))
@@ -86,7 +122,10 @@ function mapFoodCostReportRows(rows: unknown[][]) {
   });
   const amount = (number: number, keyword: string, column: number) => {
     const row = findRow(number, keyword);
-    return row ? (parseReportNumber(row[column]) ?? 0) : undefined;
+    if (!row) return undefined;
+    return column === foodColumn
+      ? firstNumberFrom(row, foodColumn, foodRangeEnd)
+      : firstNumberFrom(row, paperColumn, paperRangeEnd);
   };
   const sumRows = (parts: [number, string][], column: number) => parts.reduce((sum, [number, keyword]) => sum + (amount(number, keyword, column) ?? 0), 0);
   const aggregate = (total: [number, string], parts: [number, string][], column: number) => {
@@ -115,11 +154,17 @@ function mapFoodCostReportRows(rows: unknown[][]) {
   const paperWithoutComposition = get(18, 'custosemcomposicao', paperColumn);
   const foodActualPnl = amount(6, 'costatualpl', foodColumn) ?? foodOpening + foodPurchases + foodTransfers - foodPromos - foodLosses - foodMeals - foodFinalInventory;
   const paperActualPnl = amount(6, 'costatualpl', paperColumn) ?? paperOpening + paperPurchases + paperTransfers - paperPromos - paperLosses - paperMeals - paperFinalInventory;
-  const salesRow = dataRows.find(row => {
-    const label = normalizeReportText(row[labelColumn]);
+  const salesLabel = (row: unknown[]) => normalizeReportText(row[labelColumn]);
+  const netSalesRow = dataRows.find(row => {
+    const label = salesLabel(row);
+    return label.startsWith('vendasliquidas') && label.includes('produto') && !label.includes('naoproduto') && !label.includes('ano');
+  });
+  const grossSalesRow = dataRows.find(row => {
+    const label = salesLabel(row);
     return (label.includes('vendas') && label.includes('produto')) || label.includes('totalvendas') || label.includes('productsales');
   });
-  const productSales = salesRow ? parseReportNumber(salesRow[foodColumn]) : undefined;
+  const productSales = firstNumberFrom(netSalesRow ?? [], foodColumn, foodRangeEnd)
+    ?? firstNumberFrom(grossSalesRow ?? [], foodColumn, foodRangeEnd);
   const fields: ReportFoodCostFields = {
     foodOpening, foodPurchases, foodTransfers, foodPromos, foodLosses, foodMeals, foodFinalInventory,
     foodTheoretical, foodWithoutComposition, foodActualPnl,
@@ -140,6 +185,7 @@ function mapFoodCostReportRows(rows: unknown[][]) {
   return {
     fields,
     productSales,
+    reportDate: reportDateFromSheet(rows),
     missingLabels,
     sample: rows.slice(Math.max(0, headerIndex - 1), headerIndex + 7).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)),
   };
@@ -587,6 +633,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
               sample: mapped.sample,
               fields: mapped.fields,
               productSales: mapped.productSales ?? '',
+              reportDate: base.reportDate || mapped.reportDate || '',
               missingLabels: mapped.missingLabels,
               note: mapped.missingLabels.length ? `Não encontrei estas linhas obrigatórias: ${mapped.missingLabels.join(', ')}. Confirme o formato do relatório antes de importar.` : undefined,
             };
@@ -811,7 +858,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
         <Upload className="mx-auto mb-3 text-slate-500" size={28}/>
         <p className="font-extrabold text-slate-800">Carregar relatório</p>
-        <p className="mt-1 text-sm text-slate-500">Excel (.xls/.xlsx) ou CSV. São lidas apenas as colunas monetárias Food e Paper; as colunas % são ignoradas. A importação fica em edição local até guardar Custo Comida e Papel.</p>
+        <p className="mt-1 text-sm text-slate-500">Excel (.xls/.xlsx) ou CSV. São lidas as colunas monetárias Food e Paper, as Vendas Líquidas Produto e a data do relatório; as colunas % são ignoradas. A importação fica em edição local até guardar Custo Comida e Papel.</p>
         <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">
           <FileSpreadsheet size={16}/> Selecionar ficheiros
           <input type="file" multiple accept=".xlsx,.xls,.csv,.pdf" className="sr-only" onChange={e => {
@@ -830,7 +877,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
           </div>
           {preview.note && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{preview.note}</p>}
           {preview.fields ? <>
-            <p className="mt-2 text-xs text-slate-500">Folha mapeada: {preview.sheetName || '—'} · valores monetários Food/Paper; percentagens não utilizadas.</p>
+            <p className="mt-2 text-xs text-slate-500">Folha mapeada: {preview.sheetName || '—'} · valores monetários Food/Paper, Vendas Líquidas Produto e data do relatório; percentagens não utilizadas.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Data do relatório / início do período
                 <input type="date" value={preview.reportDate} onChange={e => patchReportPreview(i, { reportDate: e.target.value })} className={`${inputClass} mt-1`}/>
