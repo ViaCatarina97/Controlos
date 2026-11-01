@@ -610,6 +610,8 @@ export type ObjectiveResultStatus = 'Superado' | 'Atingido' | 'Próximo' | 'Não
 
 export interface ObjectiveCheckpoint {
   result: number | '';
+  /** Objetivo próprio deste checkpoint, quando o tema tem objetivo por semana (custo comida e papel). */
+  target?: number;
   status?: ObjectiveResultStatus | '';
   points?: number;
   updatedAt?: string;
