@@ -617,6 +617,8 @@ export interface ObjectiveCheckpoint {
 
 export interface ObjectiveGoal {
   id: string;
+  /** Tema mensal a que este objetivo pertence (ver ObjectiveThemesSettings). */
+  themeId?: string;
   owner: string;
   metric: string;
   target: number;
@@ -672,6 +674,20 @@ export interface ObjectiveCriterion {
 export interface ObjectiveCriteriaSettings {
   id: 'criteria';
   criteria: ObjectiveCriterion[];
+  updatedAt: string;
+}
+
+/** Tema fixo da loja: igual em todos os meses. Só o objetivo de cada mês varia. */
+export interface ObjectiveTheme {
+  id: string;
+  owner: string;
+  metric: string;
+  possiblePoints: number;
+}
+
+export interface ObjectiveThemesSettings {
+  id: 'themes';
+  themes: ObjectiveTheme[];
   updatedAt: string;
 }
 

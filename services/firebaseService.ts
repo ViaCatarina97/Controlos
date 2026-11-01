@@ -10,7 +10,7 @@ import {
   DailySchedule, DeliveryRecord, CreditNoteRecord, MonthlyOperationalData,
   CofreCount, DepositRecord, CaixaSurpresaRecord, ProsegurDepositRecord, ProsegurWeeklyDeposit, ProsegurCoinMovement,
   ManagerTask, ManagerTaskChecklist, AgendaEvent, CleaningPlanWeek, CleaningTemplateConfig,
-  ExtraordinaryCleaningTask, ObjectiveMonth, ObjectiveCriteriaSettings
+  ExtraordinaryCleaningTask, ObjectiveMonth, ObjectiveCriteriaSettings, ObjectiveThemesSettings
 } from '../types';
 import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
@@ -2043,6 +2043,39 @@ export async function getObjectiveCriteria(restaurantId: string): Promise<Object
       return saved ? JSON.parse(saved) as ObjectiveCriteriaSettings : null;
     },
     OperationType.GET,
+    path
+  );
+}
+
+export async function getObjectiveThemes(restaurantId: string): Promise<ObjectiveThemesSettings | null> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_settings/themes`;
+  return runFirestoreOp<ObjectiveThemesSettings | null>(
+    async () => {
+      const snap = await getDoc(doc(db, 'restaurants', restaurantId, 'objective_settings', 'themes'));
+      const data = snap.exists() ? snap.data() as ObjectiveThemesSettings : null;
+      if (data) localStorage.setItem(`app_objective_themes_${restaurantId}`, JSON.stringify(data));
+      return data;
+    },
+    () => {
+      const saved = localStorage.getItem(`app_objective_themes_${restaurantId}`);
+      return saved ? JSON.parse(saved) as ObjectiveThemesSettings : null;
+    },
+    OperationType.GET,
+    path
+  );
+}
+
+export async function saveObjectiveThemes(restaurantId: string, settings: ObjectiveThemesSettings): Promise<void> {
+  await ensureAuthenticated();
+  const path = `restaurants/${restaurantId}/objective_settings/themes`;
+  return runFirestoreWrite(
+    async () => {
+      await setDoc(doc(db, 'restaurants', restaurantId, 'objective_settings', 'themes'), sanitizeForFirestore(settings));
+      localStorage.setItem(`app_objective_themes_${restaurantId}`, JSON.stringify(settings));
+    },
+    () => { localStorage.setItem(`app_objective_themes_${restaurantId}`, JSON.stringify(settings)); },
+    OperationType.WRITE,
     path
   );
 }

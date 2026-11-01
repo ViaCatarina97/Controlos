@@ -1,14 +1,162 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Employee, ObjectiveMonth, ObjectiveGoal, ObjectiveCheckpoint, ObjectiveCriterion, ObjectiveCriteriaSettings, FoodCostEntry, ObjectiveCorrectiveAction, CorrectiveActionStatus } from '../types';
-import { getObjectiveMonths, saveObjectiveMonth, getObjectiveCriteria, saveObjectiveCriteria } from '../services/firebaseService';
+import { Employee, ObjectiveMonth, ObjectiveGoal, ObjectiveCheckpoint, ObjectiveCriterion, ObjectiveCriteriaSettings, ObjectiveTheme, ObjectiveThemesSettings, FoodCostEntry, ObjectiveCorrectiveAction, CorrectiveActionStatus } from '../types';
+import { getObjectiveMonths, saveObjectiveMonth, getObjectiveCriteria, saveObjectiveCriteria, getObjectiveThemes, saveObjectiveThemes } from '../services/firebaseService';
 import { Target, Plus, Save, Send, History, TrendingUp, Upload, FileSpreadsheet, Utensils, CalendarDays, ClipboardCheck, CheckCircle2, Clock3, AlertTriangle, Trash2, Download, Printer } from 'lucide-react';
 
 interface ObjectivesControlProps {
   restaurantId: string;
   employees: Employee[];
   activeSubTab: string;
+  onTabChange?: (tab: string) => void;
 }
+
+type ReportFoodCostFields = Pick<FoodCostEntry,
+  'foodOpening' | 'foodPurchases' | 'foodTransfers' | 'foodPromos' | 'foodLosses' | 'foodMeals' |
+  'foodFinalInventory' | 'foodTheoretical' | 'foodWithoutComposition' | 'foodActualPnl' |
+  'paperOpening' | 'paperPurchases' | 'paperTransfers' | 'paperPromos' | 'paperLosses' | 'paperMeals' |
+  'paperFinalInventory' | 'paperTheoretical' | 'paperWithoutComposition' | 'paperActualPnl'
+>;
+
+interface ReportImportPreview {
+  name: string;
+  size: number;
+  sheets: string[];
+  sheetName?: string;
+  sample: string[][];
+  note?: string;
+  reportDate: string;
+  productSales: number | '';
+  fields?: ReportFoodCostFields;
+  missingLabels?: string[];
+}
+
+const normalizeReportText = (value: unknown) => String(value ?? '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase('pt-PT')
+  .replace(/[^a-z0-9]+/g, '');
+
+const parseReportNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  let text = String(value ?? '').trim().replace(/[\s\u00a0€%]/g, '');
+  if (!text) return undefined;
+  const negative = /^\(.*\)$/.test(text);
+  text = text.replace(/[()]/g, '');
+  const comma = text.lastIndexOf(',');
+  const dot = text.lastIndexOf('.');
+  if (comma >= 0 && dot >= 0) {
+    text = comma > dot ? text.replace(/\./g, '').replace(',', '.') : text.replace(/,/g, '');
+  } else if (comma >= 0) {
+    text = text.replace(',', '.');
+  }
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) return undefined;
+  return negative ? -Math.abs(parsed) : parsed;
+};
+
+const reportDateFromName = (name: string) => {
+  const iso = name.match(/(20\d{2})[-_. ](0?[1-9]|1[0-2])[-_. ]([0-3]?\d)/);
+  const local = name.match(/([0-3]?\d)[-_. ](0?[1-9]|1[0-2])[-_. ](20\d{2})/);
+  const candidate = iso
+    ? `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
+    : local ? `${local[3]}-${local[2].padStart(2, '0')}-${local[1].padStart(2, '0')}` : '';
+  if (!candidate) return '';
+  const date = new Date(`${candidate}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === candidate ? candidate : '';
+};
+
+function mapFoodCostReportRows(rows: unknown[][]) {
+  const headerIndex = rows.findIndex(row => {
+    const header = row.map(normalizeReportText);
+    return header.includes('food') && header.includes('paper');
+  });
+  if (headerIndex < 0) return undefined;
+  const headers = rows[headerIndex].map(normalizeReportText);
+  const foodColumn = headers.indexOf('food');
+  const paperColumn = headers.indexOf('paper');
+  if (foodColumn < 0 || paperColumn < 0) return undefined;
+  const dataRows = rows.slice(headerIndex + 1);
+  const labelColumn = dataRows
+    .map(row => row.findIndex((cell, index) => index < foodColumn && String(cell ?? '').trim() !== '' && parseReportNumber(cell) === undefined))
+    .find(index => index >= 0) ?? 0;
+  const findRow = (number: number, keyword: string) => dataRows.find(row => {
+    const label = normalizeReportText(row[labelColumn]);
+    return label.startsWith(String(number)) && label.includes(keyword);
+  });
+  const amount = (number: number, keyword: string, column: number) => {
+    const row = findRow(number, keyword);
+    return row ? (parseReportNumber(row[column]) ?? 0) : undefined;
+  };
+  const sumRows = (parts: [number, string][], column: number) => parts.reduce((sum, [number, keyword]) => sum + (amount(number, keyword, column) ?? 0), 0);
+  const aggregate = (total: [number, string], parts: [number, string][], column: number) => {
+    const direct = amount(total[0], total[1], column);
+    return direct === undefined ? sumRows(parts, column) : direct;
+  };
+  const get = (number: number, keyword: string, column: number) => amount(number, keyword, column) ?? 0;
+
+  const foodOpening = get(1, 'stockabertura', foodColumn);
+  const foodPurchases = get(2, 'compras', foodColumn);
+  const foodTransfers = get(3, 'transferencias', foodColumn);
+  const foodFinalInventory = get(4, 'stockdefecho', foodColumn);
+  const foodLosses = aggregate([10, 'totalperdas'], [[8, 'perdasbrutas'], [9, 'perdasacabadas']], foodColumn);
+  const foodPromos = aggregate([13, 'totalpromos'], [[11, 'promobrutas'], [12, 'promoacabadas']], foodColumn);
+  const foodMeals = aggregate([16, 'totalrefeicoes'], [[14, 'refeicaogerente'], [15, 'refeicaofuncionario']], foodColumn);
+  const foodTheoretical = get(7, 'custoteorico', foodColumn);
+  const foodWithoutComposition = get(18, 'custosemcomposicao', foodColumn);
+  const paperOpening = get(1, 'stockabertura', paperColumn);
+  const paperPurchases = get(2, 'compras', paperColumn);
+  const paperTransfers = get(3, 'transferencias', paperColumn);
+  const paperFinalInventory = get(4, 'stockdefecho', paperColumn);
+  const paperLosses = aggregate([10, 'totalperdas'], [[8, 'perdasbrutas'], [9, 'perdasacabadas']], paperColumn);
+  const paperPromos = aggregate([13, 'totalpromos'], [[11, 'promobrutas'], [12, 'promoacabadas']], paperColumn);
+  const paperMeals = aggregate([16, 'totalrefeicoes'], [[14, 'refeicaogerente'], [15, 'refeicaofuncionario']], paperColumn);
+  const paperTheoretical = get(7, 'custoteorico', paperColumn);
+  const paperWithoutComposition = get(18, 'custosemcomposicao', paperColumn);
+  const foodActualPnl = amount(6, 'costatualpl', foodColumn) ?? foodOpening + foodPurchases + foodTransfers - foodPromos - foodLosses - foodMeals - foodFinalInventory;
+  const paperActualPnl = amount(6, 'costatualpl', paperColumn) ?? paperOpening + paperPurchases + paperTransfers - paperPromos - paperLosses - paperMeals - paperFinalInventory;
+  const salesRow = dataRows.find(row => {
+    const label = normalizeReportText(row[labelColumn]);
+    return (label.includes('vendas') && label.includes('produto')) || label.includes('totalvendas') || label.includes('productsales');
+  });
+  const productSales = salesRow ? parseReportNumber(salesRow[foodColumn]) : undefined;
+  const fields: ReportFoodCostFields = {
+    foodOpening, foodPurchases, foodTransfers, foodPromos, foodLosses, foodMeals, foodFinalInventory,
+    foodTheoretical, foodWithoutComposition, foodActualPnl,
+    paperOpening, paperPurchases, paperTransfers, paperPromos, paperLosses, paperMeals, paperFinalInventory,
+    paperTheoretical, paperWithoutComposition, paperActualPnl,
+  };
+  const missingLabels: string[] = [];
+  const requiredRows: [string, number, string][] = [
+    ['Stock Abertura', 1, 'stockabertura'], ['Compras', 2, 'compras'],
+    ['Transferências', 3, 'transferencias'], ['Stock de Fecho', 4, 'stockdefecho'],
+    ['Custo P/L atual', 6, 'costatualpl'], ['Custo Teórico', 7, 'custoteorico'],
+    ['Custo sem Composição', 18, 'custosemcomposicao'],
+  ];
+  requiredRows.forEach(([label, number, keyword]) => { if (!findRow(number, keyword)) missingLabels.push(label); });
+  if (!findRow(10, 'totalperdas') && !(findRow(8, 'perdasbrutas') && findRow(9, 'perdasacabadas'))) missingLabels.push('Total Perdas');
+  if (!findRow(13, 'totalpromos') && !(findRow(11, 'promobrutas') && findRow(12, 'promoacabadas'))) missingLabels.push('Total Promos');
+  if (!findRow(16, 'totalrefeicoes') && !(findRow(14, 'refeicaogerente') && findRow(15, 'refeicaofuncionario'))) missingLabels.push('Total Refeições');
+  return {
+    fields,
+    productSales,
+    missingLabels,
+    sample: rows.slice(Math.max(0, headerIndex - 1), headerIndex + 7).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)),
+  };
+}
+
+const REPORT_AMOUNT_ROWS: { label: string; food: keyof ReportFoodCostFields; paper: keyof ReportFoodCostFields }[] = [
+  { label: 'Stock Abertura', food: 'foodOpening', paper: 'paperOpening' },
+  { label: 'Compras', food: 'foodPurchases', paper: 'paperPurchases' },
+  { label: 'Transferências', food: 'foodTransfers', paper: 'paperTransfers' },
+  { label: 'Stock de Fecho', food: 'foodFinalInventory', paper: 'paperFinalInventory' },
+  { label: 'Custo P/L atual', food: 'foodActualPnl', paper: 'paperActualPnl' },
+  { label: 'Custo Teórico', food: 'foodTheoretical', paper: 'paperTheoretical' },
+  { label: 'Total Perdas', food: 'foodLosses', paper: 'paperLosses' },
+  { label: 'Total Promos', food: 'foodPromos', paper: 'paperPromos' },
+  { label: 'Total Refeições', food: 'foodMeals', paper: 'paperMeals' },
+  { label: 'Custo sem Composição', food: 'foodWithoutComposition', paper: 'paperWithoutComposition' },
+];
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const STATUS_OPTIONS: ObjectiveCheckpoint['status'][] = ['Superado','Atingido','Próximo','Não Atingido'];
@@ -90,10 +238,12 @@ const blankFoodCost = (date: string): FoodCostEntry => ({
   paperOpening: 0, paperPurchases: 0, paperTransfers: 0, paperPromos: 0, paperLosses: 0, paperMeals: 0, paperFinalInventory: 0, paperTheoretical: 0, paperWithoutComposition: 0, paperActualPnl: 0,
 });
 
-const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, employees, activeSubTab }) => {
+const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, employees, activeSubTab, onTabChange }) => {
   const [months, setMonths] = useState<ObjectiveMonth[]>([]);
   const [criteriaSettings, setCriteriaSettings] = useState<ObjectiveCriteriaSettings>({ id: 'criteria', criteria: [], updatedAt: new Date().toISOString() });
   const [savedCriteriaSettings, setSavedCriteriaSettings] = useState<ObjectiveCriteriaSettings>({ id: 'criteria', criteria: [], updatedAt: new Date().toISOString() });
+  const [themesSettings, setThemesSettings] = useState<ObjectiveThemesSettings>({ id: 'themes', themes: [], updatedAt: new Date().toISOString() });
+  const [savedThemesSettings, setSavedThemesSettings] = useState<ObjectiveThemesSettings>({ id: 'themes', themes: [], updatedAt: new Date().toISOString() });
   const [selectedMonth, setSelectedMonth] = useState(monthKey());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,18 +252,30 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const [performanceTo, setPerformanceTo] = useState(monthKey());
   const [managerFilter, setManagerFilter] = useState('');
   const [actionDrafts, setActionDrafts] = useState<Record<string, { description: string; responsible: string; dueDate: string }>>({});
-  const [reportFiles, setReportFiles] = useState<File[]>([]);
-  const [reportPreviews, setReportPreviews] = useState<{ name: string; sheets: string[]; sample: string[][]; note?: string }[]>([]);
+  const [reportPreviews, setReportPreviews] = useState<ReportImportPreview[]>([]);
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getObjectiveMonths(restaurantId), getObjectiveCriteria(restaurantId)])
-      .then(([rows, settings]) => {
+    Promise.all([getObjectiveMonths(restaurantId), getObjectiveCriteria(restaurantId), getObjectiveThemes(restaurantId)])
+      .then(([rows, settings, themes]) => {
         if (!mounted) return;
         setMonths(rows);
         if (settings) {
           setCriteriaSettings(settings);
           setSavedCriteriaSettings(settings);
+        }
+        if (themes?.themes?.length) {
+          setThemesSettings(themes);
+          setSavedThemesSettings(themes);
+        } else {
+          // Primeira utilização: os temas são lidos do mês mais recente com objetivos
+          // e ficam por guardar até o utilizador confirmar a lista.
+          const source = rows.find(row => row.goals.length > 0);
+          const bootstrapped = source
+            ? source.goals.map(goal => ({ id: goal.id, owner: goal.owner, metric: goal.metric, possiblePoints: goal.possiblePoints }))
+            : [];
+          setThemesSettings({ id: 'themes', themes: bootstrapped, updatedAt: new Date().toISOString() });
+          setSavedThemesSettings({ id: 'themes', themes: themes?.themes || [], updatedAt: themes?.updatedAt || new Date().toISOString() });
         }
       })
       .catch(() => { if (mounted) setNotice('Não foi possível sincronizar os objetivos e as definições.'); })
@@ -125,7 +287,31 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
 
   const monthData = useMemo(() => months.find(m => m.month === selectedMonth), [months, selectedMonth]);
   const draft = monthData?.status !== 'submitted';
-  const goals = monthData?.goals || [];
+  // Temas fixos da loja: iguais em todos os meses.
+  const storedThemes = savedThemesSettings.themes;
+  const themesDraft = themesSettings.themes;
+  const themesDirty = JSON.stringify(themesDraft) !== JSON.stringify(storedThemes);
+  const themeGoal = (theme: ObjectiveTheme): ObjectiveGoal => ({
+    id: theme.id, themeId: theme.id, owner: theme.owner, metric: theme.metric,
+    target: 0, possiblePoints: theme.possiblePoints, checkpoints: {},
+  });
+  // Num mês em rascunho as linhas vêm dos temas: responsável, tema e pontos são os
+  // da lista fixa; do mês vêm apenas o objetivo, os resultados e as ações.
+  const goals = useMemo<ObjectiveGoal[]>(() => {
+    if (!draft) return monthData?.goals || [];
+    const existing = monthData?.goals || [];
+    const used = new Set<string>();
+    const rows = storedThemes.map(theme => {
+      const metric = theme.metric.trim().toLocaleLowerCase('pt-PT');
+      const match = existing.find(goal => !used.has(goal.id) && (goal.themeId
+        ? goal.themeId === theme.id
+        : goal.metric.trim().toLocaleLowerCase('pt-PT') === metric));
+      if (!match) return themeGoal(theme);
+      used.add(match.id);
+      return { ...match, themeId: theme.id, owner: theme.owner, metric: theme.metric, possiblePoints: theme.possiblePoints };
+    });
+    return [...rows, ...existing.filter(goal => !used.has(goal.id))];
+  }, [draft, monthData, storedThemes]);
   const foodRows = monthData?.foodCost || [];
   const criteria = savedCriteriaSettings.criteria;
   const criteriaDraft = criteriaSettings.criteria;
@@ -169,15 +355,38 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const updateLocalMonth = (updated: ObjectiveMonth) => {
     setMonths(prev => [...prev.filter(m => m.month !== updated.month), updated].sort((a,b) => b.month.localeCompare(a.month)));
   };
-  const baseMonth = (): ObjectiveMonth => monthData || { id: selectedMonth, month: selectedMonth, status: 'draft', goals: [], foodCost: [], updatedAt: new Date().toISOString() };
+  const baseMonth = (): ObjectiveMonth => monthData
+    ? { ...monthData, goals }
+    : { id: selectedMonth, month: selectedMonth, status: 'draft', goals, foodCost: [], updatedAt: new Date().toISOString() };
   const patchGoal = (id: string, patch: Partial<ObjectiveGoal>) => {
     const base = baseMonth();
     updateLocalMonth({ ...base, goals: base.goals.map(g => g.id === id ? { ...g, ...patch } : g) });
   };
-  const addGoal = () => {
-    const base = baseMonth();
-    const goal: ObjectiveGoal = { id: newId(), owner: '', metric: '', target: 0, possiblePoints: 0, checkpoints: {} };
-    updateLocalMonth({ ...base, goals: [...base.goals, goal] });
+  const addTheme = () => setThemesSettings(prev => ({
+    ...prev, updatedAt: new Date().toISOString(),
+    themes: [...prev.themes, { id: newId(), owner: '', metric: '', possiblePoints: 0 }],
+  }));
+  const patchTheme = (id: string, patch: Partial<ObjectiveTheme>) => setThemesSettings(prev => ({
+    ...prev, updatedAt: new Date().toISOString(),
+    themes: prev.themes.map(theme => theme.id === id ? { ...theme, ...patch } : theme),
+  }));
+  const removeTheme = (id: string) => setThemesSettings(prev => ({
+    ...prev, updatedAt: new Date().toISOString(),
+    themes: prev.themes.filter(theme => theme.id !== id),
+  }));
+  const saveThemes = async () => {
+    const updated: ObjectiveThemesSettings = {
+      id: 'themes', updatedAt: new Date().toISOString(),
+      themes: themesDraft.filter(theme => theme.metric.trim() !== ''),
+    };
+    setSaving(true); setNotice('');
+    try {
+      await saveObjectiveThemes(restaurantId, updated);
+      setThemesSettings(updated);
+      setSavedThemesSettings(updated);
+      setNotice('Temas guardados. Passam a ser os mesmos em todos os meses; em cada mês só se altera o objetivo.');
+    } catch { setNotice('Não foi possível guardar os temas. Verifique a ligação e tente novamente.'); }
+    finally { setSaving(false); window.setTimeout(() => setNotice(''), 3500); }
   };
   const addCorrectiveAction = (goal: ObjectiveGoal) => {
     const draftAction = actionDrafts[goal.id];
@@ -273,19 +482,95 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const closedCorrectiveActions = goals.flatMap(goal => (goal.correctiveActions || []).filter(action => action.status === 'Concluída').map(action => ({ goal, action })));
 
   const handleReportFiles = async (files: File[]) => {
-    setReportFiles(files);
     const previews = await Promise.all(files.map(async file => {
-      if (/\.pdf$/i.test(file.name)) return { name: file.name, sheets: [], sample: [], note: 'PDF selecionado; leitura e mapeamento serão configurados depois.' };
+      const base = {
+        name: file.name,
+        size: file.size,
+        sheets: [] as string[],
+        sample: [] as string[][],
+        reportDate: reportDateFromName(file.name),
+        productSales: '' as number | '',
+      };
+      if (/\.pdf$/i.test(file.name)) {
+        return { ...base, note: 'PDF selecionado. A importação automática suporta Excel e CSV; exporte este relatório para um desses formatos.' };
+      }
       try {
         const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const rows = sheet ? XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as unknown[][] : [];
+          const mapped = mapFoodCostReportRows(rows);
+          if (mapped) {
+            return {
+              ...base,
+              sheets: workbook.SheetNames,
+              sheetName,
+              sample: mapped.sample,
+              fields: mapped.fields,
+              productSales: mapped.productSales ?? '',
+              missingLabels: mapped.missingLabels,
+              note: mapped.missingLabels.length ? `Não encontrei estas linhas obrigatórias: ${mapped.missingLabels.join(', ')}. Confirme o formato do relatório antes de importar.` : undefined,
+            };
+          }
+        }
+        const firstName = workbook.SheetNames[0];
+        const firstSheet = firstName ? workbook.Sheets[firstName] : undefined;
         const rows = firstSheet ? XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: false }) as unknown[][] : [];
-        return { name: file.name, sheets: workbook.SheetNames, sample: rows.slice(0, 5).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)) };
+        return {
+          ...base,
+          sheets: workbook.SheetNames,
+          sample: rows.slice(0, 5).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)),
+          note: 'Não encontrei cabeçalhos “Food” e “Paper” na mesma folha. O ficheiro foi apenas pré-visualizado; nada foi importado.',
+        };
       } catch {
-        return { name: file.name, sheets: [], sample: [], note: 'Não foi possível pré-visualizar este ficheiro.' };
+        return { ...base, note: 'Não foi possível ler este ficheiro. Tente novamente com um Excel (.xls/.xlsx) ou CSV válido.' };
       }
     }));
     setReportPreviews(previews);
+  };
+  const patchReportPreview = (index: number, patch: Partial<ReportImportPreview>) => {
+    setReportPreviews(prev => prev.map((preview, current) => current === index ? { ...preview, ...patch } : preview));
+  };
+  const importReportToFoodCost = (index: number) => {
+    const preview = reportPreviews[index];
+    if (!preview?.fields) return;
+    if (preview.missingLabels?.length) {
+      setNotice(`Importação cancelada: faltam linhas no relatório (${preview.missingLabels.join(', ')}).`);
+      return;
+    }
+    if (!preview.reportDate) {
+      setNotice('Indique a data do relatório (ou do início do período) antes de importar.');
+      return;
+    }
+    if (preview.productSales === '' || !Number.isFinite(Number(preview.productSales)) || Number(preview.productSales) < 0) {
+      setNotice('Indique um total de Vendas Produto válido antes de importar; as colunas percentuais do relatório não serão usadas.');
+      return;
+    }
+    const targetMonth = preview.reportDate.slice(0, 7);
+    const existingMonth = months.find(month => month.month === targetMonth);
+    if (existingMonth?.status === 'submitted') {
+      setNotice(`O mês ${targetMonth} já foi submetido. O relatório não foi importado nem alterou registos.`);
+      return;
+    }
+    const existingRows = existingMonth?.foodCost || [];
+    if (existingRows.some(row => row.date === preview.reportDate)) {
+      setNotice(`Já existe um registo de Custo Comida para ${preview.reportDate}. Para preservar os dados, não foi substituído nem importado outro registo nessa data.`);
+      return;
+    }
+    const baseMonthData: ObjectiveMonth = existingMonth || {
+      id: targetMonth, month: targetMonth, status: 'draft', goals: [], foodCost: [], updatedAt: new Date().toISOString(),
+    };
+    const entry: FoodCostEntry = {
+      ...preview.fields,
+      id: newId(),
+      date: preview.reportDate,
+      productSales: Number(preview.productSales),
+    };
+    updateLocalMonth({ ...baseMonthData, foodCost: [...baseMonthData.foodCost, entry] });
+    setSelectedMonth(targetMonth);
+    onTabChange?.('objectives_food_cost');
+    setReportPreviews(prev => prev.filter((_, current) => current !== index));
+    setNotice(`Relatório importado para ${preview.reportDate} apenas na edição local. Reveja os valores e selecione “Guardar custo comida e papel” para sincronizar.`);
   };
   const inputClass = 'w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
   const monthPicker = <input aria-label="Mês" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800" />;
@@ -382,10 +667,20 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
     </section>}
 
     {activeSubTab === 'objectives_setup' && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Cada linha é um objetivo. Introduza apenas os resultados semanais, da quinzena e do mês; a classificação calculada é consultada na Visão Geral.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addGoal} disabled={!draft||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar objetivo</button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Objetivos do Mês</h3><p className="text-sm text-slate-500">Os temas e os responsáveis são iguais todos os meses. Em cada mês só se altera o objetivo de cada tema e se registam os resultados semanais, da quinzena e do mês.</p></div><div className="flex gap-2">{monthPicker}</div></div>
+
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="text-base font-extrabold text-slate-900">Temas (iguais todos os meses)</h4><p className="text-xs text-slate-500">A lista aplica-se a todos os meses. Só o objetivo de cada tema muda de mês para mês.</p></div><div className="flex flex-wrap gap-2"><button onClick={addTheme} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><Plus size={14}/> Adicionar tema</button><button onClick={saveThemes} disabled={saving||!themesDirty} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><Save size={14}/>{saving?'A guardar…':'Guardar temas'}</button></div></div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="min-w-[640px] w-full text-left text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">Responsável</th><th className="p-2">Tema</th><th className="p-2">Pontos possíveis</th><th className="p-2">Ações</th></tr></thead><tbody>
+          {themesDraft.map((theme, index) => <tr key={theme.id} className="border-t border-slate-100"><td className="p-2"><select value={theme.owner} onChange={e=>patchTheme(theme.id,{owner:e.target.value})} aria-label={`Responsável do tema ${index+1}`} className="w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"><option value="">Selecionar</option>{Array.from(new Set([...employees.map(employee => employee.name), ...themesDraft.map(item => item.owner)].filter(Boolean))).map(name=><option key={name} value={name}>{name}</option>)}</select></td><td className="p-2"><input value={theme.metric} onChange={e=>patchTheme(theme.id,{metric:e.target.value})} placeholder={`Tema ${index+1}`} aria-label={`Tema ${index+1}`} className="w-56 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"/></td><td className="p-2"><input type="number" value={theme.possiblePoints} onChange={e=>patchTheme(theme.id,{possiblePoints:Number(e.target.value)})} aria-label={`Pontos possíveis do tema ${index+1}`} className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-xs"/></td><td className="p-2"><button onClick={()=>removeTheme(theme.id)} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label={`Remover tema ${index+1}`}><Trash2 size={15}/></button></td></tr>)}
+          {!themesDraft.length && <tr><td colSpan={4} className="p-6 text-center text-slate-500">Ainda não há temas definidos. Adicione os temas uma vez; ficam iguais para todos os meses.</td></tr>}
+        </tbody></table></div>
+        {themesDirty && <p className="text-xs font-semibold text-amber-800">Há alterações nos temas por guardar.</p>}
+        {goals.some(goal => !goal.themeId) && <p className="text-xs font-semibold text-amber-800">Este mês tem objetivos que não fazem parte da lista de temas (últimas linhas da tabela abaixo). Remova-os ou acrescente o tema à lista.</p>}
+      </section>
       {!draft && <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-900">Este mês foi submetido e está em modo de consulta.</div>}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3"><span className="text-sm font-bold text-slate-700">Semanas e validações:</span><span className="text-xs text-slate-500">As semanas são organizadas em blocos de sete dias; a Semana 5 só aparece quando o mês ultrapassa 28 dias. A Quinzena fica logo após a semana que inclui o dia 15.</span></div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1250px] w-full border-collapse text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="sticky left-0 z-10 min-w-32 border-b bg-slate-50 p-3 text-left">Responsável</th><th className="min-w-36 border-b p-3 text-left">Tema</th><th className="min-w-28 border-b p-3">Objetivo</th><th className="min-w-24 border-b p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} className="min-w-28 border-b border-l border-slate-200 p-3">{cp.label}</th>)}<th className="border-b p-3">Ações</th></tr></thead><tbody>{goals.map((g,i)=><tr key={g.id} className="border-t border-slate-100"><td className="sticky left-0 z-[1] border-r bg-white p-2"><select disabled={!draft} value={g.owner} onChange={e=>patchGoal(g.id,{owner:e.target.value})} className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs disabled:bg-slate-50"><option value="">Selecionar</option>{managers.map(m=><option key={m} value={m}>{m}</option>)}</select></td><td className="p-2"><input disabled={!draft} value={g.metric} onChange={e=>patchGoal(g.id,{metric:e.target.value})} placeholder={`Tema ${i+1}`} className="w-36 rounded-lg border border-slate-200 px-2 py-2 text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td><td className="p-2"><input disabled={!draft} type="number" value={g.possiblePoints} onChange={e=>patchGoal(g.id,{possiblePoints:Number(e.target.value)})} className="w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>{checkpointOptions.map(cp=>{const value=resolveCheckpoint(g,cp.id);return <td key={`${g.id}-${cp.id}`} className="border-l border-slate-100 p-2"><input disabled={!draft} type="number" step="0.01" value={value?.result??''} onChange={e=>updateCheckpoint(g,cp.id,e.target.value===''?'':Number(e.target.value))} aria-label={`${g.metric||`Tema ${i+1}`} · ${cp.label} · resultado`} placeholder="Resultado" className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>})}<td className="p-2"><button disabled={!draft||saving} onClick={()=>saveDraft({...baseMonth(),goals:goals.filter(x=>x.id!==g.id)})} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo ${i+1}`}><Trash2 size={16}/></button></td></tr>)}{goals.length===0&&<tr><td colSpan={5+checkpointOptions.length} className="p-8 text-center text-slate-500">Ainda não há objetivos para este mês. Adicione uma linha para começar.</td></tr>}</tbody></table></div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="min-w-[1250px] w-full border-collapse text-xs"><thead className="bg-slate-50 text-slate-600"><tr><th className="sticky left-0 z-10 min-w-32 border-b bg-slate-50 p-3 text-left">Responsável</th><th className="min-w-36 border-b p-3 text-left">Tema</th><th className="min-w-28 border-b p-3">Objetivo</th><th className="min-w-24 border-b p-3">Pontos possíveis</th>{checkpointOptions.map(cp=><th key={cp.id} className="min-w-28 border-b border-l border-slate-200 p-3">{cp.label}</th>)}<th className="border-b p-3">Ações</th></tr></thead><tbody>{goals.map((g,i)=><tr key={g.id} className="border-t border-slate-100"><td className="sticky left-0 z-[1] border-r bg-white p-2 text-xs font-semibold text-slate-700">{g.owner||'—'}</td><td className="p-2 text-xs font-semibold text-slate-800">{g.metric||<span className="text-slate-400">Tema por definir</span>}</td><td className="p-2"><input disabled={!draft} type="number" value={g.target} onChange={e=>patchGoal(g.id,{target:Number(e.target.value)})} aria-label={`${g.metric||`Tema ${i+1}`} · objetivo`} className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td><td className="p-2 text-right text-xs font-semibold text-slate-700">{g.possiblePoints}</td>{checkpointOptions.map(cp=>{const value=resolveCheckpoint(g,cp.id);return <td key={`${g.id}-${cp.id}`} className="border-l border-slate-100 p-2"><input disabled={!draft} type="number" step="0.01" value={value?.result??''} onChange={e=>updateCheckpoint(g,cp.id,e.target.value===''?'':Number(e.target.value))} aria-label={`${g.metric||`Tema ${i+1}`} · ${cp.label} · resultado`} placeholder="Resultado" className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-xs disabled:bg-slate-50"/></td>})}<td className="p-2 text-center">{g.themeId ? <span className="text-[10px] font-bold uppercase text-slate-300" title="Os temas gerem-se na lista acima">—</span> : <button disabled={!draft||saving} onClick={()=>saveDraft({...baseMonth(),goals:goals.filter(x=>x.id!==g.id)})} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-40" aria-label={`Remover objetivo fora dos temas ${i+1}`}><Trash2 size={16}/></button>}</td></tr>)}{goals.length===0&&<tr><td colSpan={5+checkpointOptions.length} className="p-8 text-center text-slate-500">Ainda não há temas definidos. Adicione-os na lista de temas acima; aparecem aqui em todos os meses.</td></tr>}</tbody></table></div>
       <div className="flex justify-end"><button disabled={!draft||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar e sincronizar'}</button></div>
 
       <section className="space-y-5 border-t border-slate-200 pt-6">
@@ -434,10 +729,62 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       <div className="flex justify-end"><button disabled={saving||goals.length===0} onClick={()=>void saveCriteria(criteriaDraft)} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar definições'}</button></div>
     </>}
 
-    {activeSubTab === 'objectives_reports' && <> 
-      <div><h3 className="text-xl font-extrabold text-slate-900">Relatórios</h3><p className="text-sm text-slate-500">Carregue o ficheiro. O mapeamento e a importação automática serão configurados numa etapa seguinte.</p></div>
-      <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center"><Upload className="mx-auto mb-3 text-slate-500" size={28}/><p className="font-extrabold text-slate-800">Carregar relatório</p><p className="mt-1 text-sm text-slate-500">Excel, CSV ou PDF. A seleção fica nesta sessão; ainda não envia dados para a folha ou para a base de dados.</p><label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white"><FileSpreadsheet size={16}/> Selecionar ficheiros<input type="file" multiple accept=".xlsx,.xls,.csv,.pdf" className="sr-only" onChange={e=>void handleReportFiles(Array.from(e.target.files||[]))}/></label></div>
-      {reportFiles.length>0&&<div className="space-y-3">{reportPreviews.map((preview,i)=><div key={`${preview.name}-${i}`} className="rounded-2xl border bg-white p-4"><div className="flex items-center gap-2"><FileSpreadsheet size={15} className="text-emerald-700"/><strong className="truncate text-sm">{preview.name}</strong><span className="ml-auto text-xs text-slate-500">{(reportFiles[i]?.size||0)/1024|0} KB</span></div>{preview.note?<p className="mt-2 text-sm text-slate-500">{preview.note}</p>:<><p className="mt-2 text-xs text-slate-500">Folhas detetadas: {preview.sheets.join(', ')||'—'}. Pré-visualização das primeiras linhas; ainda sem importação automática.</p>{preview.sample.length>0&&<div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><tbody>{preview.sample.map((row,r)=><tr key={r} className="border-t">{row.map((cell,c)=><td key={c} className="max-w-56 truncate px-2 py-1.5">{cell}</td>)}</tr>)}</tbody></table></div>}</>}</div>)}</div>}
+    {activeSubTab === 'objectives_reports' && <>
+      <div>
+        <h3 className="text-xl font-extrabold text-slate-900">Relatórios</h3>
+        <p className="text-sm text-slate-500">Importe os valores monetários do relatório para Custo Comida e Papel.</p>
+      </div>
+      <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
+        <Upload className="mx-auto mb-3 text-slate-500" size={28}/>
+        <p className="font-extrabold text-slate-800">Carregar relatório</p>
+        <p className="mt-1 text-sm text-slate-500">Excel (.xls/.xlsx) ou CSV. São lidas apenas as colunas monetárias Food e Paper; as colunas % são ignoradas. A importação fica em edição local até guardar Custo Comida e Papel.</p>
+        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">
+          <FileSpreadsheet size={16}/> Selecionar ficheiros
+          <input type="file" multiple accept=".xlsx,.xls,.csv,.pdf" className="sr-only" onChange={e => {
+            const files = Array.from(e.currentTarget.files || []) as File[];
+            e.currentTarget.value = '';
+            if (files.length) void handleReportFiles(files);
+          }}/>
+        </label>
+      </div>
+      {reportPreviews.length > 0 && <div className="space-y-3">
+        {reportPreviews.map((preview, i) => <div key={`${preview.name}-${i}`} className="rounded-2xl border bg-white p-4">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet size={15} className="shrink-0 text-emerald-700"/>
+            <strong className="truncate text-sm">{preview.name}</strong>
+            <span className="ml-auto shrink-0 text-xs text-slate-500">{Math.ceil(preview.size / 1024)} KB</span>
+          </div>
+          {preview.note && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{preview.note}</p>}
+          {preview.fields ? <>
+            <p className="mt-2 text-xs text-slate-500">Folha mapeada: {preview.sheetName || '—'} · valores monetários Food/Paper; percentagens não utilizadas.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-slate-600">Data do relatório / início do período
+                <input type="date" value={preview.reportDate} onChange={e => patchReportPreview(i, { reportDate: e.target.value })} className={`${inputClass} mt-1`}/>
+              </label>
+              <label className="text-xs font-bold text-slate-600">Vendas Produto (€)
+                <input type="number" min="0" step="0.01" value={preview.productSales} onChange={e => patchReportPreview(i, { productSales: e.target.value === '' ? '' : Number(e.target.value) })} className={`${inputClass} mt-1`}/>
+              </label>
+            </div>
+            {preview.productSales === '' && <p className="mt-2 text-xs text-amber-800">O total de Vendas Produto não foi detetado neste relatório. Introduza-o para calcular as percentagens; não será inferido das colunas %.</p>}
+            <div className="mt-3 overflow-x-auto rounded-xl border">
+              <table className="min-w-[420px] w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">Linha do relatório</th><th className="p-2 text-right">Food</th><th className="p-2 text-right">Paper</th></tr></thead>
+                <tbody>{REPORT_AMOUNT_ROWS.map(row => <tr key={row.label} className="border-t">
+                  <td className="p-2 font-medium">{row.label}</td>
+                  <td className="p-2 text-right tabular-nums">{money(Number(preview.fields?.[row.food] || 0))}</td>
+                  <td className="p-2 text-right tabular-nums">{money(Number(preview.fields?.[row.paper] || 0))}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">Os registos existentes não são substituídos. Depois de importar, reveja e guarde na página Custo Comida e Papel.</p>
+              <button type="button" disabled={Boolean(preview.missingLabels?.length) || !preview.reportDate || preview.productSales === ''} onClick={() => importReportToFoodCost(i)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
+                <Download size={15}/> Importar para Custo Comida
+              </button>
+            </div>
+          </> : preview.sample.length > 0 && <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><tbody>{preview.sample.map((row, r) => <tr key={r} className="border-t">{row.map((cell, c) => <td key={c} className="max-w-56 truncate px-2 py-1.5">{cell}</td>)}</tr>)}</tbody></table></div>}
+        </div>)}
+      </div>}
     </>}
   </div>;
 };
@@ -450,7 +797,7 @@ const FoodCostTableRow: React.FC<{row:FoodCostEntry;disabled:boolean;inputClass:
   const foodEstimate = Number(row.foodTheoretical||0)+Number(row.foodWithoutComposition||0);
   const foodActual = Number(row.foodOpening||0)+Number(row.foodPurchases||0)+Number(row.foodTransfers||0)-Number(row.foodPromos||0)-Number(row.foodLosses||0)-Number(row.foodMeals||0)-Number(row.foodFinalInventory||0);
   const paperEstimate = Number(row.paperTheoretical||0)+Number(row.paperWithoutComposition||0);
-  const paperActual = Number(row.paperOpening||0)+Number(row.paperPurchases||0)-Number(row.paperPromos||0)-Number(row.paperLosses||0)-Number(row.paperMeals||0)-Number(row.paperFinalInventory||0);
+  const paperActual = Number(row.paperOpening||0)+Number(row.paperPurchases||0)+Number(row.paperTransfers||0)-Number(row.paperPromos||0)-Number(row.paperLosses||0)-Number(row.paperMeals||0)-Number(row.paperFinalInventory||0);
   const fKeys: (keyof FoodCostEntry)[]=['foodOpening','foodPurchases','foodTransfers','foodPromos','foodLosses','foodMeals','foodFinalInventory','foodTheoretical','foodWithoutComposition'];
   const pKeys: (keyof FoodCostEntry)[]=['paperOpening','paperPurchases','paperTransfers','paperPromos','paperLosses','paperMeals','paperFinalInventory','paperTheoretical','paperWithoutComposition'];
   const field=(key:keyof FoodCostEntry)=> <td key={key} className="border p-1"><input disabled={disabled} type="number" step="0.01" value={Number(row[key]||0)} onChange={e=>number(key,e.target.value)} className="w-24 rounded border border-slate-200 px-1.5 py-1 text-right disabled:bg-slate-50"/></td>;
