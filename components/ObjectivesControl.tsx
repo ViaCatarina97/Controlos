@@ -541,7 +541,6 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const rangeMonths = useMemo(() => submittedMonths.filter(m => m.month >= performanceFrom && m.month <= performanceTo), [submittedMonths, performanceFrom, performanceTo]);
   const managers = useMemo(() => Array.from(new Set([...employees.map(e => e.name), ...goals.map(g => g.owner).filter(Boolean)])), [employees, goals]);
   const weeklyCheckpointOptions = checkpointOptions.filter(cp => /^week-\d+$/.test(cp.id));
-  const currentWeekId = selectedMonth === monthKey(today) ? `week-${Math.ceil(today.getDate() / 7)}` : '';
   const latestWeekNumberToConsider = selectedMonth === monthKey(today) ? Math.ceil(today.getDate() / 7) : Number.POSITIVE_INFINITY;
   const summaryCheckpoint = weeklyCheckpointOptions
     .filter(cp => Number(cp.id.slice('week-'.length)) <= latestWeekNumberToConsider)
@@ -719,31 +718,25 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Tema</th>
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Objetivo</th>
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Pontos possíveis</th>
-              {overviewCheckpoints.map(cp => {
-                const isCurrentWeek = cp.id === currentWeekId;
-                return <th key={cp.id} colSpan={2} className={`border-l border-slate-200 p-3 text-center font-bold ${isCurrentWeek ? 'objective-overview-current-week-group' : ''}`}>
-                  {cp.label}{isCurrentWeek && <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-900">Atual</span>}
-                </th>;
-              })}
+              {overviewCheckpoints.map(cp =>
+                <th key={cp.id} colSpan={3} className="border-l border-slate-200 p-3 text-center font-bold">{cp.label}</th>
+              )}
             </tr>
-            <tr>{overviewCheckpoints.flatMap(cp => {
-              const isCurrentWeek = cp.id === currentWeekId;
-              return [
-                <th key={`${cp.id}-result`} className={`border-l border-slate-200 p-2 ${isCurrentWeek ? 'objective-overview-current-week-group objective-overview-current-week-start' : ''}`}>Resultado</th>,
-                <th key={`${cp.id}-status`} className={`p-2 ${isCurrentWeek ? 'objective-overview-current-week-group objective-overview-current-week-end' : ''}`}>Estado</th>,
-              ];
-            })}</tr>
+            <tr>{overviewCheckpoints.flatMap(cp => [
+              <th key={`${cp.id}-target`} className="border-l border-slate-200 p-2 text-center">Objetivo</th>,
+              <th key={`${cp.id}-result`} className="p-2 text-center">Resultado</th>,
+              <th key={`${cp.id}-status`} className="p-2 text-center">Estado</th>,
+            ])}</tr>
           </thead>
           <tbody>
             {goals.map(g => <tr key={g.id} className="border-t border-slate-100">
               <td className="objective-overview-primary-column p-3 font-bold">{g.owner || '—'}</td>
               <td className="objective-overview-primary-column p-3 font-bold">{g.metric || '—'}</td>
-              <td className="objective-overview-primary-column p-3 text-center font-bold">{g.target ?? '—'}</td>
+              <td className="objective-overview-primary-column p-3 text-center font-bold">{g.target === undefined || Number(g.target) === 0 ? '—' : g.target}</td>
               <td className="objective-overview-primary-column p-3 text-center font-bold">{g.possiblePoints ?? '—'}</td>
               {overviewCheckpoints.flatMap(cp => {
                 const value = resolveCheckpoint(g, cp.id);
                 const weekMatch = cp.id.match(/^week-(\d+)$/);
-                const isCurrentWeek = cp.id === currentWeekId;
                 const previous = weekMatch && Number(weekMatch[1]) > 1 ? resolveCheckpoint(g, `week-${Number(weekMatch[1]) - 1}`) : undefined;
                 const direction = findCriterion(g.metric)?.direction;
                 let trend: 'improved' | 'worsened' | 'same' | undefined;
@@ -755,21 +748,22 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
                 const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
                 return [
-                  <td key={`${g.id}-${cp.id}-result`} className={`border-l border-slate-100 p-2 text-center ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-start' : ''}`}>
+                  <td key={`${g.id}-${cp.id}-target`} className="border-l border-slate-100 p-2 text-center font-semibold">{value?.target === undefined || Number(value.target) === 0 ? '—' : formatNumber(Number(value.target))}</td>,
+                  <td key={`${g.id}-${cp.id}-result`} className="p-2 text-center">
                     <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
                   </td>,
-                  <td key={`${g.id}-${cp.id}-status`} className={`p-2 text-center ${isCurrentWeek ? 'objective-overview-current-week-cell objective-overview-current-week-end' : ''}`}>
+                  <td key={`${g.id}-${cp.id}-status`} className="p-2 text-center">
                     <span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
                   </td>,
                 ];
               })}
             </tr>)}
-            {goals.length === 0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4 + overviewCheckpoints.length * 2} />}
+            {goals.length === 0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4 + overviewCheckpoints.length * 3} />}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700">
               <td colSpan={4} className="objective-overview-primary-column p-3"></td>
-              {overviewCheckpoints.map(cp => <td key={`${cp.id}-percentage`} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${cp.id === currentWeekId ? 'objective-overview-current-week-group objective-overview-current-week-start objective-overview-current-week-end' : ''}`}>
+              {overviewCheckpoints.map(cp => <td key={`${cp.id}-percentage`} colSpan={3} className="border-l border-slate-200 p-3 text-center">
                 {/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}
               </td>)}
             </tr>
