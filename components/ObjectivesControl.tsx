@@ -697,7 +697,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   if (loading) return <div className="rounded-2xl border bg-white p-10 text-center text-sm text-slate-500">A carregar objetivos…</div>;
 
   return <div className="space-y-5">
-    {notice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notice}</div>}
+    {notice && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 print:hidden">{notice}</div>}
 
     {activeSubTab === 'objectives_overview' && <section id="objectives-overview-print" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Visão Geral Mensal</h3><p className="text-sm text-slate-500">Objetivos, resultados e validações ao longo do mês.</p><p className="hidden text-xs text-slate-500 print:block">{MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)} · Resultado à data: {summaryCheckpoint?.label || 'sem resultados semanais'}</p></div><div className="flex items-center gap-2 print:hidden">{monthPicker}<button type="button" onClick={printOverview} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Printer size={16}/> Imprimir</button></div></div>
@@ -750,10 +750,10 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 return [
                   <td key={`${g.id}-${cp.id}-target`} className="border-l border-slate-100 p-2 text-center font-semibold">{value?.target === undefined || Number(value.target) === 0 ? '—' : formatNumber(Number(value.target))}</td>,
                   <td key={`${g.id}-${cp.id}-result`} className="p-2 text-center">
-                    <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`objective-overview-trend whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
                   </td>,
                   <td key={`${g.id}-${cp.id}-status`} className="p-2 text-center">
-                    <span className={`rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
+                    <span className={`objective-status-badge rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
                   </td>,
                 ];
               })}

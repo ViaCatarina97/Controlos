@@ -328,3 +328,120 @@ html.dark ::-webkit-scrollbar-thumb {
   }
   body.printing-objectives-overview #objectives-overview-print .rounded-2xl { box-shadow: none !important; }
 }
+
+/* =========================================================================
+   VISÃO GERAL — impressão numa única folha A4 horizontal
+   ========================================================================= */
+@page objectives-overview {
+  size: A4 landscape;
+  margin: 5mm;
+}
+
+@media print {
+  body.printing-objectives-overview,
+  body.printing-objectives-overview #root,
+  body.printing-objectives-overview main,
+  body.printing-objectives-overview #objectives-overview-print {
+    page: objectives-overview !important;
+  }
+  body.printing-objectives-overview #root,
+  body.printing-objectives-overview main {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    font-size: 6pt !important;
+    line-height: 1.15 !important;
+    color: #111827 !important;
+    background: #fff !important;
+  }
+  body.printing-objectives-overview #objectives-overview-print > * + * { margin-top: 1.5mm !important; }
+  body.printing-objectives-overview #objectives-overview-print h3 { font-size: 11pt !important; line-height: 1.1 !important; }
+  body.printing-objectives-overview #objectives-overview-print h3 + p { margin-top: 0.4mm !important; font-size: 6.5pt !important; line-height: 1.15 !important; }
+  body.printing-objectives-overview #objectives-overview-print h3 + p + p { margin-top: 0.2mm !important; font-size: 6.5pt !important; line-height: 1.15 !important; }
+
+  /* Indicadores numa única faixa fina */
+  body.printing-objectives-overview #objectives-overview-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 1.5mm !important;
+    margin: 0 !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div {
+    min-width: 0 !important;
+    padding: 0.8mm 1.5mm !important;
+    border-radius: 1mm !important;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:first-child { gap: 0.8mm !important; align-items: center !important; }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:first-child > span {
+    min-width: 0 !important;
+    font-size: 5.2pt !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis > div > div:last-child {
+    margin-top: 0.3mm !important;
+    font-size: 7.5pt !important;
+    line-height: 1.1 !important;
+    overflow-wrap: anywhere !important;
+  }
+  body.printing-objectives-overview #objectives-overview-kpis svg { width: 7px !important; height: 7px !important; flex: 0 0 auto !important; }
+
+  /* Tabela compacta: cabe na largura da folha e não muda de página */
+  body.printing-objectives-overview #objectives-overview-print .overflow-x-auto {
+    overflow: visible !important;
+    border: 0.3mm solid #cbd5e1 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 6pt !important;
+    line-height: 1.15 !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table thead { display: table-header-group !important; }
+  body.printing-objectives-overview #objectives-overview-table tbody tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  body.printing-objectives-overview #objectives-overview-table th,
+  body.printing-objectives-overview #objectives-overview-table td {
+    padding: 0.8mm 0.5mm !important;
+    border: 0.25mm solid #cbd5e1 !important;
+    color: #111827 !important;
+    vertical-align: middle !important;
+    overflow-wrap: anywhere !important;
+    font-weight: 600 !important;
+  }
+  body.printing-objectives-overview #objectives-overview-table thead th { font-size: 5.6pt !important; padding: 0.7mm 0.5mm !important; }
+  body.printing-objectives-overview #objectives-overview-table td > div { gap: 0.5mm !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-trend { display: none !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-status-badge {
+    padding: 0.4mm 1mm !important;
+    font-size: 5.2pt !important;
+    border-width: 0.2mm !important;
+    white-space: nowrap !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(1) { width: 10% !important; }
+  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(2) { width: 13% !important; }
+  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(3) { width: 7% !important; }
+  body.printing-objectives-overview #objectives-overview-table thead tr:first-child > th:nth-child(4) { width: 6% !important; }
+}
