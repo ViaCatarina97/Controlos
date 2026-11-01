@@ -606,6 +606,32 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   });
   const closedCorrectiveActions = goals.flatMap(goal => (goal.correctiveActions || []).filter(action => action.status === 'Concluída').map(action => ({ goal, action })));
 
+  // O % estimado do relatório passa a ser o objetivo da semana e o % real o resultado.
+  const syncFoodCostToGoals = (currentGoals: ObjectiveGoal[], rows: FoodCostEntry[]): ObjectiveGoal[] => {
+    type WeekValues = { estimate?: number; actual?: number };
+    const byWeek: { food: Record<string, WeekValues>; paper: Record<string, WeekValues> } = { food: {}, paper: {} };
+    [...rows].sort((a, b) => a.date.localeCompare(b.date)).forEach(row => {
+      const weekId = weekIdForDate(row.date);
+      if (!weekId) return;
+      const sales = Number(row.productSales || 0);
+      byWeek.food[weekId] = { estimate: costPercent(foodCostEstimate(row), sales), actual: costPercent(foodCostActual(row), sales) };
+      byWeek.paper[weekId] = { estimate: costPercent(paperCostEstimate(row), sales), actual: costPercent(paperCostActual(row), sales) };
+    });
+    return currentGoals.map(goal => {
+      const section = /comida/i.test(goal.metric) ? byWeek.food : /papel/i.test(goal.metric) ? byWeek.paper : undefined;
+      if (!section) return goal;
+      let checkpoints = goal.checkpoints;
+      Object.entries(section).forEach(([weekId, values]) => {
+        if (values.estimate === undefined && values.actual === undefined) return;
+        const previous = checkpoints[weekId];
+        const target = values.estimate ?? previous?.target;
+        const result = values.actual ?? previous?.result ?? '';
+        const status = classifyResult(result, Number(target ?? goal.target), findCriterion(goal.metric));
+        checkpoints = { ...checkpoints, [weekId]: { ...previous, target, result, status, points: status ? statusPoints(status, Number(goal.possiblePoints || 0)) : undefined, updatedAt: new Date().toISOString() } };
+      });
+      return { ...goal, checkpoints };
+    });
+  };
   const handleReportFiles = async (files: File[]) => {
     const entries: FoodCostEntry[] = [];
     const problems: string[] = [];
@@ -645,7 +671,8 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
         entries.forEach(entry => {
           const key = entry.date.slice(0, 7);
           const base = byMonth.get(key) || { id: key, month: key, status: 'draft' as const, goals: [], foodCost: [], updatedAt: new Date().toISOString() };
-          byMonth.set(key, { ...base, foodCost: [...base.foodCost, entry], updatedAt: new Date().toISOString() });
+          const foodCost = [...base.foodCost, entry];
+          byMonth.set(key, { ...base, foodCost, goals: syncFoodCostToGoals(base.goals, foodCost), updatedAt: new Date().toISOString() });
         });
         return Array.from(byMonth.values()).sort((a, b) => b.month.localeCompare(a.month));
       });
@@ -794,7 +821,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-extrabold text-slate-900">Custo Comida e Papel</h3><p className="text-sm text-slate-500">Estrutura baseada na tabela partilhada. Os campos calculados seguem as fórmulas da folha.</p></div><div className="flex gap-2">{monthPicker}<button onClick={addFoodRow} disabled={!editable||saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-3 py-2 text-sm font-extrabold text-slate-950 disabled:opacity-40"><Plus size={16}/> Adicionar semana</button></div></div>
       {!editable&&<div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">{draft?'Mês anterior: consulta apenas.':'Mês submetido: consulta apenas.'}</div>}
       <div className="overflow-x-auto rounded-2xl border bg-white"><table className="min-w-[2200px] w-full border-collapse text-xs"><thead className="sticky top-0 bg-slate-50 text-slate-600"><tr><th rowSpan={2} className="border p-2">Data</th><th rowSpan={2} className="border p-2">Vendas Produto</th><th colSpan={14} className="border bg-amber-50 p-2">FOOD</th><th colSpan={14} className="border bg-sky-50 p-2">PAPER</th></tr><tr>{['Stock Inicial','Compras','Transferências','Promos','Perdas','Refeições','Inventário Final','Food Teórico','S/Composição','Valor Estimado','% Estimado','Alimentos P&L','% Real P&L','Desvio'].map(h=><th key={`f${h}`} className="border p-2">{h}</th>)}{['Stock Inicial','Compras','Transferências','Promos','Perdas','Refeições','Inventário Final','Paper Teórico','S/Composição','Valor Estimado','% Estimado','Papel P&L','% Real P&L','Desvio'].map(h=><th key={`p${h}`} className="border p-2">{h}</th>)}</tr></thead><tbody>{foodRows.map(row=><FoodCostTableRow key={row.id} row={row} disabled={!editable} inputClass={inputClass} onChange={patch=>patchFood(row.id,patch)}/>)}{!foodRows.length&&<tr><td colSpan={30} className="p-8 text-center text-slate-500">Ainda sem registos. Adicione uma linha para começar; os valores podem depois ser alimentados pelo relatório configurado.</td></tr>}</tbody></table></div>
-      <div className="flex justify-end"><button disabled={!editable||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals,foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar custo comida e papel'}</button></div>
+      <div className="flex justify-end"><button disabled={!editable||saving} onClick={()=>saveDraft({id:selectedMonth,month:selectedMonth,status:monthData?.status||'draft',goals:syncFoodCostToGoals(goals,foodRows),foodCost:foodRows,updatedAt:new Date().toISOString()})} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{saving?'A guardar…':'Guardar custo comida e papel'}</button></div>
     </>}
 
     {activeSubTab === 'objectives_settings' && <>
@@ -835,12 +862,23 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
 const Kpi: React.FC<{label:string;value:string;icon:React.ReactNode;className?:string}> = ({label,value,icon,className = 'border-slate-200 bg-white'}) => <div className={`rounded-2xl border p-4 ${className}`}><div className="flex items-center justify-between text-slate-500"><span className="text-xs font-bold uppercase">{label}</span>{icon}</div><div className="mt-2 text-2xl font-black text-slate-900">{value}</div></div>;
 const EmptyRow: React.FC<{colSpan:number;text:string}> = ({colSpan,text})=><tr><td colSpan={colSpan} className="p-8 text-center text-slate-500">{text}</td></tr>;
 
+const foodCostEstimate = (row: FoodCostEntry) => Number(row.foodTheoretical||0)+Number(row.foodWithoutComposition||0);
+const foodCostActual = (row: FoodCostEntry) => Number(row.foodOpening||0)+Number(row.foodPurchases||0)+Number(row.foodTransfers||0)-Number(row.foodPromos||0)-Number(row.foodLosses||0)-Number(row.foodMeals||0)-Number(row.foodFinalInventory||0);
+const paperCostEstimate = (row: FoodCostEntry) => Number(row.paperTheoretical||0)+Number(row.paperWithoutComposition||0);
+const paperCostActual = (row: FoodCostEntry) => Number(row.paperOpening||0)+Number(row.paperPurchases||0)+Number(row.paperTransfers||0)-Number(row.paperPromos||0)-Number(row.paperLosses||0)-Number(row.paperMeals||0)-Number(row.paperFinalInventory||0);
+// Cada registo cai na semana do mês em que a data está (1-7 = Semana 1, …).
+const weekIdForDate = (date: string) => {
+  const day = Number(date.slice(8, 10));
+  return day >= 1 ? `week-${Math.min(5, Math.ceil(day / 7))}` : '';
+};
+const costPercent = (part: number, total: number) => total ? Math.round(part / total * 10000) / 100 : undefined;
+
 const FoodCostTableRow: React.FC<{row:FoodCostEntry;disabled:boolean;inputClass:string;onChange:(patch:Partial<FoodCostEntry>)=>void}> = ({row,disabled,inputClass,onChange}) => {
   const number = (key: keyof FoodCostEntry, value: string) => onChange({[key]: value === '' ? 0 : Number(value)} as Partial<FoodCostEntry>);
-  const foodEstimate = Number(row.foodTheoretical||0)+Number(row.foodWithoutComposition||0);
-  const foodActual = Number(row.foodOpening||0)+Number(row.foodPurchases||0)+Number(row.foodTransfers||0)-Number(row.foodPromos||0)-Number(row.foodLosses||0)-Number(row.foodMeals||0)-Number(row.foodFinalInventory||0);
-  const paperEstimate = Number(row.paperTheoretical||0)+Number(row.paperWithoutComposition||0);
-  const paperActual = Number(row.paperOpening||0)+Number(row.paperPurchases||0)+Number(row.paperTransfers||0)-Number(row.paperPromos||0)-Number(row.paperLosses||0)-Number(row.paperMeals||0)-Number(row.paperFinalInventory||0);
+  const foodEstimate = foodCostEstimate(row);
+  const foodActual = foodCostActual(row);
+  const paperEstimate = paperCostEstimate(row);
+  const paperActual = paperCostActual(row);
   const fKeys: (keyof FoodCostEntry)[]=['foodOpening','foodPurchases','foodTransfers','foodPromos','foodLosses','foodMeals','foodFinalInventory','foodTheoretical','foodWithoutComposition'];
   const pKeys: (keyof FoodCostEntry)[]=['paperOpening','paperPurchases','paperTransfers','paperPromos','paperLosses','paperMeals','paperFinalInventory','paperTheoretical','paperWithoutComposition'];
   const field=(key:keyof FoodCostEntry)=> <td key={key} className="border p-1"><input disabled={disabled} type="number" step="0.01" value={Number(row[key]||0)} onChange={e=>number(key,e.target.value)} className="w-24 rounded border border-slate-200 px-1.5 py-1 text-right disabled:bg-slate-50"/></td>;
