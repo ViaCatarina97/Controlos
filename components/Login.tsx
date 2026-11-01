@@ -1,17 +1,42 @@
 import React, { useState } from 'react';
-import { AppSettings, RestaurantTypology } from '../types';
-import { AVAILABLE_TYPOLOGIES, DEFAULT_SETTINGS } from '../constants';
-import { Lock, User, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck, Building2 } from 'lucide-react';
+import { RestaurantTypology } from '../types';
+import { AVAILABLE_TYPOLOGIES } from '../constants';
+import {
+  Lock,
+  User,
+  ArrowRight,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Building2,
+  Copy,
+  Check,
+  LogOut,
+  RefreshCw,
+  KeyRound,
+} from 'lucide-react';
+import { describeAuthError } from '../services/authService';
 
-interface LoginProps {
-  restaurants: AppSettings[];
-  onLogin: (restaurant: AppSettings) => void;
-  onRegister: (restaurant: AppSettings) => void;
+export interface RegisterPayload {
+  restaurantName: string;
+  restaurantType: RestaurantTypology;
+  username: string;
+  password: string;
 }
 
-export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+interface LoginProps {
+  onLogin: (username: string, password: string) => Promise<void>;
+  onAdopt: (username: string, password: string) => Promise<void>;
+  onRegister: (payload: RegisterPayload) => Promise<void>;
+}
+
+type LoginMode = 'login' | 'adopt' | 'register';
+
+export const Login: React.FC<LoginProps> = ({ onLogin, onAdopt, onRegister }) => {
+  const [mode, setMode] = useState<LoginMode>('login');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // Form State
@@ -20,31 +45,68 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
   const [restName, setRestName] = useState('');
   const [restType, setRestType] = useState<RestaurantTypology>('Shopping');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const found = restaurants.find(
-      r => r.username.trim().toLowerCase() === username.trim().toLowerCase() && r.password === password
-    );
-    if (found) onLogin(found);
-    else setError('Credenciais inválidas. Verifique o utilizador da unidade e a palavra-passe.');
+    if (!username.trim() || !password) {
+      setError('Preencha o utilizador da unidade e a palavra-passe.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onLogin(username.trim(), password);
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleAdopt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!username.trim() || !password) {
+      setError('Indique o utilizador e a palavra-passe da unidade que já existe.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('A conta de acesso exige uma palavra-passe com pelo menos 6 caracteres.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onAdopt(username.trim(), password);
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!username.trim() || !password || !restName.trim()) {
       setError('Preencha todos os campos obrigatórios da nova unidade.');
       return;
     }
-    onRegister({
-      ...DEFAULT_SETTINGS,
-      restaurantId: crypto.randomUUID(),
-      restaurantName: restName.trim(),
-      restaurantType: restType,
-      username: username.trim(),
-      password,
-    });
+    if (password.length < 6) {
+      setError('A palavra-passe tem de ter pelo menos 6 caracteres.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onRegister({
+        restaurantName: restName.trim(),
+        restaurantType: restType,
+        username: username.trim(),
+        password,
+      });
+    } catch (err) {
+      setError(describeAuthError(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -71,35 +133,28 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
 
         {/* Auth Card */}
         <div className="bg-white rounded-3xl shadow-2xl border border-slate-800/40 overflow-hidden p-6 sm:p-8">
-          <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setError('');
-              }}
-              className={`py-2.5 rounded-lg text-xs font-bold transition-all ${
-                mode === 'login'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Iniciar Sessão
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('register');
-                setError('');
-              }}
-              className={`py-2.5 rounded-lg text-xs font-bold transition-all ${
-                mode === 'register'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Nova Unidade
-            </button>
+          <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl mb-6">
+            {([
+              { id: 'login', label: 'Entrar' },
+              { id: 'adopt', label: 'Ligar Unidade' },
+              { id: 'register', label: 'Nova' },
+            ] as { id: LoginMode; label: string }[]).map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setMode(tab.id);
+                  setError('');
+                }}
+                className={`py-2.5 rounded-lg text-[11px] font-bold transition-all ${
+                  mode === tab.id
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {error && (
@@ -109,7 +164,12 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
             </div>
           )}
 
-          <form onSubmit={mode === 'register' ? handleRegister : handleLogin} className="space-y-4">
+          <form
+            onSubmit={
+              mode === 'register' ? handleRegister : mode === 'adopt' ? handleAdopt : handleLogin
+            }
+            className="space-y-4"
+          >
             {mode === 'register' && (
               <>
                 <div>
@@ -161,6 +221,10 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
                 />
               </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                Cada unidade tem o seu próprio utilizador. As palavras-passe são guardadas
+                apenas no Firebase Authentication, nunca na base de dados da loja.
+              </p>
             </div>
 
             <div>
@@ -174,7 +238,7 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
                 />
                 <button
@@ -191,18 +255,155 @@ export const Login: React.FC<LoginProps> = ({ restaurants, onLogin, onRegister }
 
             <button
               type="submit"
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm py-3.5 rounded-xl shadow-lg shadow-slate-900/15 flex items-center justify-center gap-2 transition-all active:scale-[0.99] mt-2"
+              disabled={busy}
+              className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-xl shadow-lg shadow-slate-900/15 flex items-center justify-center gap-2 transition-all active:scale-[0.99] mt-2"
             >
-              <span>{mode === 'register' ? 'Registar Unidade' : 'Entrar na Plataforma'}</span>
-              <ArrowRight size={17} />
+              <span>
+                {busy
+                  ? 'A validar...'
+                  : mode === 'register'
+                  ? 'Registar Unidade'
+                  : mode === 'adopt'
+                  ? 'Ligar Unidade Existente'
+                  : 'Entrar na Plataforma'}
+              </span>
+              {!busy && <ArrowRight size={17} />}
             </button>
           </form>
+
+          {mode === 'login' && (
+            <p className="text-[10px] text-slate-400 mt-4 flex items-start gap-1.5">
+              <KeyRound size={12} className="shrink-0 mt-0.5" />
+              <span>
+                A conta dá acesso apenas aos dados desta unidade. Loja nova? Use
+                &quot;Nova&quot;.
+              </span>
+            </p>
+          )}
+
+          {mode === 'adopt' && (
+            <p className="text-[10px] text-slate-400 mt-4 flex items-start gap-1.5">
+              <KeyRound size={12} className="shrink-0 mt-0.5" />
+              <span>
+                Para a unidade que já existe: é criada agora a conta de acesso com este
+                utilizador e ligada à loja. Os dados atuais ficam intactos.
+              </span>
+            </p>
+          )}
         </div>
 
         {/* Footer */}
         <div className="mt-6 flex items-center justify-center gap-2 text-slate-500 text-xs">
           <ShieldCheck size={14} className="text-emerald-400" />
-          <span>Controlos de Gestão v4.0 • Sincronização Cloud Ativa</span>
+          <span>Sessão individual por unidade • Dados isolados por loja</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface UnlinkedAccountScreenProps {
+  uid: string;
+  email: string | null;
+  onRetry: () => void;
+  onLogout: () => void;
+}
+
+/**
+ * Mostrada quando a conta está autenticada mas ainda não pertence a nenhuma loja.
+ * Serve de guião para a associação única feita na consola do Firebase.
+ */
+export const UnlinkedAccountScreen: React.FC<UnlinkedAccountScreenProps> = ({
+  uid,
+  email,
+  onRetry,
+  onLogout,
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyUid = async () => {
+    try {
+      await navigator.clipboard.writeText(uid);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="p-3 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 shrink-0">
+            <ShieldCheck size={22} />
+          </div>
+          <div>
+            <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">
+              Conta sem unidade associada
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">
+              A sessão está ativa, mas esta conta ainda não tem permissão para nenhuma loja.
+              Nenhum dado é exposto até a associação ser feita.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Identificador desta conta
+          </p>
+          {email && (
+            <p className="text-xs font-semibold text-slate-700 break-all">{email}</p>
+          )}
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-[11px] font-mono text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-2 break-all">
+              {uid}
+            </code>
+            <button
+              type="button"
+              onClick={copyUid}
+              className="shrink-0 p-2.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+              title="Copiar identificador"
+            >
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-600 space-y-2">
+          <p className="font-bold text-slate-900">Como ligar esta conta a uma loja:</p>
+          <ol className="list-decimal list-inside space-y-1.5">
+            <li>
+              Termine sessão e use <strong>Ligar Unidade</strong> com o utilizador da
+              loja que já existe — é o caminho para lojas criadas antes desta
+              atualização.
+            </li>
+            <li>
+              Se a loja for de outra conta, um responsável pode abrir{' '}
+              <strong>Firestore → restaurants/&lt;id da loja&gt;</strong> e acrescentar o
+              identificador acima ao campo <code className="font-mono">memberUids</code>{' '}
+              (array).
+            </li>
+            <li>Volte aqui e toque em &quot;Verificar novamente&quot;.</li>
+          </ol>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white font-bold text-xs py-3 rounded-xl hover:bg-slate-800 transition-colors"
+          >
+            <RefreshCw size={15} /> Verificar novamente
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 font-bold text-xs py-3 rounded-xl hover:bg-slate-200 transition-colors"
+          >
+            <LogOut size={15} /> Terminar sessão
+          </button>
         </div>
       </div>
     </div>

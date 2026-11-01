@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { 
   getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, 
-  query, getDocFromServer, writeBatch, onSnapshot 
+  query, where, getDocFromServer, writeBatch, onSnapshot, updateDoc, deleteField 
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
@@ -12,7 +12,7 @@ import {
   ManagerTask, ManagerTaskChecklist, AgendaEvent, CleaningPlanWeek, CleaningTemplateConfig,
   ExtraordinaryCleaningTask, ObjectiveMonth, ObjectiveCriteriaSettings
 } from '../types';
-import { INITIAL_RESTAURANTS, MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
+import { MOCK_EMPLOYEES, DEFAULT_STAFFING_TABLE, MOCK_HISTORY } from '../constants';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
@@ -144,29 +144,20 @@ export async function testConnection() {
   }
 }
 
-let anonymousAuthUnavailable = false;
-let pendingAuthPromise: Promise<string | null> | null = null;
+// A autenticação é feita por conta de loja (ver services/authService.ts).
+// Nada aqui assina anonimamente: sem sessão válida, as leituras não têm escopo.
+export function getCurrentUid(): string | null {
+  return auth.currentUser?.uid ?? null;
+}
 
-// Ensure the user is authenticated anonymously so rules can verify identity if enabled
 export async function ensureAuthenticated(): Promise<string | null> {
-  if (auth.currentUser) {
-    return auth.currentUser.uid;
-  }
-  if (anonymousAuthUnavailable) {
-    return null;
-  }
-  if (!pendingAuthPromise) {
-    pendingAuthPromise = signInAnonymously(auth)
-      .then(cred => cred.user.uid)
-      .catch(() => {
-        anonymousAuthUnavailable = true;
-        return null;
-      })
-      .finally(() => {
-        pendingAuthPromise = null;
-      });
-  }
-  return pendingAuthPromise;
+  return auth.currentUser?.uid ?? null;
+}
+
+// A lista de lojas em cache é guardada por conta, para que um dispositivo
+// partilhado nunca exponha a lista de lojas de outra sessão.
+export function getRestaurantsCacheKey(): string {
+  return `app_all_restaurants_${auth.currentUser?.uid ?? 'anon'}`;
 }
 
 // Tests connection on startup
@@ -225,16 +216,26 @@ async function runFirestoreWrite(
 
 // --- RESTAURANTS OPERATIONS ---
 
+/**
+ * Devolve apenas as lojas da conta autenticada. As regras Firestore obrigam a
+ * filtrar por `memberUids`, pelo que uma conta nunca consegue listar outra loja.
+ */
 export async function getRestaurants(): Promise<AppSettings[]> {
-  await ensureAuthenticated();
+  const uid = auth.currentUser?.uid ?? null;
+  if (!uid) return [];
+
   const path = 'restaurants';
+  const cacheKey = getRestaurantsCacheKey();
   return runFirestoreOp<AppSettings[]>(
     async () => {
-      const q = collection(db, 'restaurants');
+      const q = query(
+        collection(db, 'restaurants'),
+        where('memberUids', 'array-contains', uid)
+      );
       const snap = await getDocs(q);
       let list = snap.docs.map(d => d.data() as AppSettings);
       // Local edits stay authoritative until Firestore confirms their write.
-      const localList: AppSettings[] = JSON.parse(localStorage.getItem('app_all_restaurants') || '[]');
+      const localList: AppSettings[] = JSON.parse(localStorage.getItem(cacheKey) || '[]');
       const dirtyLocal = localList.filter(item =>
         localStorage.getItem(`app_restaurant_settings_dirty_${item.restaurantId}`) === 'true'
       );
@@ -242,12 +243,12 @@ export async function getRestaurants(): Promise<AppSettings[]> {
         list = list.filter(item => !dirtyLocal.some(local => local.restaurantId === item.restaurantId));
         list.push(...dirtyLocal);
       }
-      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+      localStorage.setItem(cacheKey, JSON.stringify(list));
       return list;
     },
     () => {
-      const saved = localStorage.getItem('app_all_restaurants');
-      return saved ? JSON.parse(saved) : INITIAL_RESTAURANTS;
+      const saved = localStorage.getItem(cacheKey);
+      return saved ? JSON.parse(saved) : [];
     },
     OperationType.LIST,
     path
@@ -264,55 +265,121 @@ export async function getRestaurant(restaurantId: string): Promise<AppSettings |
       const res = snap.exists() ? (snap.data() as AppSettings) : null;
       if (res) {
         // Sync local list
-        const saved = localStorage.getItem('app_all_restaurants');
+        const cacheKey = getRestaurantsCacheKey();
+        const saved = localStorage.getItem(cacheKey);
         let list: AppSettings[] = saved ? JSON.parse(saved) : [];
         list = list.filter(r => r.restaurantId !== restaurantId);
         list.push(res);
-        localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+        localStorage.setItem(cacheKey, JSON.stringify(list));
       }
       return res;
     },
     () => {
-      const saved = localStorage.getItem('app_all_restaurants');
+      const saved = localStorage.getItem(getRestaurantsCacheKey());
       if (saved) {
         const list = JSON.parse(saved) as AppSettings[];
         return list.find(r => r.restaurantId === restaurantId) || null;
       }
-      return INITIAL_RESTAURANTS.find(r => r.restaurantId === restaurantId) || null;
+      return null;
     },
     OperationType.GET,
     path
   );
 }
 
-export async function saveRestaurant(restaurant: AppSettings): Promise<void> {
-  const path = `restaurants/${restaurant.restaurantId}`;
-  const dirtyKey = `app_restaurant_settings_dirty_${restaurant.restaurantId}`;
+export async function saveRestaurant(
+  restaurant: AppSettings,
+  options: { strict?: boolean } = {}
+): Promise<void> {
+  const uid = auth.currentUser?.uid ?? null;
+  if (!uid) {
+    throw new Error('AUTH_REQUIRED');
+  }
+
+  // A pertença é carimbada no cliente: uma loja criada agora fica ligada à conta
+  // que a criou e nunca é gravada sem `memberUids` (que a tornaria inacessível).
+  const payload: AppSettings = {
+    ...restaurant,
+    ownerUid: restaurant.ownerUid || uid,
+    memberUids: Array.from(new Set([...(restaurant.memberUids || []), uid])),
+  };
+
+  const path = `restaurants/${payload.restaurantId}`;
+  const dirtyKey = `app_restaurant_settings_dirty_${payload.restaurantId}`;
+  const cacheKey = getRestaurantsCacheKey();
   const saveLocally = () => {
-    const saved = localStorage.getItem('app_all_restaurants');
+    const saved = localStorage.getItem(cacheKey);
     let list: AppSettings[] = saved ? JSON.parse(saved) : [];
-    list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
-    list.push(restaurant);
-    localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+    list = list.filter(r => r.restaurantId !== payload.restaurantId);
+    list.push(payload);
+    localStorage.setItem(cacheKey, JSON.stringify(list));
     localStorage.setItem(dirtyKey, 'true');
   };
   // Write-through local cache first so an older cloud snapshot cannot replace the edit.
   saveLocally();
   await ensureAuthenticated();
+
+  if (options.strict) {
+    await setDoc(
+      doc(db, 'restaurants', payload.restaurantId),
+      sanitizeForFirestore(payload)
+    );
+    localStorage.removeItem(dirtyKey);
+    return;
+  }
+
   return runFirestoreWrite(
     async () => {
-      await setDoc(doc(db, 'restaurants', restaurant.restaurantId), restaurant);
-      const saved = localStorage.getItem('app_all_restaurants');
+      await setDoc(doc(db, 'restaurants', payload.restaurantId), sanitizeForFirestore(payload));
+      const saved = localStorage.getItem(cacheKey);
       let list: AppSettings[] = saved ? JSON.parse(saved) : [];
-      list = list.filter(r => r.restaurantId !== restaurant.restaurantId);
-      list.push(restaurant);
-      localStorage.setItem('app_all_restaurants', JSON.stringify(list));
+      list = list.filter(r => r.restaurantId !== payload.restaurantId);
+      list.push(payload);
+      localStorage.setItem(cacheKey, JSON.stringify(list));
       localStorage.removeItem(dirtyKey);
     },
     saveLocally,
     OperationType.WRITE,
     path
   );
+}
+
+/**
+ * Migração única de lojas criadas antes do isolamento (documento sem
+ * `memberUids`). Liga a conta autenticada à loja cujo `username` corresponde ao
+ * utilizador escrito no ecrã de entrada.
+ *
+ * Não altera nem apaga dados operacionais: apenas acrescenta `ownerUid` e
+ * `memberUids` e remove a antiga `password` em texto simples. As regras
+ * Firestore limitam a escrita exatamente a essa alteração.
+ */
+export async function claimLegacyStore(username: string): Promise<AppSettings | null> {
+  const uid = auth.currentUser?.uid ?? null;
+  const target = username.trim().toLocaleLowerCase('pt-PT');
+  if (!uid || !target) return null;
+
+  const snap = await getDocs(
+    query(collection(db, 'restaurants'), where('ownerUid', '==', null))
+  );
+
+  for (const candidate of snap.docs) {
+    const data = candidate.data() as AppSettings & { password?: string };
+    if (data.memberUids && data.memberUids.length > 0) continue;
+    if ((data.username || '').trim().toLocaleLowerCase('pt-PT') !== target) continue;
+
+    try {
+      await updateDoc(doc(db, 'restaurants', candidate.id), {
+        ownerUid: uid,
+        memberUids: [uid],
+        password: deleteField(),
+      });
+      return { ...data, ownerUid: uid, memberUids: [uid] };
+    } catch (error) {
+      console.warn(`[Migração] Não foi possível ligar a loja ${candidate.id}:`, error);
+    }
+  }
+
+  return null;
 }
 
 // --- EMPLOYEES OPERATIONS ---

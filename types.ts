@@ -85,7 +85,10 @@ export interface AppSettings {
   restaurantName: string;
   restaurantType: RestaurantTypology;
   username: string; 
-  password: string;
+  /** Conta Firebase que criou a loja. */
+  ownerUid?: string;
+  /** Contas com acesso a esta loja. Governa o isolamento no Firestore. */
+  memberUids?: string[];
   activeShifts: ShiftType[]; 
   businessAreas: BusinessArea[]; 
   customStations: StationConfig[]; 

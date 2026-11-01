@@ -61,35 +61,14 @@ export const STATIONS: StationConfig[] = [
   { id: 'dl_3', label: 'Delivery 3', designation: 'DLV 3', icon: 'Package', defaultSlots: 1, area: 'delivery', isActive: true },
 ];
 
-export const INITIAL_RESTAURANTS: AppSettings[] = [
-  {
-    restaurantId: "via_1",
-    restaurantName: "Via Catarina",
-    restaurantType: "Shopping",
-    username: "Via Catarina",
-    password: "Via97",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery'],
-    customStations: STATIONS
-  },
-  {
-    restaurantId: "imp_1",
-    restaurantName: "Imperial",
-    restaurantType: "Loja de Rua",
-    username: "Imperial",
-    password: "Imperial96",
-    activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
-    businessAreas: ['Loja', 'Delivery', 'McCafé'],
-    customStations: STATIONS
-  }
-];
-
+// As credenciais deixaram de existir no código: cada loja tem a sua conta no
+// Firebase Authentication e o acesso aos dados é decidido pelas regras
+// Firestore (memberUids).
 export const DEFAULT_SETTINGS: AppSettings = {
   restaurantId: "1",
   restaurantName: "Loja Principal",
   restaurantType: "Loja de Rua",
   username: "admin",
-  password: "123",
   activeShifts: ['ABERTURA', 'INTERMEDIO', 'FECHO'],
   businessAreas: ['Loja', 'Delivery', 'McCafé'],
   customStations: STATIONS

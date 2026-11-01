@@ -3,7 +3,7 @@ import { Settings } from './components/Settings';
 import { GlobalSettings } from './components/GlobalSettings';
 import { Criteria } from './components/Criteria';
 import { HistoryForecast } from './components/HistoryForecast';
-import { Login } from './components/Login';
+import { Login, UnlinkedAccountScreen, type RegisterPayload } from './components/Login';
 import { ModuleSelector } from './components/ModuleSelector';
 import { ScheduleHistory } from './components/ScheduleHistory';
 import { BillingControl } from './components/BillingControl';
@@ -23,12 +23,13 @@ import {
   HistoryEntry,
   ShiftType,
   AgendaEvent,
+  RestaurantTypology,
 } from './types';
 import {
   MOCK_EMPLOYEES,
   DEFAULT_STAFFING_TABLE,
   STATIONS,
-  INITIAL_RESTAURANTS,
+  DEFAULT_SETTINGS,
   MOCK_HISTORY,
   APP_VERSION,
 } from './constants';
@@ -44,7 +45,8 @@ import {
   getSchedules,
   saveScheduleDoc,
   deleteScheduleDoc,
-  ensureAuthenticated,
+  getRestaurantsCacheKey,
+  claimLegacyStore,
   subscribeToQuotaChange,
   getQuotaExceeded,
   getAgendaEvents,
@@ -52,6 +54,12 @@ import {
   deleteAgendaEvent,
   subscribeToAgendaEvents,
 } from './services/firebaseService';
+import {
+  createStoreAccount,
+  signInWithStoreAccount,
+  signOutStoreAccount,
+  subscribeToAuthState,
+} from './services/authService';
 import {
   LayoutDashboard,
   Sliders,
@@ -169,27 +177,62 @@ const App: React.FC = () => {
   const [allRestaurants, setAllRestaurants] = useState<AppSettings[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load all restaurants on mount
+  const [authReady, setAuthReady] = useState(false);
+  const [authUid, setAuthUid] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [storesLoaded, setStoresLoaded] = useState(false);
+  const [storesReloadToken, setStoresReloadToken] = useState(0);
+
+  // A sessão passou a ser por conta de loja: sem conta não há dados.
   useEffect(() => {
-    const loadInit = async () => {
+    const unsubscribe = subscribeToAuthState(user => {
+      setAuthUid(user?.uid ?? null);
+      setAccountEmail(user?.email ?? null);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Carrega apenas as lojas desta conta (as regras Firestore deixaram de permitir
+  // listar tudo). Sem associação, a conta fica sem qualquer dado visível.
+  useEffect(() => {
+    if (!authReady) return;
+    if (!authUid) {
+      setAllRestaurants([]);
+      setStoresLoaded(false);
+      setAuthenticatedRestaurantId(null);
+      return;
+    }
+
+    let cancelled = false;
+    setStoresLoaded(false);
+
+    const loadStores = async () => {
       try {
-        await ensureAuthenticated();
-        let list = await getRestaurants();
-        if (list.length === 0) {
-          for (const r of INITIAL_RESTAURANTS) {
-            await saveRestaurant(r);
-          }
-          list = [...INITIAL_RESTAURANTS];
-        }
+        const list = await getRestaurants();
+        if (cancelled) return;
         setAllRestaurants(list);
+        setAuthenticatedRestaurantId(prev => {
+          if (prev && list.some(r => r.restaurantId === prev)) return prev;
+          return list[0]?.restaurantId ?? null;
+        });
+        setActiveModule(null);
       } catch (err) {
-        console.error('Failed to load restaurants from cloud:', err);
-        const saved = localStorage.getItem('app_all_restaurants');
-        setAllRestaurants(saved ? JSON.parse(saved) : INITIAL_RESTAURANTS);
+        console.error('Falha ao carregar as unidades desta conta:', err);
+        if (!cancelled) {
+          const saved = localStorage.getItem(getRestaurantsCacheKey());
+          setAllRestaurants(saved ? JSON.parse(saved) : []);
+        }
+      } finally {
+        if (!cancelled) setStoresLoaded(true);
       }
     };
-    loadInit();
-  }, []);
+
+    loadStores();
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, authUid, storesReloadToken]);
 
   const [currentEmployees, setCurrentEmployees] = useState<Employee[]>([]);
   const [currentStaffingTable, setCurrentStaffingTable] = useState<StaffingTableEntry[]>([]);
@@ -391,7 +434,7 @@ const App: React.FC = () => {
     if (!authenticatedRestaurantId || !isLoaded) return;
     const id = authenticatedRestaurantId;
 
-    localStorage.setItem('app_all_restaurants', JSON.stringify(allRestaurants));
+    localStorage.setItem(getRestaurantsCacheKey(), JSON.stringify(allRestaurants));
     localStorage.setItem(`app_employees_${id}`, JSON.stringify(currentEmployees));
     localStorage.setItem(`app_staffing_table_${id}`, JSON.stringify(currentStaffingTable));
     localStorage.setItem(`app_history_detailed_${id}`, JSON.stringify(historyEntries));
@@ -462,34 +505,86 @@ const App: React.FC = () => {
     if (known) setTargetSales(known.totalSales);
   }, [targetDate, historyEntries, savedSchedules]);
 
-  const handleRegister = async (newRest: AppSettings) => {
-    try {
-      const seededRest = { ...newRest, customStations: STATIONS };
-      await saveRestaurant(seededRest);
-      await Promise.all([
-        saveEmployees(seededRest.restaurantId, MOCK_EMPLOYEES),
-        saveStaffingTable(seededRest.restaurantId, DEFAULT_STAFFING_TABLE),
-        saveHistory(seededRest.restaurantId, MOCK_HISTORY),
-      ]);
-      setAllRestaurants(prev => [
-        ...prev.filter(r => r.restaurantId !== seededRest.restaurantId),
-        seededRest,
-      ]);
-      setAuthenticatedRestaurantId(seededRest.restaurantId);
-      handleModuleSelect(null);
-    } catch (e) {
-      console.error('Failed to register restaurant', e);
-      alert('Erro ao criar restaurante na nuvem.');
-    }
+  const handleRegister = async (payload: RegisterPayload) => {
+    // A conta passa a ser o dono da loja: é criada primeiro e o documento da loja
+    // nasce já com memberUids/ownerUid, para nunca ficar órfão.
+    const uid = await createStoreAccount(payload.username, payload.password);
+    const seededRest: AppSettings = {
+      ...DEFAULT_SETTINGS,
+      restaurantId: crypto.randomUUID(),
+      restaurantName: payload.restaurantName,
+      restaurantType: payload.restaurantType,
+      username: payload.username,
+      ownerUid: uid,
+      memberUids: [uid],
+      customStations: STATIONS,
+    };
+
+    await saveRestaurant(seededRest, { strict: true });
+    await Promise.all([
+      saveEmployees(seededRest.restaurantId, MOCK_EMPLOYEES),
+      saveStaffingTable(seededRest.restaurantId, DEFAULT_STAFFING_TABLE),
+      saveHistory(seededRest.restaurantId, MOCK_HISTORY),
+    ]);
+
+    setAllRestaurants(prev => [
+      ...prev.filter(r => r.restaurantId !== seededRest.restaurantId),
+      seededRest,
+    ]);
+    setAuthenticatedRestaurantId(seededRest.restaurantId);
+    setActiveModule(null);
+    // O listener de sessão pode ter consultado as lojas antes deste documento
+    // existir; um refresco garante que a conta nova fica com a sua unidade.
+    setStoresReloadToken(token => token + 1);
   };
 
-  const handleLogin = (restaurant: AppSettings) => {
-    setAuthenticatedRestaurantId(restaurant.restaurantId);
-    handleModuleSelect(null);
+  const handleLogin = async (username: string, password: string) => {
+    // O efeito de carregamento reage à nova sessão e traz apenas a loja da conta.
+    setActiveModule(null);
+    await signInWithStoreAccount(username, password);
+  };
+
+  const handleAdopt = async (username: string, password: string) => {
+    // Lojas criadas antes do isolamento: cria/reutiliza a conta e liga-a à loja
+    // existente pelo utilizador da unidade, sem tocar nos dados gravados.
+    let uid: string | null = null;
+    try {
+      uid = await signInWithStoreAccount(username, password);
+    } catch {
+      try {
+        uid = await createStoreAccount(username, password);
+      } catch (createError: any) {
+        if (createError?.code === 'auth/email-already-in-use') {
+          throw new Error(
+            'A conta desta unidade já existe, mas a palavra-passe não confere. Verifique os dados introduzidos.'
+          );
+        }
+        throw createError;
+      }
+    }
+    if (!uid) throw new Error('Não foi possível autenticar a conta desta unidade.');
+
+    const claimed = await claimLegacyStore(username);
+    if (!claimed) {
+      throw new Error(
+        'Não existe nenhuma unidade por ligar com esse utilizador. Use "Nova" para criar uma unidade nova.'
+      );
+    }
+
+    setAllRestaurants(prev => [
+      ...prev.filter(r => r.restaurantId !== claimed.restaurantId),
+      claimed,
+    ]);
+    setAuthenticatedRestaurantId(claimed.restaurantId);
+    setActiveModule(null);
+    setStoresReloadToken(token => token + 1);
   };
 
   const handleLogout = () => {
+    void signOutStoreAccount();
     setAuthenticatedRestaurantId(null);
+    setAllRestaurants([]);
+    setStoresLoaded(false);
     setActiveModule(null);
     setIsLoaded(false);
     setIsAdminAuthorized(false);
@@ -549,20 +644,24 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveRestaurantSettings = (updated: AppSettings) => {
+  const handleSaveRestaurantSettings = async (updated: AppSettings): Promise<void> => {
     // Persist local-first immediately; a later cloud refresh must not restore stale settings.
     setAllRestaurants(prev => {
       const next = prev.map(r => (r.restaurantId === updated.restaurantId ? updated : r));
       const exists = next.some(r => r.restaurantId === updated.restaurantId);
       const complete = exists ? next : [...next, updated];
-      localStorage.setItem('app_all_restaurants', JSON.stringify(complete));
+      localStorage.setItem(getRestaurantsCacheKey(), JSON.stringify(complete));
       return complete;
     });
-    // Save explicitly as well as through the dirty-slice sync effect. The service
-    // falls back to localStorage when Firestore is unavailable.
-    void saveRestaurant(updated).catch(error => {
+    // Await the write so editor dialogs do not report success/close before the
+    // restaurant settings have been persisted (or safely staged locally).
+    try {
+      await saveRestaurant(updated);
+      setLastSync(new Date().toLocaleTimeString('pt-PT'));
+    } catch (error) {
       console.error('Falha ao guardar definições da loja:', error);
-    });
+      throw error;
+    }
   };
 
   const [scheduleToSave, setScheduleToSave] = useState<DailySchedule | null>(null);
@@ -776,8 +875,20 @@ const App: React.FC = () => {
       )
     ) {
       const id = data.restaurant.restaurantId;
+      const uid = authUid;
+      if (!uid) {
+        alert('Sessão expirada. Volte a iniciar sessão para importar dados.');
+        return;
+      }
+      // A cópia importada passa a pertencer a esta conta, senão a escrita seria
+      // recusada pelas regras de isolamento.
+      const importedRestaurant: AppSettings = {
+        ...data.restaurant,
+        ownerUid: uid,
+        memberUids: Array.from(new Set([...(data.restaurant.memberUids || []), uid])),
+      };
       try {
-        await saveRestaurant(data.restaurant);
+        await saveRestaurant(importedRestaurant);
         await saveEmployees(id, data.employees);
         await saveStaffingTable(id, data.staffingTable || DEFAULT_STAFFING_TABLE);
         await saveHistory(id, data.history || []);
@@ -793,8 +904,8 @@ const App: React.FC = () => {
           setAgendaEvents(data.agendaEvents);
         }
         setAllRestaurants(prev => {
-          const others = prev.filter(r => r.restaurantId !== data.restaurant.restaurantId);
-          return [...others, data.restaurant];
+          const others = prev.filter(r => r.restaurantId !== importedRestaurant.restaurantId);
+          return [...others, importedRestaurant];
         });
         setAuthenticatedRestaurantId(data.restaurant.restaurantId);
         setCurrentEmployees(data.employees);
@@ -809,7 +920,9 @@ const App: React.FC = () => {
     }
   };
 
-  if (allRestaurants.length === 0) {
+  const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
+
+  if (!authReady) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 font-black text-xl flex items-center justify-center mb-4">
@@ -817,20 +930,42 @@ const App: React.FC = () => {
         </div>
         <Loader2 className="h-6 w-6 text-amber-400 animate-spin mb-3" />
         <p className="text-slate-400 text-xs font-semibold tracking-wider">
-          A ligar à base de dados da unidade...
+          A verificar a sessão...
         </p>
       </div>
     );
   }
 
-  const activeRestaurant = allRestaurants.find(r => r.restaurantId === authenticatedRestaurantId);
-
-  if (!authenticatedRestaurantId || !activeRestaurant) {
+  if (!authUid) {
     return (
       <Login
-        restaurants={allRestaurants}
         onLogin={handleLogin}
+        onAdopt={handleAdopt}
         onRegister={handleRegister}
+      />
+    );
+  }
+
+  if (!activeRestaurant) {
+    if (!storesLoaded) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 font-black text-xl flex items-center justify-center mb-4">
+            M
+          </div>
+          <Loader2 className="h-6 w-6 text-amber-400 animate-spin mb-3" />
+          <p className="text-slate-400 text-xs font-semibold tracking-wider">
+            A ligar à base de dados da unidade...
+          </p>
+        </div>
+      );
+    }
+    return (
+      <UnlinkedAccountScreen
+        uid={authUid}
+        email={accountEmail}
+        onRetry={() => setStoresReloadToken(token => token + 1)}
+        onLogout={handleLogout}
       />
     );
   }
@@ -1351,6 +1486,7 @@ const App: React.FC = () => {
               restaurantId={activeRestaurant.restaurantId}
               employees={currentEmployees}
               activeSubTab={activeTab}
+              onTabChange={setActiveTab}
             />
           )}
         </div>
