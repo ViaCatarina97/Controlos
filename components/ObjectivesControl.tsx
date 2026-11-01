@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ObjectiveMonth, ObjectiveGoal, ObjectiveCheckpoint, ObjectiveCriterion, ObjectiveCriteriaSettings, ObjectiveTheme, ObjectiveThemesSettings, FoodCostEntry, ObjectiveCorrectiveAction, CorrectiveActionStatus } from '../types';
 import { getObjectiveMonths, saveObjectiveMonth, getObjectiveCriteria, saveObjectiveCriteria, getObjectiveThemes, saveObjectiveThemes } from '../services/firebaseService';
-import { Target, Plus, Save, Send, History, TrendingUp, Upload, FileSpreadsheet, Utensils, CalendarDays, ClipboardCheck, CheckCircle2, Clock3, AlertTriangle, Trash2, Download, Printer } from 'lucide-react';
+import { Target, Plus, Save, Send, History, TrendingUp, Upload, FileSpreadsheet, Utensils, CalendarDays, ClipboardCheck, CheckCircle2, Clock3, AlertTriangle, Trash2, Printer } from 'lucide-react';
 
 interface ObjectivesControlProps {
   restaurantId: string;
@@ -155,11 +155,12 @@ function mapFoodCostReportRows(rows: unknown[][]) {
   const foodActualPnl = amount(6, 'costatualpl', foodColumn) ?? foodOpening + foodPurchases + foodTransfers - foodPromos - foodLosses - foodMeals - foodFinalInventory;
   const paperActualPnl = amount(6, 'costatualpl', paperColumn) ?? paperOpening + paperPurchases + paperTransfers - paperPromos - paperLosses - paperMeals - paperFinalInventory;
   const salesLabel = (row: unknown[]) => normalizeReportText(row[labelColumn]);
-  const netSalesRow = dataRows.find(row => {
+  // As vendas ficam na secção de caixa, antes do bloco Food/Paper da folha.
+  const netSalesRow = rows.find(row => {
     const label = salesLabel(row);
     return label.startsWith('vendasliquidas') && label.includes('produto') && !label.includes('naoproduto') && !label.includes('ano');
   });
-  const grossSalesRow = dataRows.find(row => {
+  const grossSalesRow = rows.find(row => {
     const label = salesLabel(row);
     return (label.includes('vendas') && label.includes('produto')) || label.includes('totalvendas') || label.includes('productsales');
   });
@@ -320,7 +321,6 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const [performanceTo, setPerformanceTo] = useState(monthKey());
   const [managerFilter, setManagerFilter] = useState('');
   const [actionDrafts, setActionDrafts] = useState<Record<string, { description: string; responsible: string; dueDate: string }>>({});
-  const [reportPreviews, setReportPreviews] = useState<ReportImportPreview[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -607,96 +607,56 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
   const closedCorrectiveActions = goals.flatMap(goal => (goal.correctiveActions || []).filter(action => action.status === 'Concluída').map(action => ({ goal, action })));
 
   const handleReportFiles = async (files: File[]) => {
-    const previews = await Promise.all(files.map(async file => {
-      const base = {
-        name: file.name,
-        size: file.size,
-        sheets: [] as string[],
-        sample: [] as string[][],
-        reportDate: reportDateFromName(file.name),
-        productSales: '' as number | '',
-      };
+    const entries: FoodCostEntry[] = [];
+    const problems: string[] = [];
+    for (const file of files) {
       if (/\.pdf$/i.test(file.name)) {
-        return { ...base, note: 'PDF selecionado. A importação automática suporta Excel e CSV; exporte este relatório para um desses formatos.' };
+        problems.push(`${file.name}: PDF não é suportado; exporte o relatório para Excel ou CSV.`);
+        continue;
       }
       try {
         const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        let handled = false;
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
           const rows = sheet ? XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as unknown[][] : [];
           const mapped = mapFoodCostReportRows(rows);
-          if (mapped) {
-            return {
-              ...base,
-              sheets: workbook.SheetNames,
-              sheetName,
-              sample: mapped.sample,
-              fields: mapped.fields,
-              productSales: mapped.productSales ?? '',
-              reportDate: base.reportDate || mapped.reportDate || '',
-              missingLabels: mapped.missingLabels,
-              note: mapped.missingLabels.length ? `Não encontrei estas linhas obrigatórias: ${mapped.missingLabels.join(', ')}. Confirme o formato do relatório antes de importar.` : undefined,
-            };
+          if (!mapped) continue;
+          handled = true;
+          const reportDate = mapped.reportDate || reportDateFromName(file.name);
+          if (!reportDate) { problems.push(`${file.name}: não encontrei a data do relatório.`); break; }
+          if (mapped.missingLabels.length) { problems.push(`${file.name}: faltam linhas (${mapped.missingLabels.join(', ')}).`); break; }
+          const targetMonth = reportDate.slice(0, 7);
+          if (months.find(month => month.month === targetMonth)?.status === 'submitted') {
+            problems.push(`${file.name}: o mês ${targetMonth} já foi submetido e não foi alterado.`);
+            break;
           }
+          entries.push({ ...mapped.fields, id: newId(), date: reportDate, productSales: mapped.productSales ?? 0 });
+          break;
         }
-        const firstName = workbook.SheetNames[0];
-        const firstSheet = firstName ? workbook.Sheets[firstName] : undefined;
-        const rows = firstSheet ? XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: false }) as unknown[][] : [];
-        return {
-          ...base,
-          sheets: workbook.SheetNames,
-          sample: rows.slice(0, 5).map(row => row.map(cell => String(cell ?? '')).slice(0, 8)),
-          note: 'Não encontrei cabeçalhos “Food” e “Paper” na mesma folha. O ficheiro foi apenas pré-visualizado; nada foi importado.',
-        };
+        if (!handled) problems.push(`${file.name}: não encontrei as colunas Food e Paper nesta folha.`);
       } catch {
-        return { ...base, note: 'Não foi possível ler este ficheiro. Tente novamente com um Excel (.xls/.xlsx) ou CSV válido.' };
+        problems.push(`${file.name}: não foi possível ler o ficheiro.`);
       }
-    }));
-    setReportPreviews(previews);
-  };
-  const patchReportPreview = (index: number, patch: Partial<ReportImportPreview>) => {
-    setReportPreviews(prev => prev.map((preview, current) => current === index ? { ...preview, ...patch } : preview));
-  };
-  const importReportToFoodCost = (index: number) => {
-    const preview = reportPreviews[index];
-    if (!preview?.fields) return;
-    if (preview.missingLabels?.length) {
-      setNotice(`Importação cancelada: faltam linhas no relatório (${preview.missingLabels.join(', ')}).`);
-      return;
     }
-    if (!preview.reportDate) {
-      setNotice('Indique a data do relatório (ou do início do período) antes de importar.');
-      return;
+    if (entries.length) {
+      setMonths(prev => {
+        const byMonth = new Map<string, ObjectiveMonth>(prev.map(month => [month.month, month]));
+        entries.forEach(entry => {
+          const key = entry.date.slice(0, 7);
+          const base = byMonth.get(key) || { id: key, month: key, status: 'draft' as const, goals: [], foodCost: [], updatedAt: new Date().toISOString() };
+          byMonth.set(key, { ...base, foodCost: [...base.foodCost, entry], updatedAt: new Date().toISOString() });
+        });
+        return Array.from(byMonth.values()).sort((a, b) => b.month.localeCompare(a.month));
+      });
+      const lastDate = entries[entries.length - 1].date;
+      setSelectedMonth(lastDate.slice(0, 7));
+      onTabChange?.('objectives_food_cost');
+      setNotice(`Nova linha em Custo Comida e Papel: ${entries.map(entry => entry.date).join(', ')}. Reveja os valores e guarde para sincronizar.${problems.length ? ` Avisos: ${problems.join(' ')}` : ''}`);
+    } else {
+      setNotice(problems.join(' ') || 'Não foi possível importar os ficheiros selecionados.');
     }
-    if (preview.productSales === '' || !Number.isFinite(Number(preview.productSales)) || Number(preview.productSales) < 0) {
-      setNotice('Indique um total de Vendas Produto válido antes de importar; as colunas percentuais do relatório não serão usadas.');
-      return;
-    }
-    const targetMonth = preview.reportDate.slice(0, 7);
-    const existingMonth = months.find(month => month.month === targetMonth);
-    if (existingMonth?.status === 'submitted') {
-      setNotice(`O mês ${targetMonth} já foi submetido. O relatório não foi importado nem alterou registos.`);
-      return;
-    }
-    const existingRows = existingMonth?.foodCost || [];
-    if (existingRows.some(row => row.date === preview.reportDate)) {
-      setNotice(`Já existe um registo de Custo Comida para ${preview.reportDate}. Para preservar os dados, não foi substituído nem importado outro registo nessa data.`);
-      return;
-    }
-    const baseMonthData: ObjectiveMonth = existingMonth || {
-      id: targetMonth, month: targetMonth, status: 'draft', goals: [], foodCost: [], updatedAt: new Date().toISOString(),
-    };
-    const entry: FoodCostEntry = {
-      ...preview.fields,
-      id: newId(),
-      date: preview.reportDate,
-      productSales: Number(preview.productSales),
-    };
-    updateLocalMonth({ ...baseMonthData, foodCost: [...baseMonthData.foodCost, entry] });
-    setSelectedMonth(targetMonth);
-    onTabChange?.('objectives_food_cost');
-    setReportPreviews(prev => prev.filter((_, current) => current !== index));
-    setNotice(`Relatório importado para ${preview.reportDate} apenas na edição local. Reveja os valores e selecione “Guardar custo comida e papel” para sincronizar.`);
+    window.setTimeout(() => setNotice(''), 6000);
   };
   const inputClass = 'w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
   const monthPicker = <input aria-label="Mês" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800" />;
@@ -853,12 +813,12 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
     {activeSubTab === 'objectives_reports' && <>
       <div>
         <h3 className="text-xl font-extrabold text-slate-900">Relatórios</h3>
-        <p className="text-sm text-slate-500">Importe os valores monetários do relatório para Custo Comida e Papel.</p>
+        <p className="text-sm text-slate-500">Cada ficheiro carregado cria uma linha nova em Custo Comida e Papel, no mês da data do relatório.</p>
       </div>
       <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
         <Upload className="mx-auto mb-3 text-slate-500" size={28}/>
         <p className="font-extrabold text-slate-800">Carregar relatório</p>
-        <p className="mt-1 text-sm text-slate-500">Excel (.xls/.xlsx) ou CSV. São lidas as colunas monetárias Food e Paper, as Vendas Líquidas Produto e a data do relatório; as colunas % são ignoradas. A importação fica em edição local até guardar Custo Comida e Papel.</p>
+        <p className="mt-1 text-sm text-slate-500">Excel (.xls/.xlsx) ou CSV. São lidas as colunas monetárias Food e Paper, as Vendas Líquidas Produto e a data do relatório; as colunas % são ignoradas. Os valores entram diretamente na página Custo Comida e Papel, como uma linha nova, e ficam em edição local até guardar.</p>
         <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">
           <FileSpreadsheet size={16}/> Selecionar ficheiros
           <input type="file" multiple accept=".xlsx,.xls,.csv,.pdf" className="sr-only" onChange={e => {
@@ -868,44 +828,6 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
           }}/>
         </label>
       </div>
-      {reportPreviews.length > 0 && <div className="space-y-3">
-        {reportPreviews.map((preview, i) => <div key={`${preview.name}-${i}`} className="rounded-2xl border bg-white p-4">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet size={15} className="shrink-0 text-emerald-700"/>
-            <strong className="truncate text-sm">{preview.name}</strong>
-            <span className="ml-auto shrink-0 text-xs text-slate-500">{Math.ceil(preview.size / 1024)} KB</span>
-          </div>
-          {preview.note && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{preview.note}</p>}
-          {preview.fields ? <>
-            <p className="mt-2 text-xs text-slate-500">Folha mapeada: {preview.sheetName || '—'} · valores monetários Food/Paper, Vendas Líquidas Produto e data do relatório; percentagens não utilizadas.</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-bold text-slate-600">Data do relatório / início do período
-                <input type="date" value={preview.reportDate} onChange={e => patchReportPreview(i, { reportDate: e.target.value })} className={`${inputClass} mt-1`}/>
-              </label>
-              <label className="text-xs font-bold text-slate-600">Vendas Produto (€)
-                <input type="number" min="0" step="0.01" value={preview.productSales} onChange={e => patchReportPreview(i, { productSales: e.target.value === '' ? '' : Number(e.target.value) })} className={`${inputClass} mt-1`}/>
-              </label>
-            </div>
-            {preview.productSales === '' && <p className="mt-2 text-xs text-amber-800">O total de Vendas Produto não foi detetado neste relatório. Introduza-o para calcular as percentagens; não será inferido das colunas %.</p>}
-            <div className="mt-3 overflow-x-auto rounded-xl border">
-              <table className="min-w-[420px] w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">Linha do relatório</th><th className="p-2 text-right">Food</th><th className="p-2 text-right">Paper</th></tr></thead>
-                <tbody>{REPORT_AMOUNT_ROWS.map(row => <tr key={row.label} className="border-t">
-                  <td className="p-2 font-medium">{row.label}</td>
-                  <td className="p-2 text-right tabular-nums">{money(Number(preview.fields?.[row.food] || 0))}</td>
-                  <td className="p-2 text-right tabular-nums">{money(Number(preview.fields?.[row.paper] || 0))}</td>
-                </tr>)}</tbody>
-              </table>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">Os registos existentes não são substituídos. Depois de importar, reveja e guarde na página Custo Comida e Papel.</p>
-              <button type="button" disabled={Boolean(preview.missingLabels?.length) || !preview.reportDate || preview.productSales === ''} onClick={() => importReportToFoodCost(i)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
-                <Download size={15}/> Importar para Custo Comida
-              </button>
-            </div>
-          </> : preview.sample.length > 0 && <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><tbody>{preview.sample.map((row, r) => <tr key={r} className="border-t">{row.map((cell, c) => <td key={c} className="max-w-56 truncate px-2 py-1.5">{cell}</td>)}</tr>)}</tbody></table></div>}
-        </div>)}
-      </div>}
     </>}
   </div>;
 };
