@@ -11,10 +11,11 @@ service cloud.firestore {
     // 1. Authentication → Sign-in method → ativar **Email/Password**.
     // 2. Authentication → Users → criar uma conta por loja (o utilizador da
     //    unidade convertido em email `<utilizador>@controlos.app`).
-    // 3. Firestore → `restaurants/{id}` das lojas antigas → adicionar os campos
-    //    `memberUids: ["<uid da conta>"]` e `ownerUid: "<uid da conta>"`.
-    // Sem o passo 3 as lojas existentes ficam inacessíveis (por desenho: só o
-    // acesso à consola concede acesso a dados já existentes).
+    // 3. Lojas antigas: no ecrã de entrada usar **Ligar Unidade** com o
+    //    utilizador da loja — a app acrescenta `memberUids`/`ownerUid` sem
+    //    alterar dados. Alternativa manual: Firestore → `restaurants/{id}` →
+    //    `memberUids: ["<uid>"]` e `ownerUid: "<uid>"` (a consola não é
+    //    afetada por estas regras).
 
     function isSignedIn() {
       return request.auth != null;
@@ -34,7 +35,9 @@ service cloud.firestore {
     match /restaurants/{restaurantId} {
       // Listar exige a query `where('memberUids', 'array-contains', uid)`.
       allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
-      allow get: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      // Leitura por ID: membro da loja, ou conta que a vai ligar (ver MIGRAÇÃO).
+      allow get: if isSignedIn()
+        && (request.auth.uid in resource.data.memberUids || !('memberUids' in resource.data));
 
       allow create: if isSignedIn()
         && isValidId(restaurantId)
@@ -55,8 +58,6 @@ service cloud.firestore {
       // `memberUids`/`ownerUid` e a apagar a antiga `password` em texto simples:
       // nenhum outro campo e nenhuma subcoleção são afetados.
       // REMOVER este bloco quando todas as lojas antigas estiverem associadas.
-      allow get: if isSignedIn() && !('memberUids' in resource.data);
-
       allow update: if isSignedIn()
         && !('memberUids' in resource.data)
         && !('password' in request.resource.data)
