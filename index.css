@@ -432,6 +432,15 @@ html.dark ::-webkit-scrollbar-thumb {
   body.printing-objectives-overview #objectives-overview-table thead th { font-size: 5.6pt !important; padding: 0.7mm 0.5mm !important; }
   body.printing-objectives-overview #objectives-overview-table td > div { gap: 0.5mm !important; }
   body.printing-objectives-overview #objectives-overview-table .objective-overview-trend { display: none !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-target { margin-bottom: 0.4mm !important; }
+  body.printing-objectives-overview #objectives-overview-table .objective-overview-target > span {
+    padding: 0.2mm 0.9mm !important;
+    font-size: 5.2pt !important;
+    border-width: 0.2mm !important;
+    border-radius: 0.6mm !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
   body.printing-objectives-overview #objectives-overview-table .objective-status-badge {
     padding: 0.4mm 1mm !important;
     font-size: 5.2pt !important;

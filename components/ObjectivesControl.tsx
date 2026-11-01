@@ -719,12 +719,11 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Objetivo</th>
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Pontos possíveis</th>
               {overviewCheckpoints.map(cp =>
-                <th key={cp.id} colSpan={3} className="border-l border-slate-200 p-3 text-center font-bold">{cp.label}</th>
+                <th key={cp.id} colSpan={2} className="border-l border-slate-200 p-3 text-center font-bold">{cp.label}</th>
               )}
             </tr>
             <tr>{overviewCheckpoints.flatMap(cp => [
-              <th key={`${cp.id}-target`} className="border-l border-slate-200 p-2 text-center">Objetivo</th>,
-              <th key={`${cp.id}-result`} className="p-2 text-center">Resultado</th>,
+              <th key={`${cp.id}-result`} className="border-l border-slate-200 p-2 text-center">Objetivo e resultado</th>,
               <th key={`${cp.id}-status`} className="p-2 text-center">Estado</th>,
             ])}</tr>
           </thead>
@@ -748,8 +747,8 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 const trendText = trend === 'improved' ? '↑ Melhorou' : trend === 'worsened' ? '↓ Piorou' : trend === 'same' ? '→ Sem alteração' : '';
                 const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
                 return [
-                  <td key={`${g.id}-${cp.id}-target`} className="border-l border-slate-100 p-2 text-center font-semibold">{value?.target === undefined || Number(value.target) === 0 ? '—' : formatNumber(Number(value.target))}</td>,
-                  <td key={`${g.id}-${cp.id}-result`} className="p-2 text-center">
+                  <td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2 text-center">
+                    {value?.target !== undefined && Number(value.target) !== 0 && <div className="objective-overview-target mb-1 flex justify-center"><span className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900">{formatNumber(Number(value.target))}</span></div>}
                     <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`objective-overview-trend whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
                   </td>,
                   <td key={`${g.id}-${cp.id}-status`} className="p-2 text-center">
@@ -758,12 +757,12 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 ];
               })}
             </tr>)}
-            {goals.length === 0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4 + overviewCheckpoints.length * 3} />}
+            {goals.length === 0 && <EmptyRow text="Ainda não há objetivos neste mês. Configure-os na aba Objetivos." colSpan={4 + overviewCheckpoints.length * 2} />}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700">
               <td colSpan={4} className="objective-overview-primary-column p-3"></td>
-              {overviewCheckpoints.map(cp => <td key={`${cp.id}-percentage`} colSpan={3} className="border-l border-slate-200 p-3 text-center">
+              {overviewCheckpoints.map(cp => <td key={`${cp.id}-percentage`} colSpan={2} className="border-l border-slate-200 p-3 text-center">
                 {/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}
               </td>)}
             </tr>
