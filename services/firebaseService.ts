@@ -353,29 +353,57 @@ export async function saveRestaurant(
  * `memberUids` e remove a antiga `password` em texto simples. As regras
  * Firestore limitam a escrita exatamente a essa alteração.
  */
+// IDs das unidades criadas pelo instalador original. Servem de ponto de partida
+// para a associação única; a lista é completada com o que estiver em cache local.
+const LEGACY_STORE_IDS = ['via_1', 'imp_1'];
+
+function legacyCandidates(username: string): string[] {
+  const target = username.trim().toLocaleLowerCase('pt-PT');
+  const ids = new Set<string>(LEGACY_STORE_IDS);
+
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('app_all_restaurants')) continue;
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(parsed)) continue;
+      for (const item of parsed as AppSettings[]) {
+        if (!item?.restaurantId) continue;
+        if ((item.username || '').trim().toLocaleLowerCase('pt-PT') !== target) continue;
+        ids.add(item.restaurantId);
+      }
+    }
+  } catch {
+    // cache local ilegível: seguimos apenas com os IDs conhecidos
+  }
+
+  return Array.from(ids);
+}
+
 export async function claimLegacyStore(username: string): Promise<AppSettings | null> {
   const uid = auth.currentUser?.uid ?? null;
   const target = username.trim().toLocaleLowerCase('pt-PT');
   if (!uid || !target) return null;
 
-  const snap = await getDocs(
-    query(collection(db, 'restaurants'), where('ownerUid', '==', null))
-  );
-
-  for (const candidate of snap.docs) {
-    const data = candidate.data() as AppSettings & { password?: string };
-    if (data.memberUids && data.memberUids.length > 0) continue;
-    if ((data.username || '').trim().toLocaleLowerCase('pt-PT') !== target) continue;
-
+  // Leitura por ID conhecido: não depende de queries com valores nulos (que não
+  // encontram documentos onde o campo não existe).
+  for (const restaurantId of legacyCandidates(username)) {
     try {
-      await updateDoc(doc(db, 'restaurants', candidate.id), {
+      const snap = await getDoc(doc(db, 'restaurants', restaurantId));
+      if (!snap.exists()) continue;
+
+      const data = snap.data() as AppSettings & { password?: string };
+      if (data.memberUids && data.memberUids.length > 0) continue;
+      if ((data.username || '').trim().toLocaleLowerCase('pt-PT') !== target) continue;
+
+      await updateDoc(doc(db, 'restaurants', restaurantId), {
         ownerUid: uid,
         memberUids: [uid],
         password: deleteField(),
       });
       return { ...data, ownerUid: uid, memberUids: [uid] };
     } catch (error) {
-      console.warn(`[Migração] Não foi possível ligar a loja ${candidate.id}:`, error);
+      console.warn(`[Migração] Não foi possível ligar a loja ${restaurantId}:`, error);
     }
   }
 

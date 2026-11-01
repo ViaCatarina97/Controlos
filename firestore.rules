@@ -49,18 +49,16 @@ service cloud.firestore {
       allow delete: if false;
 
       // --- MIGRAÇÃO (TEMPORÁRIO) ---
-      // Lojas criadas antes do isolamento não têm `memberUids`. Permitir que a
-      // conta autenticada se ligue a elas SEM tocar nos dados já gravados: a
-      // alteração fica limitada a acrescentar `memberUids`/`ownerUid` e a apagar
-      // a antiga `password` em texto simples. Nenhuma subcoleção é afetada.
+      // Lojas criadas antes do isolamento não têm `memberUids`. A ausência do
+      // campo é verificada com `in` (uma comparação `== null` falha em regras
+      // quando o campo não existe). A escrita fica limitada a acrescentar
+      // `memberUids`/`ownerUid` e a apagar a antiga `password` em texto simples:
+      // nenhum outro campo e nenhuma subcoleção são afetados.
       // REMOVER este bloco quando todas as lojas antigas estiverem associadas.
-      allow list: if isSignedIn()
-        && resource.data.memberUids == null
-        && resource.data.ownerUid == null;
+      allow get: if isSignedIn() && !('memberUids' in resource.data);
 
       allow update: if isSignedIn()
-        && resource.data.memberUids == null
-        && resource.data.ownerUid == null
+        && !('memberUids' in resource.data)
         && !('password' in request.resource.data)
         && request.resource.data.memberUids == [request.auth.uid]
         && request.resource.data.ownerUid == request.auth.uid
