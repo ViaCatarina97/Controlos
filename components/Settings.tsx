@@ -43,7 +43,7 @@ import {
 
 interface SettingsProps {
   settings: AppSettings;
-  onSaveSettings: (settings: AppSettings) => void;
+  onSaveSettings: (settings: AppSettings) => Promise<void> | void;
   employees: Employee[];
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
   onImportFullData: (data: any) => void;
@@ -113,26 +113,30 @@ export const Settings: React.FC<SettingsProps> = ({
     );
   }, [localSettings, settings]);
 
+  const persistSettings = async (updated: AppSettings) => {
+    setLocalSettings(updated);
+    try {
+      await onSaveSettings(updated);
+      return true;
+    } catch (error) {
+      console.error('Falha ao persistir definições da loja:', error);
+      toast('Não foi possível guardar as definições. Tente novamente.', 'error');
+      return false;
+    }
+  };
+
   const toggleShift = (shiftId: ShiftType) => {
-    setLocalSettings(prev => {
-      const activeShifts = prev.activeShifts.includes(shiftId)
-        ? prev.activeShifts.filter(s => s !== shiftId)
-        : [...prev.activeShifts, shiftId];
-      const updated = { ...prev, activeShifts };
-      onSaveSettings(updated);
-      return updated;
-    });
+    const activeShifts = localSettings.activeShifts.includes(shiftId)
+      ? localSettings.activeShifts.filter(s => s !== shiftId)
+      : [...localSettings.activeShifts, shiftId];
+    void persistSettings({ ...localSettings, activeShifts });
   };
 
   const toggleArea = (area: BusinessArea) => {
-    setLocalSettings(prev => {
-      const businessAreas = prev.businessAreas.includes(area)
-        ? prev.businessAreas.filter(a => a !== area)
-        : [...prev.businessAreas, area];
-      const updated = { ...prev, businessAreas };
-      onSaveSettings(updated);
-      return updated;
-    });
+    const businessAreas = localSettings.businessAreas.includes(area)
+      ? localSettings.businessAreas.filter(a => a !== area)
+      : [...localSettings.businessAreas, area];
+    void persistSettings({ ...localSettings, businessAreas });
   };
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,9 +155,10 @@ export const Settings: React.FC<SettingsProps> = ({
     reader.readAsText(file);
   };
 
-  const handleSaveStations = () => {
-    onSaveSettings(localSettings);
-    toast('Áreas e postos de trabalho guardados!', 'success');
+  const handleSaveStations = async () => {
+    if (await persistSettings(localSettings)) {
+      toast('Áreas e postos de trabalho guardados!', 'success');
+    }
   };
 
   const handleOpenStationModal = (station?: StationConfig, defaultZone: FloorPlanZoneId = 'grills') => {
@@ -182,22 +187,24 @@ export const Settings: React.FC<SettingsProps> = ({
     setIsStationModalOpen(true);
   };
 
-  const handleSaveStation = () => {
+  const handleSaveStation = async () => {
     if (!editingStation || !editingStation.label.trim()) return;
     const normalizedStation: StationConfig = {
       ...editingStation,
       designation: (editingStation.designation || editingStation.label).trim().toUpperCase(),
       label: editingStation.label.trim(),
     };
-    setLocalSettings(prev => {
-      const exists = prev.customStations.some(s => s.id === normalizedStation.id);
-      const updatedStations = exists
-        ? prev.customStations.map(s => (s.id === normalizedStation.id ? normalizedStation : s))
-        : [...prev.customStations, normalizedStation];
-      return { ...prev, customStations: updatedStations };
-    });
-    setIsStationModalOpen(false);
-    setEditingStation(null);
+    const stations = localSettings.customStations || [];
+    const exists = stations.some(s => s.id === normalizedStation.id);
+    const updatedStations = exists
+      ? stations.map(s => (s.id === normalizedStation.id ? normalizedStation : s))
+      : [...stations, normalizedStation];
+    const updatedSettings = { ...localSettings, customStations: updatedStations };
+    if (await persistSettings(updatedSettings)) {
+      toast('Posto guardado na loja.', 'success');
+      setIsStationModalOpen(false);
+      setEditingStation(null);
+    }
   };
 
   const handleDeleteStation = (id: string) => {
@@ -251,8 +258,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   value={localSettings.restaurantName}
                   onChange={e => {
                     const updated = { ...localSettings, restaurantName: e.target.value };
-                    setLocalSettings(updated);
-                    onSaveSettings(updated);
+                    void persistSettings(updated);
                   }}
                 />
               </div>
@@ -269,8 +275,7 @@ export const Settings: React.FC<SettingsProps> = ({
                       ...localSettings,
                       restaurantType: e.target.value as RestaurantTypology,
                     };
-                    setLocalSettings(updated);
-                    onSaveSettings(updated);
+                    void persistSettings(updated);
                   }}
                 >
                   {AVAILABLE_TYPOLOGIES.map(t => (
@@ -686,7 +691,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   onClick={handleSaveStation}
                   className="flex-1 py-2.5 bg-slate-900 text-white font-extrabold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5 text-xs"
                 >
-                  <Check size={16} /> Aplicar
+                  <Check size={16} /> Guardar posto
                 </button>
               </div>
             </div>
@@ -698,9 +703,8 @@ export const Settings: React.FC<SettingsProps> = ({
         isOpen={fullEditorOpen}
         onClose={() => setFullEditorOpen(false)}
         settings={localSettings}
-        onSaveSettings={updated => {
-          setLocalSettings(updated);
-          onSaveSettings(updated);
+        onSaveSettings={async updated => {
+          if (!(await persistSettings(updated))) throw new Error('A gravação das definições falhou.');
           toast('Áreas, linhas e postos atualizados!', 'success');
         }}
         initialZone={fullEditorZone}

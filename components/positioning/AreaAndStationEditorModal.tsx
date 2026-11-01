@@ -77,11 +77,13 @@ export const AreaAndStationEditorModal: React.FC<AreaAndStationEditorModalProps>
   const [zoneFilter, setZoneFilter] = useState<FloorPlanZoneId | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
     setLabelsDraft(resolveFloorPlanLabels(settings.floorPlanLabels));
     setStationsDraft(settings.customStations || []);
+    setSaveError('');
     setActiveTab(initialStationId ? 'stations' : initialTab);
     setZoneFilter(initialZone || 'ALL');
     setSearchQuery('');
@@ -175,6 +177,7 @@ export const AreaAndStationEditorModal: React.FC<AreaAndStationEditorModalProps>
 
   const handleSaveAll = async () => {
     setIsSaving(true);
+    setSaveError('');
     try {
       await onSaveSettings({
         ...settings,
@@ -182,6 +185,9 @@ export const AreaAndStationEditorModal: React.FC<AreaAndStationEditorModalProps>
         customStations: stationsDraft,
       });
       onClose();
+    } catch (error) {
+      console.error('Falha ao guardar áreas e postos:', error);
+      setSaveError('Não foi possível guardar as alterações. Verifique a ligação e tente novamente.');
     } finally {
       setIsSaving(false);
     }
@@ -625,6 +631,8 @@ export const AreaAndStationEditorModal: React.FC<AreaAndStationEditorModalProps>
             </div>
           )}
         </div>
+
+        {saveError && <div role="alert" className="mx-5 mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">{saveError}</div>}
 
         {/* Footer */}
         <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between gap-3">
