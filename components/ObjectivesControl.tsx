@@ -680,14 +680,14 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table id="objectives-overview-table" className="min-w-[1500px] w-full text-left text-xs">
           <thead className="bg-slate-50 uppercase text-slate-500">
-            <tr>
-              <th rowSpan={2} className="objective-overview-primary-column p-3 font-bold">Responsável</th>
-              <th rowSpan={2} className="objective-overview-primary-column p-3 font-bold">Tema</th>
+            <tr className="font-bold text-slate-800">
+              <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Responsável</th>
+              <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Tema</th>
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Objetivo</th>
               <th rowSpan={2} className="objective-overview-primary-column p-3 text-center font-bold">Pontos possíveis</th>
               {overviewCheckpoints.map(cp => {
                 const isCurrentWeek = cp.id === currentWeekId;
-                return <th key={cp.id} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${isCurrentWeek ? 'objective-overview-current-week-group' : ''}`}>
+                return <th key={cp.id} colSpan={2} className={`border-l border-slate-200 p-3 text-center font-bold ${isCurrentWeek ? 'objective-overview-current-week-group' : ''}`}>
                   {cp.label}{isCurrentWeek && <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-900">Atual</span>}
                 </th>;
               })}
@@ -734,7 +734,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200 bg-slate-50 font-extrabold text-slate-700">
-              <td colSpan={4} className="objective-overview-primary-column p-3 text-right">Resultado semanal · pontos obtidos / possíveis</td>
+              <td colSpan={4} className="objective-overview-primary-column p-3"></td>
               {overviewCheckpoints.map(cp => <td key={`${cp.id}-percentage`} colSpan={2} className={`border-l border-slate-200 p-3 text-center ${cp.id === currentWeekId ? 'objective-overview-current-week-group objective-overview-current-week-start objective-overview-current-week-end' : ''}`}>
                 {/^week-\d+$/.test(cp.id) ? formatPercent(getPointsPercentage(cp.id)) : '—'}
               </td>)}
