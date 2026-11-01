@@ -723,7 +723,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
               )}
             </tr>
             <tr>{overviewCheckpoints.flatMap(cp => [
-              <th key={`${cp.id}-result`} className="border-l border-slate-200 p-2 text-center">Objetivo e resultado</th>,
+              <th key={`${cp.id}-result`} className="border-l border-slate-200 p-2 text-center"><span className="print:hidden">Objetivo e resultado</span><span className="hidden print:inline">Obj. / Result.</span></th>,
               <th key={`${cp.id}-status`} className="p-2 text-center">Estado</th>,
             ])}</tr>
           </thead>
@@ -748,8 +748,9 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
                 const trendClass = trend === 'improved' ? 'text-green-700' : trend === 'worsened' ? 'text-rose-700' : 'text-slate-500';
                 return [
                   <td key={`${g.id}-${cp.id}-result`} className="border-l border-slate-100 p-2 text-center">
-                    {value?.target !== undefined && Number(value.target) !== 0 && <div className="objective-overview-target mb-1 flex justify-center"><span className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900">{formatNumber(Number(value.target))}</span></div>}
-                    <div className="flex flex-wrap items-center justify-center gap-1.5"><span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`objective-overview-trend whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
+                    <div className="flex flex-col items-center justify-center gap-1 print:flex-row print:flex-nowrap print:gap-1.5">
+                    {value?.target !== undefined && Number(value.target) !== 0 && <span className="objective-overview-target rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900">{formatNumber(Number(value.target))}</span>}
+                    <span>{value?.result ?? '—'}</span>{trendText && <span title="Comparação com a semana anterior" aria-label={`Face à semana anterior: ${trendText.replace(/^[↑↓→] /, '')}`} className={`objective-overview-trend whitespace-nowrap text-[10px] font-bold ${trendClass}`}>{trendText}</span>}</div>
                   </td>,
                   <td key={`${g.id}-${cp.id}-status`} className="p-2 text-center">
                     <span className={`objective-status-badge rounded-full px-2 py-1 font-bold ${statusTone(value?.status)}`}>{value?.status || '—'}</span>
@@ -769,6 +770,7 @@ const ObjectivesControl: React.FC<ObjectivesControlProps> = ({ restaurantId, emp
           </tfoot>
         </table>
       </div>
+      <div id="objectives-overview-print-footer" className="hidden print:flex"><span>Controlos · Visão Geral de {MONTH_NAMES[Number(selectedMonth.slice(5))-1]} {selectedMonth.slice(0,4)}</span><span>Impresso em {new Date().toLocaleDateString('pt-PT')}</span></div>
       <div className="flex flex-wrap justify-end gap-2 print:hidden"><button disabled={!draft||!goals.length||saving} onClick={submitMonth} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Send size={15}/> Submeter mês para Histórico</button></div>
     </section>}
 
