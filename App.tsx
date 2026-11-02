@@ -13,6 +13,7 @@ import { ManagerTasks } from './components/ManagerTasks';
 import { DigitalAgenda } from './components/DigitalAgenda';
 import { TodayReminderModal } from './components/TodayReminderModal';
 import { CleaningPlanModule } from './components/cleaning/CleaningPlanModule';
+import SafetyControl, { SAFETY_TABS } from './components/SafetyControl';
 import ObjectivesControl from './components/ObjectivesControl';
 import {
   AppSettings,
@@ -92,6 +93,7 @@ import {
   Sun,
   Moon,
   Target,
+  ShieldCheck,
 } from 'lucide-react';
 
 type ModuleType =
@@ -101,6 +103,7 @@ type ModuleType =
   | 'manager_tasks'
   | 'agenda'
   | 'cleaning_plan'
+  | 'safety'
   | 'objectives';
 
 const ADMIN_PASSWORD = 'Imperial96';
@@ -133,6 +136,10 @@ const MODULE_META: Record<ModuleType, { title: string; subtitle: string }> = {
   objectives: {
     title: 'Objetivos',
     subtitle: 'Acompanhamento de objetivos operacionais e financeiros',
+  },
+  safety: {
+    title: 'Prevenção e Segurança',
+    subtitle: 'HST, equipamentos de segurança, políticas da unidade e formação',
   },
 };
 
@@ -606,6 +613,7 @@ const App: React.FC = () => {
     else if (module === 'agenda') setActiveTab('agenda_calendar');
     else if (module === 'cleaning_plan') setActiveTab('cleaning_plan');
     else if (module === 'objectives') setActiveTab('objectives_overview');
+    else if (module === 'safety') setActiveTab('safety_overview');
   };
 
   const handleSaveAgendaEvent = async (event: AgendaEvent) => {
@@ -1048,6 +1056,13 @@ const App: React.FC = () => {
           { id: 'history', label: 'Resumo & Validação', short: 'Validação', icon: TrendingUp },
           { id: 'admin', label: 'Configurar Tarefas', short: 'Tarefas', icon: FileText },
         ]
+      : activeModule === 'safety'
+      ? SAFETY_TABS.map(tab => ({
+          id: tab.id,
+          label: tab.label,
+          short: tab.short,
+          icon: tab.icon,
+        }))
       : activeModule === 'agenda'
       ? [{ id: 'agenda_calendar', label: 'Calendário Operacional', short: 'Agenda', icon: CalendarDays }]
       : [{ id: 'cleaning_plan', label: 'Plano & Desempenho', short: 'Limpeza', icon: Sparkles }];
@@ -1478,6 +1493,14 @@ const App: React.FC = () => {
             <CleaningPlanModule
               restaurantId={activeRestaurant.restaurantId}
               employees={currentEmployees}
+            />
+          )}
+
+          {activeModule === 'safety' && (
+            <SafetyControl
+              restaurantId={activeRestaurant.restaurantId}
+              activeSubTab={activeTab}
+              onTabChange={setActiveTab}
             />
           )}
 

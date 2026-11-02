@@ -42,6 +42,7 @@ import {
   Moon,
   Sun,
   Target,
+  ShieldCheck,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts';
 
@@ -52,6 +53,7 @@ type ModuleKey =
   | 'manager_tasks'
   | 'agenda'
   | 'cleaning_plan'
+  | 'safety'
   | 'objectives';
 
 interface ModuleSelectorProps {
@@ -797,6 +799,14 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
                 icon: Sparkles,
                 accent: 'bg-teal-50 text-teal-700',
                 meta: 'Controlo semanal por área e turno',
+              },
+              {
+                key: 'safety' as ModuleKey,
+                title: 'Prevenção e Segurança',
+                desc: 'HST, primeiros socorros, extinção de incêndios, iluminação de emergência, controlo de pragas, políticas de vidros e alergénios e formação.',
+                icon: ShieldCheck,
+                accent: 'bg-rose-50 text-rose-700',
+                meta: 'Controlo de segurança e conformidade',
               },
               {
                 key: 'objectives' as ModuleKey,
