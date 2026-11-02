@@ -1,17 +1,14 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  Gift,
-  Megaphone,
-  Heart,
-  Flame,
-  Lightbulb,
-  Bug,
   ClipboardCheck,
   Users,
-  FileText,
+  Flame,
+  Map,
+  Lightbulb,
+  Heart,
+  Megaphone,
   ShieldAlert,
-  GraduationCap,
   ArrowRight,
 } from 'lucide-react';
 
@@ -24,8 +21,9 @@ export interface SafetyTab {
 }
 
 /**
- * Estrutura de abas herdada da folha "Prevenção e Segurança":
- * o Índice da folha define as áreas e cada uma ganha aqui o seu separador.
+ * Abas mantidas do módulo de Prevenção e Segurança, alinhadas com a folha
+ * de controlo da unidade (livro de verificações, extintores, iluminação,
+ * mala de primeiros socorros, mapas e sensibilização mensal).
  */
 export const SAFETY_TABS: SafetyTab[] = [
   {
@@ -34,14 +32,58 @@ export const SAFETY_TABS: SafetyTab[] = [
     short: 'Visão',
     icon: LayoutDashboard,
     description:
-      'Índice dos separadores de Prevenção e Segurança previstos para a unidade.',
+      'Índice das secções de Prevenção e Segurança da unidade e acesso direto a cada uma.',
   },
   {
-    id: 'caixa_surpresa',
-    label: 'Caixa Surpresa',
-    short: 'Caixa',
-    icon: Gift,
-    description: 'Registo das caixas surpresa de prevenção e segurança da unidade.',
+    id: 'lv_prevencao',
+    label: 'Lv Prevenção e Segurança',
+    short: 'LV P&S',
+    icon: ClipboardCheck,
+    description: 'Livro de verificações de Prevenção e Segurança da unidade.',
+  },
+  {
+    id: 'funcionarios',
+    label: 'Lista Funcionários',
+    short: 'Equipa',
+    icon: Users,
+    description:
+      'Funcionários em funções, posto de trabalho e número de colaboradores da unidade.',
+  },
+  {
+    id: 'extintores',
+    label: 'Extintores',
+    short: 'Extintores',
+    icon: Flame,
+    description:
+      'Verificação do equipamento de extinção de incêndios: extintores, validade e responsável.',
+  },
+  {
+    id: 'iluminacao',
+    label: 'Iluminação',
+    short: 'Iluminação',
+    icon: Lightbulb,
+    description: 'Verificação das luzes de emergência da unidade.',
+  },
+  {
+    id: 'mala_socorros',
+    label: 'Mala Primeiros Socorros',
+    short: 'Mala',
+    icon: Heart,
+    description: 'Verificação do conteúdo e das validades da mala de primeiros socorros.',
+  },
+  {
+    id: 'mapa_iluminacao',
+    label: 'Mapa Iluminação',
+    short: 'Mapa Ilum.',
+    icon: Map,
+    description: 'Mapa da unidade com a localização das luzes de emergência.',
+  },
+  {
+    id: 'mapa_extintores',
+    label: 'Mapa Extintores',
+    short: 'Mapa Ext.',
+    icon: Map,
+    description: 'Mapa da unidade com a localização dos extintores e da sinalética.',
   },
   {
     id: 'sensibilizacao',
@@ -49,78 +91,6 @@ export const SAFETY_TABS: SafetyTab[] = [
     short: 'Sensibil.',
     icon: Megaphone,
     description: 'Sensibilização mensal das equipas em matéria de segurança e higiene.',
-  },
-  {
-    id: 'primeiros_socorros',
-    label: 'Material Primeiros Socorros',
-    short: 'Socorros',
-    icon: Heart,
-    description: 'Material de primeiros socorros disponível e respetiva verificação.',
-  },
-  {
-    id: 'incendios',
-    label: 'Equipamento Extinção Incêndios',
-    short: 'Incêndios',
-    icon: Flame,
-    description:
-      'Mapa e verificação do equipamento de extinção de incêndios (extintores, mantas e sinalética).',
-  },
-  {
-    id: 'iluminacao',
-    label: 'Iluminação de Emergência',
-    short: 'Iluminação',
-    icon: Lightbulb,
-    description: 'Mapa e verificação das luzes de emergência da unidade.',
-  },
-  {
-    id: 'pragas',
-    label: 'Controlo de Pragas',
-    short: 'Pragas',
-    icon: Bug,
-    description: 'Registo do controlo de pragas e respetiva verificação.',
-  },
-  {
-    id: 'lv_prevencao',
-    label: 'LV Prevenção e Segurança',
-    short: 'LV P&S',
-    icon: ClipboardCheck,
-    description: 'Livro de verificações de Prevenção e Segurança.',
-  },
-  {
-    id: 'consulta_hst',
-    label: 'Consulta aos Trabalhadores de HST',
-    short: 'Consulta HST',
-    icon: Users,
-    description:
-      'Consulta aos trabalhadores em matéria de Higiene e Segurança no Trabalho.',
-  },
-  {
-    id: 'politica_vidros',
-    label: 'Política de Vidros / Checklist',
-    short: 'Vidros',
-    icon: FileText,
-    description: 'Política de vidros da unidade e checklist associada.',
-  },
-  {
-    id: 'politica_alergenios',
-    label: 'Política de Alergénios',
-    short: 'Alergénios',
-    icon: ShieldAlert,
-    description: 'Política de alergénios e controlo de aplicação na loja.',
-  },
-  {
-    id: 'formacao',
-    label: 'Formação',
-    short: 'Formação',
-    icon: GraduationCap,
-    description: 'Formação ministrada às equipas e validade das ações.',
-  },
-  {
-    id: 'funcionarios',
-    label: 'Lista de Funcionários',
-    short: 'Equipa',
-    icon: Users,
-    description: 'Lista de funcionários usada nas consultas e ações de HST.',
   },
 ];
 
@@ -142,8 +112,7 @@ const EmptySectionCard: React.FC<{ tab: SafetyTab }> = ({ tab }) => {
       </h4>
       <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
         O separador <strong className="text-slate-700">{tab.label}</strong> já está integrado na
-        navegação do módulo. Os registos, checklists e mapas desta secção são definidos depois de
-        fechar a lista de abas.
+        navegação do módulo. Os registos desta secção são construídos a seguir.
       </p>
     </div>
   );
@@ -161,9 +130,9 @@ const SafetyOverview: React.FC<{ onTabChange?: (tab: string) => void }> = ({ onT
             Prevenção e Segurança
           </h3>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-2xl">
-            Áreas de HST, equipamentos de segurança e políticas da unidade, organizadas pelos
-            separadores da folha de controlo. As abas sem dados ficam prontas a receber os
-            registos operacionais.
+            Controlo de HST da unidade: livro de verificações, extintores e iluminação de
+            emergência com os respetivos mapas, mala de primeiros socorros, lista de funcionários
+            e sensibilização mensal das equipas.
           </p>
         </div>
       </div>
@@ -203,12 +172,8 @@ const SafetyOverview: React.FC<{ onTabChange?: (tab: string) => void }> = ({ onT
   </>
 );
 
-const SafetyControl: React.FC<SafetyControlProps> = ({
-  activeSubTab,
-  onTabChange,
-}) => {
-  const activeTab =
-    SAFETY_TABS.find(tab => tab.id === activeSubTab) ?? SAFETY_TABS[0];
+const SafetyControl: React.FC<SafetyControlProps> = ({ activeSubTab, onTabChange }) => {
+  const activeTab = SAFETY_TABS.find(tab => tab.id === activeSubTab) ?? SAFETY_TABS[0];
 
   if (activeTab.id === 'safety_overview') {
     return (

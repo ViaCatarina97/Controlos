@@ -803,7 +803,7 @@ export const ModuleSelector: React.FC<ModuleSelectorProps> = ({
               {
                 key: 'safety' as ModuleKey,
                 title: 'Prevenção e Segurança',
-                desc: 'HST, primeiros socorros, extinção de incêndios, iluminação de emergência, controlo de pragas, políticas de vidros e alergénios e formação.',
+                desc: 'Livro de verificações de HST, extintores e iluminação de emergência com mapas, mala de primeiros socorros, lista de funcionários e sensibilização mensal.',
                 icon: ShieldCheck,
                 accent: 'bg-rose-50 text-rose-700',
                 meta: 'Controlo de segurança e conformidade',
